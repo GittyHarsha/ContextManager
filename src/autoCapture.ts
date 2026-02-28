@@ -141,22 +141,35 @@ function stripPrivacyTags(text: string): string {
 function classifyObservation(prompt: string, response: string): ObservationType {
 	const combined = (prompt + ' ' + response).toLowerCase();
 
-	if (/\b(fix|bug|error|crash|broken|issue|regression|patch|hotfix)\b/.test(combined)) {
-		return 'bugfix';
+	// Score each category by counting keyword hits — highest score wins.
+	// This avoids greedy first-match where broad patterns steal everything.
+	const scores: Record<ObservationType, number> = {
+		bugfix: 0, feature: 0, refactor: 0, decision: 0, discovery: 0, change: 0,
+	};
+
+	const patterns: [ObservationType, RegExp][] = [
+		['bugfix',    /\b(fix(ed|es|ing)?|bug(s|gy)?|error|crash(ed|es)?|broken|regression|patch|hotfix|defect|fault)\b/g],
+		['feature',   /\b(add(ed|s|ing)?|implement(ed|s|ing)?|new feature|introduce[ds]?|support(s|ed|ing)? for|wire[ds]? up|enabl(e[ds]?|ing))\b/g],
+		['refactor',  /\b(refactor(ed|s|ing)?|restructur(e[ds]?|ing)|reorganiz(e[ds]?|ing)|clean(ed|ing)? up|renam(e[ds]?|ing)|extract(ed|s|ing)?|split(ting)? into|mov(e[ds]?|ing) to)\b/g],
+		['decision',  /\b(should we|trade-?off|decision|chose|approach|alternative|pros and cons|why did|rationale|design choice|weigh(ed|ing)?)\b/g],
+		['discovery', /\b(how does|what is|explain(ed|s|ing)?|understand(ing)?|investigat(e[ds]?|ing)|look(ed|ing)? into|find out|where is|search(ed|ing)? for|discover(ed|y)?|learn(ed|ing)?)\b/g],
+	];
+
+	for (const [type, regex] of patterns) {
+		const matches = combined.match(regex);
+		if (matches) { scores[type] = matches.length; }
 	}
-	if (/\b(add|implement|create|new feature|build|introduce|support for)\b/.test(combined)) {
-		return 'feature';
+
+	// Pick the type with the highest score; ties broken by pattern order above
+	let best: ObservationType = 'change';
+	let bestScore = 0;
+	for (const [type] of patterns) {
+		if (scores[type] > bestScore) {
+			bestScore = scores[type];
+			best = type;
+		}
 	}
-	if (/\b(refactor|restructure|reorganize|clean up|rename|extract|move to|split into)\b/.test(combined)) {
-		return 'refactor';
-	}
-	if (/\b(should we|trade-?off|decision|chose|approach|alternative|pros and cons|why did|rationale)\b/.test(combined)) {
-		return 'decision';
-	}
-	if (/\b(how does|what is|explain|understand|investigate|look into|find out|where is|search for)\b/.test(combined)) {
-		return 'discovery';
-	}
-	return 'change';
+	return best;
 }
 
 function extractFilePaths(text: string): string[] {
