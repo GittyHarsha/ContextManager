@@ -1,0 +1,2396 @@
+/**
+ * Client-side JavaScript for the dashboard webview.
+ * Extracted from the _getHtmlForWebview template literal.
+ *
+ * @param activeProjectId - The ID of the currently active project (or empty string).
+ * @param initialTab      - The tab to show on load (e.g. 'overview').
+ */
+export function getDashboardScript(activeProjectId: string, initialTab: string, nonce: string): string {
+	return `<script nonce="${nonce}">
+		const vscode = acquireVsCodeApi();
+		const activeProjectId = '${activeProjectId}';
+
+		// Restore previous state
+		const previousState = vscode.getState() || {};
+
+		// ── Scroll position preservation ──
+		// Save scroll position on every scroll so it survives full re-renders
+		let _scrollSaveTimeout;
+		window.addEventListener('scroll', () => {
+			clearTimeout(_scrollSaveTimeout);
+			_scrollSaveTimeout = setTimeout(() => {
+				vscode.setState({ ...vscode.getState(), scrollTop: document.documentElement.scrollTop });
+			}, 100);
+		}, { passive: true });
+
+		// Restore scroll position after render
+		if (previousState.scrollTop) {
+			requestAnimationFrame(() => {
+				document.documentElement.scrollTop = previousState.scrollTop;
+			});
+		}
+
+		function escapeHtml(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+
+		// Sets a button to a loading state (disabled + label change). Re-render restores it.
+		function setButtonLoading(btn, label) {
+			if (!btn) return;
+			btn.disabled = true;
+			btn.textContent = label || 'Working…';
+			btn.style.opacity = '0.6';
+		}
+
+		function switchTab(tabName, saveState = true) {
+			const tabEl = document.getElementById('tab-' + tabName);
+			if (!tabEl) {
+				return;
+			}
+			const allTabBtns = document.querySelectorAll('.tab');
+			const allTabContents = document.querySelectorAll('.tab-content');
+			allTabBtns.forEach(t => {
+				t.classList.remove('active');
+				t.setAttribute('aria-selected', 'false');
+				t.setAttribute('tabindex', '-1');
+			});
+			allTabContents.forEach(t => t.style.display = 'none');
+			const tabBtn = document.querySelector('[data-tab="' + tabName + '"]');
+			if (tabBtn) {
+				tabBtn.classList.add('active');
+				tabBtn.setAttribute('aria-selected', 'true');
+				tabBtn.setAttribute('tabindex', '0');
+			}
+			tabEl.style.display = 'block';
+
+			if (saveState) {
+				vscode.setState({ ...vscode.getState(), currentTab: tabName });
+				vscode.postMessage({ command: 'setCurrentTab', tab: tabName });
+			}
+		}
+
+		// Ensure global availability for inline onclick handlers
+		window.switchTab = switchTab;
+
+		// Keyboard navigation for tab bar (ArrowLeft/Right, Home/End)
+		document.addEventListener('keydown', function(e) {
+			const tablist = document.querySelector('[role="tablist"]');
+			if (!tablist || !tablist.contains(document.activeElement)) return;
+			const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+			const currentIndex = tabs.indexOf(document.activeElement);
+			if (currentIndex === -1) return;
+			let newIndex = -1;
+			if (e.key === 'ArrowRight') {
+				newIndex = (currentIndex + 1) % tabs.length;
+			} else if (e.key === 'ArrowLeft') {
+				newIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+			} else if (e.key === 'Home') {
+				newIndex = 0;
+			} else if (e.key === 'End') {
+				newIndex = tabs.length - 1;
+			}
+			if (newIndex >= 0) {
+				e.preventDefault();
+				const tabName = tabs[newIndex].getAttribute('data-tab');
+				if (tabName) { switchTab(tabName, true); }
+				tabs[newIndex].focus();
+			}
+		});
+
+		// Fallback: delegated tab click handling in case inline onclick is ignored
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			const tabEl = target && target.closest ? target.closest('[data-tab]') : null;
+			if (tabEl) {
+				const tabName = tabEl.getAttribute('data-tab');
+				if (tabName) {
+					event.preventDefault();
+					switchTab(tabName, true);
+				}
+				return;
+			}
+
+			// Delegated handler for approve-card buttons (avoids inline onclick escaping)
+			if (target && target.closest) {
+				var approveBtn = target.closest('.approve-card-btn');
+				if (approveBtn) {
+					var row = approveBtn.closest('.distilled-card-row');
+					if (row) {
+						approveDistilledCard(row.dataset.title, row.dataset.category, row.dataset.content, row);
+					}
+					return;
+				}
+
+				// ─── Card Canvas: Tile interactions ───────────────────
+				var tileEditBtn = target.closest('.tile-edit-btn');
+				if (tileEditBtn) {
+					event.stopPropagation();
+					var tileId = tileEditBtn.getAttribute('data-id');
+					var tile = tileEditBtn.closest('.card-tile');
+					if (tileId && tile) { openTileInEditor(tileId, tile.dataset.tileType); }
+					return;
+				}
+				var tileDismissBtn = target.closest('.tile-dismiss-btn');
+				if (tileDismissBtn) {
+					event.stopPropagation();
+					var tileId = tileDismissBtn.getAttribute('data-id');
+					var tile = tileDismissBtn.closest('.card-tile');
+					if (tileId && tile) {
+						if (tile.dataset.tileType === 'queue') { rejectCandidate(tileId); }
+						else { deleteCard(tileId); }
+					}
+					return;
+				}
+				var cardTile = target.closest('.card-tile');
+				if (cardTile && !target.closest('input[type=checkbox]') && !target.closest('button')) {
+					var tileId = cardTile.dataset.tileId;
+					if (tileId) { openTileInEditor(tileId, cardTile.dataset.tileType); }
+					return;
+				}
+				var tcFileLink = target.closest('.tc-file-link');
+				if (tcFileLink) {
+					event.stopPropagation();
+					var path = tcFileLink.getAttribute('data-path');
+					if (path) { vscode.postMessage({ command: 'openFile', path: path }); }
+					return;
+				}
+				var anchorPill = target.closest('.anchor-pill');
+				if (anchorPill) {
+					event.stopPropagation();
+					var path = anchorPill.getAttribute('data-path');
+					var line = parseInt(anchorPill.getAttribute('data-line') || '0', 10);
+					if (path) { vscode.postMessage({ command: 'openFile', path: path, line: line }); }
+					return;
+				}
+
+				// Legacy queue button handlers (kept for distill/clear)
+				var distillBtn = target.closest('.queue-distill-btn');
+				if (distillBtn) {
+					distillQueue();
+					return;
+				}
+				var clearBtn = target.closest('.queue-clear-btn');
+				if (clearBtn) {
+					clearQueue();
+					return;
+				}
+				// Distilled card: toggle show more/less
+				var toggleBtn = target.closest('.distilled-toggle-btn');
+				if (toggleBtn) {
+					var row = toggleBtn.closest('.distilled-card-row');
+					if (row) {
+						var preview = row.querySelector('.distilled-card-preview');
+						var full = row.querySelector('.distilled-card-full');
+						if (full && preview) {
+							if (full.style.display === 'none') {
+								full.style.display = 'block';
+								preview.style.display = 'none';
+								toggleBtn.textContent = 'Show less';
+							} else {
+								full.style.display = 'none';
+								preview.style.display = 'block';
+								toggleBtn.textContent = 'Show more';
+							}
+						}
+					}
+					return;
+				}
+				// Distilled card: dismiss/skip
+				var dismissBtn = target.closest('.dismiss-distilled-btn');
+				if (dismissBtn) {
+					var row = dismissBtn.closest('.distilled-card-row');
+					if (row) { row.remove(); }
+					return;
+				}
+			}
+		});
+
+		function selectProject(projectId) {
+			vscode.postMessage({ command: 'setActiveProject', projectId });
+		}
+
+		function showNewProjectForm() {
+			document.getElementById('newProjectModal').style.display = 'block';
+			document.getElementById('newProjectName').focus();
+		}
+
+		function hideNewProjectForm() {
+			document.getElementById('newProjectModal').style.display = 'none';
+		}
+
+		function createProject() {
+			const name = document.getElementById('newProjectName').value.trim();
+			if (name) {
+				vscode.postMessage({ command: 'createProject', name });
+				hideNewProjectForm();
+			}
+		}
+
+		function showAddTodoForm() {
+			document.getElementById('addTodoForm').style.display = 'block';
+			document.getElementById('newTodoTitle').focus();
+			setInteracting(true);
+		}
+
+		function hideAddTodoForm() {
+			document.getElementById('addTodoForm').style.display = 'none';
+			document.getElementById('newTodoTitle').value = '';
+			document.getElementById('newTodoDesc').value = '';
+			setInteracting(false);
+		}
+
+		function addTodo() {
+			const title = document.getElementById('newTodoTitle').value.trim();
+			const description = document.getElementById('newTodoDesc').value.trim();
+			if (title && activeProjectId) {
+				vscode.postMessage({ 
+					command: 'addTodo', 
+					projectId: activeProjectId, 
+					title, 
+					description 
+				});
+				hideAddTodoForm();
+			}
+		}
+
+		function toggleTodo(todoId, currentStatus) {
+			const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+			vscode.postMessage({
+				command: 'updateTodo',
+				projectId: activeProjectId,
+				todoId,
+				updates: { status: newStatus }
+			});
+		}
+
+		function deleteTodo(todoId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({
+				command: 'deleteTodo',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		function saveTodoNotes(todoId) {
+			const el = document.getElementById('todo-notes-' + todoId);
+			if (el) {
+				vscode.postMessage({
+					command: 'updateTodo',
+					projectId: activeProjectId,
+					todoId,
+					updates: { notes: el.value }
+				});
+			}
+		}
+
+		function editTodoTitle(todoId) {
+			const span = document.getElementById('todo-title-' + todoId);
+			const input = document.getElementById('todo-title-edit-' + todoId);
+			if (span && input) {
+				span.style.display = 'none';
+				input.style.display = 'block';
+				input.focus();
+				input.select();
+			}
+		}
+
+		function saveTodoTitle(todoId) {
+			const span = document.getElementById('todo-title-' + todoId);
+			const input = document.getElementById('todo-title-edit-' + todoId);
+			if (span && input) {
+				const newTitle = input.value.trim();
+				if (newTitle) {
+					vscode.postMessage({
+						command: 'updateTodo',
+						projectId: activeProjectId,
+						todoId,
+						updates: { title: newTitle }
+					});
+				}
+				span.style.display = '';
+				input.style.display = 'none';
+			}
+		}
+
+		function cancelTodoTitle(todoId) {
+			const span = document.getElementById('todo-title-' + todoId);
+			const input = document.getElementById('todo-title-edit-' + todoId);
+			if (span && input) {
+				input.value = span.textContent.trim();
+				span.style.display = '';
+				input.style.display = 'none';
+			}
+		}
+
+		function editTodoDesc(todoId) {
+			const span = document.getElementById('todo-desc-' + todoId);
+			const textarea = document.getElementById('todo-desc-edit-' + todoId);
+			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
+			if (span && textarea && buttons) {
+				span.style.display = 'none';
+				textarea.style.display = 'block';
+				buttons.style.display = 'block';
+				setInteracting(true);
+				textarea.focus();
+			}
+		}
+
+		function saveTodoDesc(todoId) {
+			const span = document.getElementById('todo-desc-' + todoId);
+			const textarea = document.getElementById('todo-desc-edit-' + todoId);
+			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
+			if (span && textarea && buttons) {
+				setInteracting(false);
+				vscode.postMessage({
+					command: 'updateTodo',
+					projectId: activeProjectId,
+					todoId,
+					updates: { description: textarea.value }
+				});
+				span.style.display = '';
+				textarea.style.display = 'none';
+				buttons.style.display = 'none';
+			}
+		}
+
+		function cancelTodoDesc(todoId) {
+			const span = document.getElementById('todo-desc-' + todoId);
+			const textarea = document.getElementById('todo-desc-edit-' + todoId);
+			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
+			if (span && textarea && buttons) {
+				span.style.display = '';
+				textarea.style.display = 'none';
+				buttons.style.display = 'none';
+				setInteracting(false);
+			}
+		}
+
+		function runAgent(todoId) {
+			vscode.postMessage({
+				command: 'runTodoAgent',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		function continueWithPrompt(todoId) {
+			vscode.postMessage({
+				command: 'continueWithPrompt',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		function resumeTodo(todoId) {
+			vscode.postMessage({
+				command: 'resumeTodo',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		function viewTodoDetails(todoId) {
+			vscode.postMessage({
+				command: 'viewTodoDetails',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		function viewTodoHistory(todoId) {
+			vscode.postMessage({
+				command: 'viewTodoHistory',
+				projectId: activeProjectId,
+				todoId
+			});
+		}
+
+		let _contextSaveTimer = null;
+		function saveContext() {
+			const goals = document.getElementById('contextGoals')?.value || '';
+			const conventions = document.getElementById('contextConventions')?.value || '';
+			const keyFiles = (document.getElementById('contextKeyFiles')?.value || '').split('\\n').filter(f => f.trim());
+			
+			vscode.postMessage({
+				command: 'updateProjectContext',
+				projectId: activeProjectId,
+				context: { goals, conventions, keyFiles }
+			});
+
+			// Show saved indicator
+			const status = document.getElementById('contextSaveStatus');
+			if (status) {
+				status.textContent = '✓ Saved';
+				setTimeout(() => { status.textContent = 'Auto-saves on edit'; }, 2000);
+			}
+		}
+		function debouncedSaveContext() {
+			if (_contextSaveTimer) { clearTimeout(_contextSaveTimer); }
+			const status = document.getElementById('contextSaveStatus');
+			if (status) { status.textContent = 'Saving...'; }
+			_contextSaveTimer = setTimeout(() => { saveContext(); }, 800);
+		}
+		// Wire up debounced auto-save on context textareas
+		document.addEventListener('DOMContentLoaded', () => {
+			['contextGoals', 'contextConventions', 'contextKeyFiles'].forEach(id => {
+				const el = document.getElementById(id);
+				if (el) { el.addEventListener('input', debouncedSaveContext); }
+			});
+		});
+		// Also wire up immediately since DOMContentLoaded may have already fired
+		setTimeout(() => {
+			['contextGoals', 'contextConventions', 'contextKeyFiles'].forEach(id => {
+				const el = document.getElementById(id);
+				if (el && !el._autoSaveAttached) {
+					el.addEventListener('input', debouncedSaveContext);
+					el._autoSaveAttached = true;
+				}
+			});
+		}, 100);
+
+
+
+		function toggleContextEnabled(enabled) {
+			vscode.postMessage({
+				command: 'setContextEnabled',
+				projectId: activeProjectId,
+				enabled
+			});
+		}
+
+		function updateToolSharing(key, value) {
+			const config = {};
+			config[key] = value;
+			vscode.postMessage({
+				command: 'setToolSharingConfig',
+				projectId: activeProjectId,
+				config
+			});
+		}
+
+		function updateSetting(key, value) {
+			vscode.postMessage({
+				command: 'updateSetting',
+				key,
+				value
+			});
+		}
+
+		function resetPrompt(promptKey) {
+			vscode.postMessage({
+				command: 'updateSetting',
+				key: 'prompts.' + promptKey,
+				value: ''
+			});
+		}
+
+		function filterSettings(query) {
+			const q = (query || '').toLowerCase().trim();
+			const sections = document.querySelectorAll('#tab-settings .dashboard-settings-section');
+			sections.forEach(function(section) {
+				var rows = section.querySelectorAll('.setting-row');
+				var anyVisible = false;
+				rows.forEach(function(row) {
+					var text = (row.textContent || '').toLowerCase();
+					if (!q || text.indexOf(q) !== -1) {
+						row.style.display = '';
+						anyVisible = true;
+					} else {
+						row.style.display = 'none';
+					}
+				});
+				if (!q) {
+					section.style.display = '';
+				} else if (anyVisible) {
+					section.style.display = '';
+					section.open = true;
+				} else {
+					section.style.display = 'none';
+				}
+			});
+		}
+		window.filterSettings = filterSettings;
+
+		function clearCacheEntry(entryId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({ command: 'clearCacheEntry', entryId });
+		}
+
+		function editCacheEntry(entryId) {
+			const viewEl = document.getElementById('cache-view-' + entryId);
+			const editEl = document.getElementById('cache-edit-' + entryId);
+			const nameEl = document.getElementById('cache-name-editor-' + entryId);
+			if (viewEl && editEl && nameEl) {
+				viewEl.style.display = 'none';
+				editEl.style.display = 'block';
+				setInteracting(true);
+				nameEl.focus();
+			}
+		}
+
+		function saveCacheEdit(entryId) {
+			const nameEl = document.getElementById('cache-name-editor-' + entryId);
+			const editorEl = document.getElementById('cache-editor-' + entryId);
+			if (nameEl && editorEl) {
+				const saveBtn = document.querySelector('#cache-edit-' + entryId + ' button[onclick*="saveCacheEdit"]');
+				setButtonLoading(saveBtn, 'Saving…');
+				setInteracting(false);
+				vscode.postMessage({
+					command: 'editCacheEntry',
+					entryId,
+					newName: nameEl.value,
+					newContent: editorEl.value
+				});
+			}
+		}
+
+		function cancelCacheEdit(entryId) {
+			const viewEl = document.getElementById('cache-view-' + entryId);
+			const editEl = document.getElementById('cache-edit-' + entryId);
+			if (viewEl && editEl) {
+				viewEl.style.display = 'block';
+				editEl.style.display = 'none';
+			}
+			setInteracting(false);
+		}
+
+		function clearAllCache() {
+			vscode.postMessage({ command: 'clearAllCache' });
+		}
+
+		function reexplain(entryId) {
+			vscode.postMessage({ command: 'reexplain', entryId });
+		}
+
+		// Knowledge Card functions
+		function showAddCardForm() {
+			document.getElementById('addCardForm').style.display = 'block';
+			document.getElementById('newCardTitle').focus();
+			setInteracting(true);
+		}
+
+		function generateCardWithAI() {
+			vscode.postMessage({ command: 'generateCardWithAI', projectId: activeProjectId });
+		}
+
+		function hideAddCardForm() {
+			document.getElementById('addCardForm').style.display = 'none';
+			document.getElementById('newCardTitle').value = '';
+			document.getElementById('newCardContent').value = '';
+			const trackEl = document.getElementById('newCardTrackTools');
+			if (trackEl) { trackEl.checked = false; }
+			setInteracting(false);
+		}
+
+		function applyCardTemplate() {
+			var templates = [
+				{ label: 'General', value: '## Summary\\n\\n## When to use\\n\\n## Steps\\n- \\n\\n## Examples\\n\\n## Pitfalls\\n- ' },
+				{ label: 'Architecture Decision Record', value: '## Decision\\n\\n## Context\\n\\n## Options Considered\\n1. \\n2. \\n\\n## Decision Outcome\\n\\n## Consequences\\n- Good: \\n- Bad: ' },
+				{ label: 'API Reference', value: '## Endpoint / Function\\n\\n## Parameters\\n| Name | Type | Required | Description |\\n|------|------|----------|-------------|\\n| | | | |\\n\\n## Returns\\n\\n## Example\\n\\n## Notes' },
+				{ label: 'Debugging Guide', value: '## Symptom\\n\\n## Root Cause\\n\\n## Diagnosis Steps\\n1. \\n\\n## Fix\\n\\n## Prevention' },
+				{ label: 'Code Pattern', value: '## Pattern Name\\n\\n## Problem\\n\\n## Solution\\n\\n## When to use\\n\\n## When NOT to use' },
+				{ label: 'Onboarding Note', value: '## What is this?\\n\\n## Key files\\n- \\n\\n## How it works\\n\\n## Common tasks\\n- \\n\\n## Gotchas' },
+			];
+			var contentEl = document.getElementById('newCardContent');
+			if (!contentEl) { return; }
+			// Show template picker
+			var menu = document.getElementById('templateMenu');
+			if (!menu) {
+				menu = document.createElement('div');
+				menu.id = 'templateMenu';
+				menu.className = 'card-context-menu';
+				for (var i = 0; i < templates.length; i++) {
+					(function(tmpl) {
+						var item = document.createElement('div');
+						item.className = 'card-context-menu-item';
+						item.textContent = tmpl.label;
+						item.onclick = function() {
+							contentEl.value = tmpl.value.split('\\\\n').join('\\n');
+							menu.classList.remove('visible');
+							contentEl.focus();
+						};
+						menu.appendChild(item);
+					})(templates[i]);
+				}
+				document.body.appendChild(menu);
+			}
+			var btn = document.querySelector('[onclick="applyCardTemplate()"]');
+			if (btn) {
+				var rect = btn.getBoundingClientRect();
+				menu.style.left = rect.left + 'px';
+				menu.style.top = (rect.bottom + 4) + 'px';
+			}
+			menu.classList.toggle('visible');
+		}
+
+		function addCard() {
+			const title = document.getElementById('newCardTitle').value.trim();
+			const content = document.getElementById('newCardContent').value.trim();
+			const category = document.getElementById('newCardCategory').value;
+			const folderId = document.getElementById('newCardFolder')?.value || '';
+			const trackToolUsage = !!document.getElementById('newCardTrackTools')?.checked;
+			
+			if (title && content && activeProjectId) {
+				vscode.postMessage({
+					command: 'addKnowledgeCard',
+					projectId: activeProjectId,
+					title,
+					content,
+					category,
+					tags: [],
+					folderId: folderId || undefined,
+					trackToolUsage,
+				});
+				hideAddCardForm();
+			}
+		}
+
+		async function addKnowledgeFolder() {
+			if (!activeProjectId) { return; }
+			const name = await showInlineModal(
+				'New Knowledge Folder',
+				'Create a folder to organize cards',
+				'e.g., API, Architecture, Debugging',
+				'Create'
+			);
+			if (!name || !name.trim()) { return; }
+			vscode.postMessage({
+				command: 'addKnowledgeFolder',
+				projectId: activeProjectId,
+				name: name.trim(),
+			});
+		}
+
+		async function addKnowledgeSubfolder(parentFolderId) {
+			if (!activeProjectId || !parentFolderId) { return; }
+			const name = await showInlineModal(
+				'New Subfolder',
+				'Create a nested folder under this folder',
+				'Subfolder name',
+				'Create'
+			);
+			if (!name || !name.trim()) { return; }
+			vscode.postMessage({
+				command: 'addKnowledgeFolder',
+				projectId: activeProjectId,
+				name: name.trim(),
+				parentFolderId,
+			});
+		}
+
+		async function renameKnowledgeFolder(folderId) {
+			if (!activeProjectId || !folderId) { return; }
+			const name = await showInlineModal(
+				'Rename Knowledge Folder',
+				'Enter a new folder name',
+				'Folder name',
+				'Rename'
+			);
+			if (!name || !name.trim()) { return; }
+			vscode.postMessage({
+				command: 'renameKnowledgeFolder',
+				projectId: activeProjectId,
+				folderId,
+				name: name.trim(),
+			});
+		}
+
+		async function deleteKnowledgeFolder(folderId) {
+			if (!activeProjectId || !folderId) { return; }
+			const confirmed = await showInlineConfirm(
+				'Delete Knowledge Folder',
+				'Deleting a folder also deletes its subfolders; cards are kept and moved to Root. Continue?',
+				'Delete Folder'
+			);
+			if (!confirmed) { return; }
+			vscode.postMessage({
+				command: 'deleteKnowledgeFolder',
+				projectId: activeProjectId,
+				folderId,
+			});
+		}
+
+		function moveCardToFolder(cardId, folderId) {
+			if (!activeProjectId || !cardId) { return; }
+			vscode.postMessage({
+				command: 'moveKnowledgeCard',
+				projectId: activeProjectId,
+				cardId,
+				folderId: folderId || undefined,
+			});
+		}
+
+		// ─── Drag-and-Drop Cards Between Folders ───────────────────
+		let _draggedCardId = null;
+
+		function dragCard(event, cardId) {
+			_draggedCardId = cardId;
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', cardId);
+			// Add visual feedback
+			setTimeout(function() {
+				var el = event.target.closest && event.target.closest('[data-card-id]');
+				if (el) { el.classList.add('dragging'); }
+			}, 0);
+		}
+
+		function dropCardOnFolder(event, folderId) {
+			var cardId = event.dataTransfer.getData('text/plain') || _draggedCardId;
+			if (!cardId || !activeProjectId) { return; }
+			// Remove dragging class from all cards
+			document.querySelectorAll('.dragging').forEach(function(el) { el.classList.remove('dragging'); });
+			_draggedCardId = null;
+			moveCardToFolder(cardId, folderId || '');
+		}
+
+		// Clean up dragging state on dragend
+		document.addEventListener('dragend', function() {
+			document.querySelectorAll('.dragging').forEach(function(el) { el.classList.remove('dragging'); });
+			document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+			_draggedCardId = null;
+		});
+
+		function toggleCard(cardId) {
+			vscode.postMessage({
+				command: 'toggleCardSelection',
+				projectId: activeProjectId,
+				cardId
+			});
+		}
+
+		function toggleCardToolUsage(cardId, enabled) {
+			if (!activeProjectId || !cardId) { return; }
+			// Prevent re-render from collapsing folders — mark interacting briefly
+			setInteracting(true);
+			vscode.postMessage({
+				command: 'editKnowledgeCard',
+				projectId: activeProjectId,
+				cardId,
+				trackToolUsage: !!enabled,
+			});
+			setTimeout(function() { setInteracting(false); }, 600);
+		}
+
+		/**
+		 * Toggle a boolean flag on a knowledge card (pinned, archived, includeInContext).
+		 * Uses the existing editKnowledgeCard message to avoid creating a new message type.
+		 */
+		function setCardFlag(cardId, flagName, value) {
+			if (!activeProjectId || !cardId) { return; }
+			setInteracting(true);
+			const msg = { command: 'editKnowledgeCard', projectId: activeProjectId, cardId };
+			msg[flagName] = !!value;
+			vscode.postMessage(msg);
+			setTimeout(function() { setInteracting(false); }, 600);
+		}
+
+		function toggleCacheEntry(entryId) {
+			vscode.postMessage({
+				command: 'toggleCacheSelection',
+				entryId
+			});
+		}
+
+		function uncheckAllCards() {
+			vscode.postMessage({
+				command: 'deselectAllCards',
+				projectId: activeProjectId
+			});
+		}
+
+		function smartSelectCards() {
+			vscode.postMessage({ command: 'smartSelectCards' });
+		}
+
+		function uncheckAllCache() {
+			vscode.postMessage({
+				command: 'deselectAllCacheEntries'
+			});
+		}
+
+		function editCard(cardId) {
+			const viewEl = document.getElementById('card-view-' + cardId);
+			const editEl = document.getElementById('card-edit-' + cardId);
+			const editorEl = document.getElementById('card-editor-' + cardId);
+			const detailsEl = editEl?.closest('details');
+			if (viewEl && editEl && editorEl) {
+				// Save scroll position before switching to edit view
+				const savedScrollTop = document.documentElement.scrollTop;
+				// Ensure the card stays expanded
+				if (detailsEl && !detailsEl.open) {
+					detailsEl.setAttribute('open', '');
+				}
+				viewEl.style.display = 'none';
+				editEl.style.display = 'block';
+				setInteracting(true);
+				// Auto-size textarea to fit content (minimum 300px)
+				editorEl.style.height = 'auto';
+				var contentHeight = Math.max(300, editorEl.scrollHeight + 24);
+				editorEl.style.height = Math.min(contentHeight, window.innerHeight * 0.8) + 'px';
+				// Restore scroll position then focus
+				requestAnimationFrame(function() {
+					document.documentElement.scrollTop = savedScrollTop;
+					editorEl.focus();
+					var len = editorEl.value.length;
+					editorEl.setSelectionRange(len, len);
+				});
+			}
+		}
+
+		async function refineCardWithAI(cardId) {
+			const instruction = await showInlineModal(
+				'Refine Card with AI',
+				'What should the AI do with this card?',
+				'e.g., Summarize, Add examples, Fix formatting, Expand details…',
+				'Refine'
+			);
+			if (instruction) {
+				vscode.postMessage({
+					command: 'refineEntireCard',
+					projectId: activeProjectId,
+					cardId: cardId,
+					instruction: instruction
+				});
+			}
+		}
+
+		function saveCardEdit(cardId) {
+			const titleEl = document.getElementById('card-title-editor-' + cardId);
+			const editorEl = document.getElementById('card-editor-' + cardId);
+			const trackEl = document.getElementById('card-track-editor-' + cardId);
+			const pinnedEl = document.getElementById('card-pinned-editor-' + cardId);
+			const contextEl = document.getElementById('card-context-editor-' + cardId);
+			const archivedEl = document.getElementById('card-archived-editor-' + cardId);
+			if (titleEl && editorEl) {
+				const saveBtn = document.querySelector('#card-edit-' + cardId + ' button[onclick*="saveCardEdit"]');
+				setButtonLoading(saveBtn, 'Saving…');
+				setInteracting(false);
+				vscode.postMessage({
+					command: 'editKnowledgeCard',
+					projectId: activeProjectId,
+					cardId,
+					newTitle: titleEl.value,
+					newContent: editorEl.value,
+					trackToolUsage: !!trackEl?.checked,
+					...(pinnedEl ? { pinned: !!pinnedEl.checked } : {}),
+					...(contextEl ? { includeInContext: !!contextEl.checked } : {}),
+					...(archivedEl ? { archived: !!archivedEl.checked } : {}),
+				});
+			}
+		}
+
+		// ─── Search & Filter Functions ──────────────────────────────────
+		
+		function searchTodos(query) {
+			const todos = document.querySelectorAll('.todo-item');
+			const filter = query.toLowerCase();
+			todos.forEach(todo => {
+				const title = todo.querySelector('.todo-title')?.textContent?.toLowerCase() || '';
+				const desc = todo.textContent.toLowerCase();
+				if (title.includes(filter) || desc.includes(filter)) {
+					todo.classList.remove('filtered-out');
+				} else {
+					todo.classList.add('filtered-out');
+				}
+			});
+			updateBulkActionsVisibility('todos');
+		}
+
+		function filterTodos(status) {
+			const todos = document.querySelectorAll('.todo-item');
+			todos.forEach(todo => {
+				if (status === 'all') {
+					todo.classList.remove('filtered-out');
+				} else {
+					const statusEl = todo.querySelector('.todo-status');
+					const hasStatus = statusEl?.classList.contains(status);
+					if (hasStatus || (status === 'pending' && !statusEl?.classList.contains('completed') && !statusEl?.classList.contains('in-progress'))) {
+						todo.classList.remove('filtered-out');
+					} else {
+						todo.classList.add('filtered-out');
+					}
+				}
+			});
+			updateBulkActionsVisibility('todos');
+		}
+
+		function searchKnowledgeCards(query) {
+			const cards = document.querySelectorAll('.cache-item[data-expand-id^="card-"]');
+			const filter = query.toLowerCase();
+			cards.forEach(card => {
+				const title = card.querySelector('.cache-symbol')?.textContent?.toLowerCase() || '';
+				const content = card.textContent.toLowerCase();
+				if (title.includes(filter) || content.includes(filter)) {
+					card.classList.remove('filtered-out');
+				} else {
+					card.classList.add('filtered-out');
+				}
+			});
+			updateBulkActionsVisibility('knowledge');
+		}
+
+		// ─── Find within a single knowledge card (Ctrl+F equivalent) ───
+		function toggleFindInCard(cardId) {
+			const bar = document.getElementById('card-find-' + cardId);
+			if (!bar) return;
+			const isVisible = bar.style.display !== 'none';
+			bar.style.display = isVisible ? 'none' : 'flex';
+			if (!isVisible) {
+				const input = bar.querySelector('input');
+				if (input) { input.value = ''; input.focus(); }
+				// Clear previous highlights
+				clearFindInCard(cardId);
+			} else {
+				clearFindInCard(cardId);
+			}
+		}
+
+		function findInCard(cardId, query) {
+			const view = document.getElementById('card-view-' + cardId);
+			if (!view) return;
+			// Remove previous highlights
+			view.querySelectorAll('mark.find-highlight').forEach(m => {
+				const parent = m.parentNode;
+				parent.replaceChild(document.createTextNode(m.textContent), m);
+				parent.normalize();
+			});
+			if (!query || query.length < 2) return;
+			// Walk text nodes and highlight matches
+			highlightTextNodes(view, query.toLowerCase());
+			// Scroll to first match
+			const first = view.querySelector('mark.find-highlight');
+			if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		}
+
+		function highlightTextNodes(el, query) {
+			const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+			const matches = [];
+			while (walker.nextNode()) {
+				const node = walker.currentNode;
+				const text = node.textContent.toLowerCase();
+				let idx = text.indexOf(query);
+				while (idx !== -1) {
+					matches.push({ node, idx, len: query.length });
+					idx = text.indexOf(query, idx + 1);
+				}
+			}
+			// Process in reverse to avoid offset shifts
+			for (let i = matches.length - 1; i >= 0; i--) {
+				const { node, idx, len } = matches[i];
+				const range = document.createRange();
+				range.setStart(node, idx);
+				range.setEnd(node, idx + len);
+				const mark = document.createElement('mark');
+				mark.className = 'find-highlight';
+				mark.style.background = 'var(--vscode-editor-findMatchHighlightBackground, #ea5c0055)';
+				mark.style.borderRadius = '2px';
+				range.surroundContents(mark);
+			}
+		}
+
+		function clearFindInCard(cardId) {
+			const view = document.getElementById('card-view-' + cardId);
+			if (!view) return;
+			view.querySelectorAll('mark.find-highlight').forEach(m => {
+				const parent = m.parentNode;
+				parent.replaceChild(document.createTextNode(m.textContent), m);
+				parent.normalize();
+			});
+			const bar = document.getElementById('card-find-' + cardId);
+			if (bar) { bar.style.display = 'none'; const input = bar.querySelector('input'); if (input) input.value = ''; }
+		}
+
+		// ─── Intelligence Actions ──────────────────────────────────
+
+		function toggleConventionEnabled(conventionId, enabled) {
+			vscode.postMessage({ command: 'updateConvention', projectId: activeProjectId, conventionId, updates: { enabled: enabled } });
+		}
+
+		function editConvention(conventionId) {
+			const viewEl = document.getElementById('conv-view-' + conventionId);
+			const editEl = document.getElementById('conv-edit-' + conventionId);
+			if (viewEl) viewEl.style.display = 'none';
+			if (editEl) editEl.style.display = 'block';
+		}
+
+		function saveConventionEdit(conventionId) {
+			const titleEl = document.getElementById('conv-title-editor-' + conventionId);
+			const contentEl = document.getElementById('conv-editor-' + conventionId);
+			if (titleEl && contentEl) {
+				vscode.postMessage({ command: 'updateConvention', projectId: activeProjectId, conventionId, updates: { title: titleEl.value, content: contentEl.value } });
+			}
+		}
+
+		function cancelConventionEdit(conventionId) {
+			const viewEl = document.getElementById('conv-view-' + conventionId);
+			const editEl = document.getElementById('conv-edit-' + conventionId);
+			if (viewEl) viewEl.style.display = 'block';
+			if (editEl) editEl.style.display = 'none';
+		}
+
+		function deleteConvention(conventionId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({ command: 'deleteConvention', projectId: activeProjectId, conventionId });
+		}
+
+		function discardWorkingNote(noteId) {
+			vscode.postMessage({ command: 'discardWorkingNote', projectId: activeProjectId, noteId });
+		}
+
+		function deleteToolHint(hintId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({ command: 'deleteToolHint', projectId: activeProjectId, hintId });
+		}
+
+		function toggleConventionSelection(conventionId) {
+			vscode.postMessage({ command: 'toggleConventionSelection', projectId: activeProjectId, conventionId });
+		}
+
+		function toggleToolHintSelection(hintId) {
+			vscode.postMessage({ command: 'toggleToolHintSelection', projectId: activeProjectId, hintId });
+		}
+
+		function markNoteFresh(noteId) {
+			vscode.postMessage({ command: 'updateWorkingNote', projectId: activeProjectId, noteId, updates: { staleness: 'fresh' } });
+		}
+
+		function promoteNoteToCard(noteId) {
+			vscode.postMessage({ command: 'promoteNoteToCard', projectId: activeProjectId, noteId });
+		}
+
+		function deleteWorkingNote(noteId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({ command: 'deleteWorkingNote', projectId: activeProjectId, noteId });
+		}
+
+		// ── Observation management ──────────────────────────────────
+		let _obsFilter = 'all';
+		function obsFilter(src) {
+			_obsFilter = src;
+			const rows = document.querySelectorAll('#obs-table tbody tr[data-src]');
+			rows.forEach(function(row) {
+				row.style.display = (src === 'all' || row.dataset.src === src) ? '' : 'none';
+			});
+			document.querySelectorAll('[id^="obs-pill-"]').forEach(function(btn) { btn.classList.remove('pill-active'); });
+			const active = document.getElementById('obs-pill-' + src);
+			if (active) { active.classList.add('pill-active'); }
+		}
+
+		function deleteObs(id, btn) {
+			const row = btn?.closest('tr');
+			if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+			vscode.postMessage({ command: 'deleteObservation', id });
+		}
+
+		function clearObsBySource(src) {
+			if (!confirm('Clear all observations from "' + src + '"?')) { return; }
+			vscode.postMessage({ command: 'clearObservationsBySource', source: src });
+		}
+
+		function closeDistillModal() {
+			const m = document.getElementById('distill-modal');
+			if (m) { m.style.display = 'none'; }
+		}
+
+		let _distillResult = null;
+		function saveDistillSelected() {
+			if (!_distillResult) { return; }
+			const checked = document.querySelectorAll('#distill-sections input[type=checkbox]:checked');
+			let saved = 0;
+			checked.forEach((cb) => {
+				const idx = parseInt(cb.dataset.idx || '0');
+				const cat = cb.dataset.cat;
+				if (cat === 'convention') {
+					const item = _distillResult.conventions[idx];
+					if (item) { vscode.postMessage({ command: 'updateConvention', projectId: activeProjectId, title: item.title, category: item.category || 'patterns', content: item.content, confidence: 'inferred', source: 'distilled from observations' }); saved++; }
+				} else if (cat === 'note') {
+					const item = _distillResult.workingNotes[idx];
+					if (item) { vscode.postMessage({ command: 'updateWorkingNote', projectId: activeProjectId, subject: item.subject, insight: item.insight, relatedFiles: item.relatedFiles || [], source: 'distilled from observations' }); saved++; }
+				}
+			});
+			closeDistillModal();
+			// Backend calls ctx.update() after saving conventions/notes, so no manual reload needed
+		}
+		// Ensure global availability for inline onclick handlers
+		window.obsFilter = obsFilter;
+		window.deleteObs = deleteObs;
+		window.closeDistillModal = closeDistillModal;
+		window.saveDistillSelected = saveDistillSelected;
+
+		function exportAll() {
+			vscode.postMessage({ command: 'exportAll' });
+		}
+
+		function importAll() {
+			vscode.postMessage({ command: 'importAll' });
+		}
+
+		function exportProject() {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({ command: 'exportProject', projectId: activeProjectId });
+		}
+
+		function importProject() {
+			vscode.postMessage({ command: 'importProject' });
+		}
+
+		function exportCardsToFiles() {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({ command: 'exportCardsToFiles', projectId: activeProjectId });
+		}
+
+		function importCardsFromDir() {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({ command: 'importCardsFromDir', projectId: activeProjectId });
+		}
+
+
+		function filterKnowledgeCards(category) {
+			const cards = document.querySelectorAll('.cache-item[data-expand-id^="card-"]');
+			cards.forEach(card => {
+				if (category === 'all') {
+					card.classList.remove('filtered-out');
+				} else {
+					const categoryEl = card.querySelector('.cache-type');
+					if (categoryEl?.textContent === category) {
+						card.classList.remove('filtered-out');
+					} else {
+						card.classList.add('filtered-out');
+					}
+				}
+			});
+			updateBulkActionsVisibility('knowledge');
+		}
+
+		function searchCache(query) {
+			const entries = document.querySelectorAll('.cache-item[data-expand-id^="cache-"]');
+			const filter = query.toLowerCase();
+			entries.forEach(entry => {
+				const symbol = entry.querySelector('.cache-symbol')?.textContent?.toLowerCase() || '';
+				const file = entry.querySelector('.cache-file')?.textContent?.toLowerCase() || '';
+				const content = entry.textContent.toLowerCase();
+				if (symbol.includes(filter) || file.includes(filter) || content.includes(filter)) {
+					entry.classList.remove('filtered-out');
+				} else {
+					entry.classList.add('filtered-out');
+				}
+			});
+			updateCacheFileGroupVisibility();
+			updateBulkActionsVisibility('cache');
+		}
+
+		function filterCache(type) {
+			const entries = document.querySelectorAll('.cache-item[data-expand-id^="cache-"]');
+			entries.forEach(entry => {
+				if (type === 'all') {
+					entry.classList.remove('filtered-out');
+				} else {
+					const typeEl = entry.querySelector('.cache-type');
+					if (typeEl?.textContent === type) {
+						entry.classList.remove('filtered-out');
+					} else {
+						entry.classList.add('filtered-out');
+					}
+				}
+			});
+			updateCacheFileGroupVisibility();
+			updateBulkActionsVisibility('cache');
+		}
+
+		function updateCacheFileGroupVisibility() {
+			const groups = document.querySelectorAll('.file-group');
+			groups.forEach(group => {
+				const visibleItems = group.querySelectorAll('.cache-item:not(.filtered-out)');
+				if (visibleItems.length === 0) {
+					group.classList.add('filtered-out');
+				} else {
+					group.classList.remove('filtered-out');
+				}
+			});
+		}
+
+		// ─── Bulk Operations ──────────────────────────────────────────
+
+		const bulkSelection = {
+			todos: new Set(),
+			knowledge: new Set(),
+			cache: new Set()
+		};
+
+		function toggleAllSelection(type) {
+			const checkbox = document.getElementById('select-all-' + type);
+			const isChecked = checkbox?.checked || false;
+			const selector = type === 'todos' ? '.todo-item:not(.filtered-out) .item-checkbox' :
+				type === 'knowledge' ? '.cache-item[data-expand-id^="card-"]:not(.filtered-out) .item-checkbox' :
+				'.cache-item[data-expand-id^="cache-"]:not(.filtered-out) .item-checkbox';
+			
+			const checkboxes = document.querySelectorAll(selector);
+			checkboxes.forEach(cb => {
+				cb.checked = isChecked;
+				const id = cb.dataset.id;
+				if (isChecked) {
+					bulkSelection[type].add(id);
+				} else {
+					bulkSelection[type].delete(id);
+				}
+			});
+			updateBulkActionsState(type);
+		}
+
+		function toggleItemSelection(type, id) {
+			if (bulkSelection[type].has(id)) {
+				bulkSelection[type].delete(id);
+			} else {
+				bulkSelection[type].add(id);
+			}
+			updateBulkActionsState(type);
+		}
+
+		function updateBulkActionsState(type) {
+			const count = bulkSelection[type].size;
+			const countEl = document.getElementById('bulk-count-' + type);
+			const actionsEl = document.getElementById('bulk-actions-' + type);
+			
+			if (countEl) {
+				countEl.textContent = count;
+			}
+			if (actionsEl) {
+				if (count > 0) {
+					actionsEl.classList.remove('hidden');
+				} else {
+					actionsEl.classList.add('hidden');
+				}
+			}
+		}
+
+		function updateBulkActionsVisibility(type) {
+			// Update select-all checkbox state
+			const checkbox = document.getElementById('select-all-' + type);
+			if (checkbox) {
+				checkbox.checked = false;
+			}
+			bulkSelection[type].clear();
+			updateBulkActionsState(type);
+		}
+
+		function bulkDeleteTodos() {
+			if (bulkSelection.todos.size === 0) return;
+			if (confirm('Delete ' + bulkSelection.todos.size + ' TODO(s)?')) {
+				bulkSelection.todos.forEach(todoId => {
+					vscode.postMessage({
+						command: 'deleteTodo',
+						projectId: activeProjectId,
+						todoId
+					});
+				});
+				bulkSelection.todos.clear();
+			}
+		}
+
+		function bulkCompleteTodos() {
+			if (bulkSelection.todos.size === 0) return;
+			bulkSelection.todos.forEach(todoId => {
+				vscode.postMessage({
+					command: 'updateTodo',
+					projectId: activeProjectId,
+					todoId,
+					updates: { status: 'completed' }
+				});
+			});
+			bulkSelection.todos.clear();
+		}
+
+		// ─── Branch Functions (used by Overview tab git info) ───
+		function trackCurrentBranch() {
+			vscode.postMessage({ command: 'trackCurrentBranch', projectId: activeProjectId });
+		}
+
+		function removeTrackedBranch(branchName) {
+			vscode.postMessage({ command: 'removeTrackedBranch', projectId: activeProjectId, branchName });
+		}
+
+		function setBaseBranch(value) {
+			vscode.postMessage({ command: 'setBaseBranch', baseBranch: value });
+		}
+
+		// Handle branch sessions data from extension
+		window.addEventListener('message', event => {
+			const msg = event.data;
+
+			// ── Distillation results ──────────────────────────────────
+			if (msg.command === 'distillResult') {
+				const modal = document.getElementById('distill-modal');
+				const loading = document.getElementById('distill-loading');
+				const content = document.getElementById('distill-content');
+				const errEl = document.getElementById('distill-error');
+				const sections = document.getElementById('distill-sections');
+				if (!modal) { return; }
+				modal.style.display = 'block';
+				modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				if (msg.status === 'loading') {
+					if (loading) { loading.style.display = 'block'; }
+					if (content) { content.style.display = 'none'; }
+					return;
+				}
+				if (loading) { loading.style.display = 'none'; }
+				if (content) { content.style.display = 'block'; }
+				if (msg.error) {
+					if (errEl) { errEl.textContent = msg.error; errEl.style.display = 'block'; }
+					if (sections) { sections.innerHTML = ''; }
+					return;
+				}
+				_distillResult = msg.result;
+				const { conventions = [], toolHints = [], workingNotes = [] } = msg.result;
+				const renderSection = (sectionTitle, items, cat, labelFn) => {
+					if (!items.length) { return ''; }
+					const rows = items.map((item, i) =>
+						'<label style="display:flex;gap:8px;align-items:flex-start;font-size:0.88em;cursor:pointer;">' +
+						'<input type="checkbox" checked data-idx="' + i + '" data-cat="' + cat + '" style="margin-top:3px;flex-shrink:0;">' +
+						'<span>' + labelFn(item) + '</span></label>'
+					).join('');
+					return '<div style="margin-bottom:16px;"><strong style="font-size:0.9em;opacity:0.8;">' + sectionTitle + ' (' + items.length + ')</strong>' +
+						'<div style="margin-top:6px;display:flex;flex-direction:column;gap:6px;">' + rows + '</div></div>';
+				};
+				if (sections) {
+					sections.innerHTML = [
+						renderSection('🏗 Conventions', conventions, 'convention', (c) =>
+							'<strong>' + c.title + '</strong> <span style="opacity:0.6;font-size:0.85em;">' + c.category + '</span><br><span style="opacity:0.8;">' + c.content + '</span>'),
+						renderSection('🔧 Tool Hints', toolHints, 'toolHint', (h) =>
+							'<strong>' + h.toolName + '</strong>: ' + h.pattern + (h.example ? ' — <em>' + h.example + '</em>' : '')),
+						renderSection('📝 Working Notes', workingNotes, 'note', (n) =>
+							'<strong>' + n.subject + '</strong><br><span style="opacity:0.8;">' + n.insight + '</span>'),
+					].join('');
+				}
+				return;
+			}
+
+			if (msg.command === 'observationPromotePrefill') {
+				switchTab('intelligence');
+				return;
+			}
+
+			// ── Queue distillation results ───────────────────────────────────────────
+			if (msg.command === 'distillQueueResult') {
+				const resultsEl = document.getElementById('distill-queue-results');
+				if (!resultsEl) { return; }
+				resultsEl.style.display = 'block';
+				if (msg.status === 'loading') {
+					resultsEl.innerHTML = '<div style="opacity:0.7;font-size:0.9em;padding:12px 0">🤖 Synthesizing knowledge cards from ' + (msg.total || '') + ' queued responses…</div>';
+					return;
+				}
+				if (msg.error) {
+					resultsEl.innerHTML = '<div style="color:var(--vscode-errorForeground);font-size:0.9em;padding:8px 0">' + msg.error + '</div>';
+					return;
+				}
+				const cards = msg.cards || [];
+				if (!cards.length) {
+					resultsEl.innerHTML = '<div style="opacity:0.6;font-size:0.9em;padding:8px 0">No cards extracted from this queue.</div>';
+					return;
+				}
+				const rows = cards.map((c, i) => {
+					const encodedTitle = c.title.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+					const encodedContent = c.content.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+					const encodedCategory = (c.category || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+					const sources = c.sourceIndices?.length ? ' <span style="opacity:0.5;font-size:0.8em;">from #' + c.sourceIndices.join(', #') + '</span>' : '';
+					const renderedContent = renderMarkdownPreview(c.content);
+					const isLong = c.content.length > 300;
+					const previewContent = isLong ? renderMarkdownPreview(c.content.substring(0, 300) + '…') : renderedContent;
+					return '<div class="distilled-card-row" data-title="' + encodedTitle + '" data-category="' + encodedCategory + '" data-content="' + encodedContent + '"' +
+						' style="background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:12px;margin-bottom:10px;">' +
+						'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
+						'<div style="flex:1;min-width:0;">' +
+						'<div style="font-size:0.8em;opacity:0.6;margin-bottom:4px;"><span class="category-badge ' + c.category + '">' + c.category + '</span>' +
+						' &nbsp;' + Math.round(c.confidence * 100) + '% confidence' + sources + '</div>' +
+						'<strong style="font-size:1em;">' + c.title + '</strong>' +
+						'<div class="distilled-card-preview" style="margin:8px 0 0 0;font-size:0.85em;line-height:1.5;opacity:0.85;">' + previewContent + '</div>' +
+						(isLong ? '<div class="distilled-card-full" style="display:none;margin:8px 0 0 0;font-size:0.85em;line-height:1.5;opacity:0.85;">' + renderedContent + '</div>' +
+						'<button class="distilled-toggle-btn" style="background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;font-size:0.8em;padding:4px 0;margin-top:2px;">Show more</button>' : '') +
+						'<p style="margin:4px 0 0 0;font-size:0.78em;opacity:0.5;"><em>💡 ' + (c.reasoning || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</em></p>' +
+						'</div>' +
+						'<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">' +
+						'<button class="approve-card-btn" style="background:var(--vscode-button-background);color:var(--vscode-button-foreground);padding:4px 10px;font-size:0.82em;border-radius:4px;cursor:pointer;">✓ Add</button>' +
+						'<button class="dismiss-distilled-btn" style="background:none;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:3px 8px;font-size:0.78em;border-radius:4px;cursor:pointer;">✗ Skip</button>' +
+						'</div>' +
+						'</div></div>';
+				}).join('');
+				resultsEl.innerHTML =
+					'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+					'<strong style="font-size:0.9em;">📚 ' + cards.length + ' card proposal' + (cards.length !== 1 ? 's' : '') + ' extracted</strong>' +
+					'<button onclick="approveAllDistilled()" class="secondary" style="font-size:0.82em;padding:3px 10px;">Approve All</button>' +
+					'</div>' + rows;
+				return;
+			}
+
+		});
+
+		function bulkDeleteKnowledgeCards() {
+			if (bulkSelection.knowledge.size === 0) return;
+			if (confirm('Delete ' + bulkSelection.knowledge.size + ' knowledge card(s)?')) {
+				bulkSelection.knowledge.forEach(cardId => {
+					vscode.postMessage({
+						command: 'deleteKnowledgeCard',
+						projectId: activeProjectId,
+						cardId
+					});
+				});
+				bulkSelection.knowledge.clear();
+			}
+		}
+
+		function bulkSelectKnowledgeCards() {
+			if (bulkSelection.knowledge.size === 0) return;
+			bulkSelection.knowledge.forEach(cardId => {
+				vscode.postMessage({
+					command: 'toggleCardSelection',
+					projectId: activeProjectId,
+					cardId
+				});
+			});
+			// Don't clear - let user see what was selected
+		}
+
+		function bulkDeleteCache() {
+			if (bulkSelection.cache.size === 0) return;
+			if (confirm('Delete ' + bulkSelection.cache.size + ' cache entry/entries?')) {
+				bulkSelection.cache.forEach(entryId => {
+					vscode.postMessage({
+						command: 'clearCacheEntry',
+						entryId
+					});
+				});
+				bulkSelection.cache.clear();
+			}
+		}
+
+		function bulkSelectCache() {
+			if (bulkSelection.cache.size === 0) return;
+			bulkSelection.cache.forEach(entryId => {
+				vscode.postMessage({
+					command: 'toggleCacheSelection',
+					entryId
+				});
+			});
+		}
+
+		function cancelCardEdit(cardId) {
+			const viewEl = document.getElementById('card-view-' + cardId);
+			const editEl = document.getElementById('card-edit-' + cardId);
+			if (viewEl && editEl) {
+				viewEl.style.display = 'block';
+				editEl.style.display = 'none';
+			}
+			setInteracting(false);
+		}
+
+		function deleteCard(cardId, btn) {
+			setButtonLoading(btn, 'Deleting…');
+			vscode.postMessage({
+				command: 'deleteKnowledgeCard',
+				projectId: activeProjectId,
+				cardId
+			});
+		}
+
+		function saveToKnowledge(cacheEntryId) {
+			vscode.postMessage({
+				command: 'saveToKnowledge',
+				projectId: activeProjectId,
+				cacheEntryId
+			});
+		}
+
+		function saveToCache(cardId) {
+			// This would save from cache - not implemented yet
+			alert('Feature coming soon: Save explanations from cache as knowledge cards');
+		}
+
+		// ─── Interaction tracking ──────────────────────────────────
+		// When the user is interacting with forms/inputs (add-TODO form,
+		// title edits, notes), tell the extension to suppress full re-renders
+		// so the form state isn't destroyed by background TODO progress updates.
+		let _interacting = false;
+		function setInteracting(state) {
+			if (state === _interacting) return;
+			_interacting = state;
+			vscode.postMessage({ command: 'webviewInteracting', interacting: state });
+		}
+
+		// Also suppress during inline title editing and notes editing
+		document.addEventListener('focusin', function(e) {
+			const el = e.target;
+			if (el && (
+				el.id === 'newTodoTitle' ||
+				el.id === 'newTodoDesc' ||
+				(el.id && el.id.startsWith('todo-title-edit-')) ||
+				(el.id && el.id.startsWith('todo-desc-edit-')) ||
+				(el.id && el.id.startsWith('todo-notes-')) ||
+				(el.id && el.id.startsWith('cache-name-editor-')) ||
+				(el.id && el.id.startsWith('cache-editor-')) ||
+				(el.id && el.id.startsWith('card-title-editor-')) ||
+				(el.id && el.id.startsWith('card-editor-')) ||
+				el.id === 'newProjectName' ||
+				el.id === 'newCardTitle' ||
+				el.id === 'newCardContent' ||
+				el.id === 'contextGoals' ||
+				el.id === 'contextConventions' ||
+				el.id === 'contextKeyFiles'
+			)) {
+				setInteracting(true);
+			}
+		});
+		document.addEventListener('focusout', function(e) {
+			const el = e.target;
+			if (el && (
+				el.id === 'newTodoTitle' ||
+				el.id === 'newTodoDesc' ||
+				(el.id && el.id.startsWith('todo-title-edit-')) ||
+				(el.id && el.id.startsWith('todo-desc-edit-')) ||
+				(el.id && el.id.startsWith('todo-notes-')) ||
+				(el.id && el.id.startsWith('cache-name-editor-')) ||
+				(el.id && el.id.startsWith('cache-editor-')) ||
+				(el.id && el.id.startsWith('card-title-editor-')) ||
+				(el.id && el.id.startsWith('card-editor-')) ||
+				el.id === 'newProjectName' ||
+				el.id === 'newCardTitle' ||
+				el.id === 'newCardContent' ||
+				el.id === 'contextGoals' ||
+				el.id === 'contextConventions' ||
+				el.id === 'contextKeyFiles'
+			)) {
+				// Small delay to allow focus to move to another tracked element
+				setTimeout(() => {
+					const active = document.activeElement;
+					const todoFormVisible = document.getElementById('addTodoForm')?.style.display !== 'none';
+					const cardFormVisible = document.getElementById('addCardForm')?.style.display !== 'none';
+					const cacheEditVisible = document.querySelector('.inline-edit[id^="cache-edit-"][style*="block"]');
+				const cardEditVisible = document.querySelector('.inline-edit[id^="card-edit-"][style*="block"]');
+				const stillEditing = active && (
+						active.id === 'newTodoTitle' ||
+						active.id === 'newTodoDesc' ||
+						(active.id && active.id.startsWith('todo-title-edit-')) ||
+						(active.id && active.id.startsWith('todo-desc-edit-')) ||
+						(active.id && active.id.startsWith('todo-notes-')) ||
+						(active.id && active.id.startsWith('cache-name-editor-')) ||
+						(active.id && active.id.startsWith('cache-editor-')) ||
+						(active.id && active.id.startsWith('card-title-editor-')) ||
+						(active.id && active.id.startsWith('card-editor-')) ||
+						active.id === 'newProjectName' ||
+						active.id === 'newCardTitle' ||
+						active.id === 'newCardContent' ||
+						active.id === 'contextGoals' ||
+						active.id === 'contextConventions' ||
+						active.id === 'contextKeyFiles'
+					);
+					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible) {
+						setInteracting(false);
+					}
+				}, 100);
+			}
+		});
+
+		// Initialize tab from saved state or URL param
+		const initialTab = previousState.currentTab || '${initialTab}';
+		if (initialTab !== 'overview') {
+			switchTab(initialTab, false); // Don't re-save on init
+		}
+
+		// Track expanded details elements
+		const expandedItems = new Set(previousState.expandedItems || []);
+
+		function saveExpandedState() {
+			vscode.setState({ ...vscode.getState(), expandedItems: Array.from(expandedItems) });
+		}
+
+		// Restore expanded state for all details with data-expand-id
+		document.querySelectorAll('details[data-expand-id]').forEach(details => {
+			const id = details.getAttribute('data-expand-id');
+			// Folders: default open unless user explicitly collapsed them
+			const isFolder = id && id.startsWith('folder-');
+			if (isFolder) {
+				// Keep open unless explicitly in the collapsed set
+				if (expandedItems.has(id + ':closed')) {
+					details.removeAttribute('open');
+				} else {
+					details.setAttribute('open', '');
+				}
+			} else if (expandedItems.has(id)) {
+				details.setAttribute('open', '');
+			}
+			// Listen for toggle events
+			details.addEventListener('toggle', function() {
+				if (isFolder) {
+					// For folders: track closed state (they default open)
+					if (this.open) {
+						expandedItems.delete(id + ':closed');
+					} else {
+						expandedItems.add(id + ':closed');
+					}
+					saveExpandedState();
+					return;
+				}
+				if (this.open) {
+					expandedItems.add(id);
+				} else {
+					expandedItems.delete(id);
+				}
+				saveExpandedState();
+			});
+		});
+
+		// ─── Inline modal for input (shared across context menu and card buttons) ──────────
+		const modalOverlay = document.createElement('div');
+		modalOverlay.className = 'inline-modal-overlay';
+		modalOverlay.setAttribute('role', 'dialog');
+		modalOverlay.setAttribute('aria-modal', 'true');
+		modalOverlay.innerHTML = \`
+			<div class="inline-modal">
+				<h3 id="inlineModalTitle"></h3>
+				<div id="inlineModalHint" class="modal-hint"></div>
+				<input id="inlineModalInput" type="text" />
+				<div class="modal-buttons">
+					<button class="secondary" id="inlineModalCancel">Cancel</button>
+					<button id="inlineModalOk">OK</button>
+				</div>
+			</div>
+		\`;
+		document.body.appendChild(modalOverlay);
+
+		// Focus trap for inline modal
+		modalOverlay.addEventListener('keydown', function(e) {
+			if (e.key !== 'Tab') return;
+			const focusable = modalOverlay.querySelectorAll('input:not([style*="display: none"]), button, textarea, select, [tabindex]:not([tabindex="-1"])');
+			if (focusable.length === 0) return;
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			if (e.shiftKey) {
+				if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+			} else {
+				if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+			}
+		});
+
+		function showInlineModal(title, hint, placeholder, okLabel) {
+			return new Promise((resolve) => {
+				document.getElementById('inlineModalTitle').textContent = title;
+				document.getElementById('inlineModalHint').textContent = hint;
+				const input = document.getElementById('inlineModalInput');
+				input.value = '';
+				input.style.display = '';
+				input.placeholder = placeholder || '';
+				document.getElementById('inlineModalOk').textContent = okLabel || 'OK';
+				modalOverlay.classList.add('visible');
+				setTimeout(() => input.focus(), 50);
+
+				function cleanup() {
+					modalOverlay.classList.remove('visible');
+					document.getElementById('inlineModalOk').removeEventListener('click', onOk);
+					document.getElementById('inlineModalCancel').removeEventListener('click', onCancel);
+					input.removeEventListener('keydown', onKey);
+				}
+				function onOk() { cleanup(); resolve(input.value); }
+				function onCancel() { cleanup(); resolve(null); }
+				function onKey(e) {
+					if (e.key === 'Enter') { onOk(); }
+					if (e.key === 'Escape') { onCancel(); }
+				}
+				document.getElementById('inlineModalOk').addEventListener('click', onOk);
+				document.getElementById('inlineModalCancel').addEventListener('click', onCancel);
+				input.addEventListener('keydown', onKey);
+			});
+		}
+
+		function showInlineConfirm(title, message, okLabel) {
+			return new Promise((resolve) => {
+				document.getElementById('inlineModalTitle').textContent = title;
+				document.getElementById('inlineModalHint').textContent = message;
+				const input = document.getElementById('inlineModalInput');
+				input.style.display = 'none';
+				const okBtn = document.getElementById('inlineModalOk');
+				okBtn.textContent = okLabel || 'Delete';
+				modalOverlay.classList.add('visible');
+				setTimeout(() => okBtn.focus(), 50);
+
+				function cleanup() {
+					modalOverlay.classList.remove('visible');
+					input.style.display = '';
+					okBtn.removeEventListener('click', onOk);
+					document.getElementById('inlineModalCancel').removeEventListener('click', onCancel);
+					document.removeEventListener('keydown', onKey);
+				}
+				function onOk() { cleanup(); resolve(true); }
+				function onCancel() { cleanup(); resolve(false); }
+				function onKey(e) {
+					if (e.key === 'Enter') { onOk(); }
+					if (e.key === 'Escape') { onCancel(); }
+				}
+				okBtn.addEventListener('click', onOk);
+				document.getElementById('inlineModalCancel').addEventListener('click', onCancel);
+				document.addEventListener('keydown', onKey);
+			});
+		}
+
+		// ─── Card Queue Functions ──────────────────────────────────
+		function approveCandidate(candidateId) {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'approveCandidate',
+				projectId: activeProjectId,
+				candidateId: candidateId
+			});
+		}
+
+		function rejectCandidate(candidateId) {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'rejectCandidate',
+				projectId: activeProjectId,
+				candidateId: candidateId
+			});
+		}
+
+		function editAndApproveCandidate(candidateId) {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'editAndApproveCandidate',
+				projectId: activeProjectId,
+				candidateId: candidateId
+			});
+		}
+
+		function clearQueue() {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'clearCardQueue',
+				projectId: activeProjectId
+			});
+		}
+
+		function toggleAllQueueItems(checked) {
+			document.querySelectorAll('.queue-select-cb').forEach(function(cb) {
+				cb.checked = checked;
+				updateCandidateVisual(cb);
+			});
+		}
+
+		function toggleCandidateSelection(indexOrCheckbox) {
+			var checkbox;
+			if (typeof indexOrCheckbox === 'number') {
+				var all = document.querySelectorAll('.queue-select-cb');
+				checkbox = all[indexOrCheckbox];
+				if (!checkbox) { return; }
+				checkbox.checked = !checkbox.checked;
+			} else {
+				checkbox = indexOrCheckbox;
+			}
+			updateCandidateVisual(checkbox);
+			// Sync "Select all" checkbox state
+			var allCbs = document.querySelectorAll('.queue-select-cb');
+			var checkedCbs = document.querySelectorAll('.queue-select-cb:checked');
+			var selectAllCb = document.getElementById('queue-select-all');
+			if (selectAllCb) {
+				selectAllCb.checked = allCbs.length > 0 && allCbs.length === checkedCbs.length;
+				selectAllCb.indeterminate = checkedCbs.length > 0 && checkedCbs.length < allCbs.length;
+			}
+		}
+
+		function updateCandidateVisual(checkbox) {
+			var card = checkbox.closest('.cache-item');
+			if (card) {
+				card.style.opacity = checkbox.checked ? '1' : '0.55';
+				card.style.borderLeftColor = checkbox.checked
+					? 'var(--vscode-panel-border)'
+					: 'transparent';
+			}
+		}
+
+		function distillQueue() {
+			if (!activeProjectId) { return; }
+			// Use tile selection Set if available, fall back to checkbox query
+			var checked = _tileSelection.size > 0
+				? Array.from(_tileSelection)
+				: Array.from(document.querySelectorAll('.tile-select-cb:checked'))
+					.map(function(cb) { return cb.getAttribute('data-id'); })
+					.filter(Boolean);
+			if (!checked.length) {
+				const resultsEl = document.getElementById('distill-queue-results');
+				if (resultsEl) { resultsEl.style.display = 'block'; resultsEl.innerHTML = '<div style="color:var(--vscode-errorForeground);font-size:0.9em;padding:8px 0">No items selected. Check at least one tile to distill.</div>'; }
+				return;
+			}
+			const resultsEl = document.getElementById('distill-queue-results');
+			if (resultsEl) {
+				resultsEl.style.display = 'block';
+				resultsEl.innerHTML = '<div style="opacity:0.7;font-size:0.9em;padding:12px 0">🤖 Extracting knowledge cards from ' + checked.length + ' selected item' + (checked.length !== 1 ? 's' : '') + '…</div>';
+			}
+			vscode.postMessage({ command: 'distillQueue', projectId: activeProjectId, candidateIds: checked });
+		}
+
+		function approveDistilledCard(title, category, content, rowEl) {
+			if (!activeProjectId) { return; }
+			vscode.postMessage({ command: 'approveDistilledCard', projectId: activeProjectId, title, category, content });
+			// Fade out the card row
+			if (rowEl) { rowEl.style.opacity = '0.4'; rowEl.style.pointerEvents = 'none'; }
+		}
+
+		function approveAllDistilled() {
+			if (!activeProjectId) { return; }
+			const rows = document.querySelectorAll('.distilled-card-row:not([data-approved])');
+			rows.forEach(function(row) {
+				const title = row.dataset.title;
+				const category = row.dataset.category;
+				const content = row.dataset.content;
+				if (title && content) {
+					vscode.postMessage({ command: 'approveDistilledCard', projectId: activeProjectId, title, category, content });
+					row.dataset.approved = '1';
+					row.style.opacity = '0.4';
+					row.style.pointerEvents = 'none';
+				}
+			});
+		}
+
+		// ─── Card Canvas: Tile Selection & Multi-Select ───────────
+		var _tileSelection = new Set();
+		var _editorState = { open: false, tileId: null, tileType: null, mode: null };
+
+		function updateMultiSelectBar() {
+			var bar = document.getElementById('multi-select-bar');
+			var countEl = document.getElementById('select-count');
+			if (!bar) { return; }
+			if (_tileSelection.size > 0) {
+				bar.classList.add('visible');
+				if (countEl) { countEl.textContent = _tileSelection.size + ' selected'; }
+			} else {
+				bar.classList.remove('visible');
+			}
+		}
+
+		function clearTileSelection() {
+			_tileSelection.clear();
+			document.querySelectorAll('.tile-select-cb').forEach(function(cb) { cb.checked = false; });
+			document.querySelectorAll('.card-tile.selected').forEach(function(t) { t.classList.remove('selected'); });
+			updateMultiSelectBar();
+		}
+
+		// Delegated change handler for tile checkboxes
+		document.addEventListener('change', function(event) {
+			var target = event.target;
+			if (!target) { return; }
+
+			if (target.classList && target.classList.contains('tile-select-cb')) {
+				var id = target.getAttribute('data-id');
+				var tile = target.closest('.card-tile');
+				if (target.checked) {
+					_tileSelection.add(id);
+					if (tile) { tile.classList.add('selected'); }
+				} else {
+					_tileSelection.delete(id);
+					if (tile) { tile.classList.remove('selected'); }
+				}
+				updateMultiSelectBar();
+				return;
+			}
+
+			// Legacy queue checkbox handling
+			if (target.id === 'queue-select-all') {
+				toggleAllQueueItems(target.checked);
+				return;
+			}
+			if (target.classList && target.classList.contains('queue-select-cb')) {
+				toggleCandidateSelection(target);
+				return;
+			}
+		});
+
+		// ─── Card Canvas: Rich Editor Panel ───────────────────────
+		var _editorPreviewTimer = null;
+
+		function openTileInEditor(tileId, tileType) {
+			if (!activeProjectId) { return; }
+			_editorState = { open: true, tileId: tileId, tileType: tileType, mode: 'edit' };
+
+			// Highlight the active tile
+			document.querySelectorAll('.card-tile.editing').forEach(function(t) { t.classList.remove('editing'); });
+			var tile = document.querySelector('.card-tile[data-tile-id="' + tileId + '"]');
+			if (tile) { tile.classList.add('editing'); }
+
+			// Request full data from backend
+			vscode.postMessage({
+				command: 'getTileData',
+				projectId: activeProjectId,
+				tileId: tileId,
+				tileType: tileType
+			});
+		}
+
+		// Called by message handler when backend sends tile data
+		function populateEditor(data) {
+			var panel = document.getElementById('card-editor-panel');
+			var titleInput = document.getElementById('editor-title');
+			var categorySelect = document.getElementById('editor-category');
+			var contentArea = document.getElementById('editor-content');
+			var panelTitle = document.getElementById('editor-panel-title');
+			var statusEl = document.getElementById('editor-status');
+			if (!panel || !titleInput || !categorySelect || !contentArea) { return; }
+
+			titleInput.value = data.title || '';
+			categorySelect.value = data.category || 'note';
+			contentArea.value = data.content || '';
+			if (panelTitle) { panelTitle.textContent = data.isQueue ? 'Edit Queue Item' : 'Edit Knowledge Card'; }
+			if (statusEl) { statusEl.textContent = ''; }
+
+			// Populate tags
+			var tagsContainer = document.getElementById('editor-tags');
+			if (tagsContainer) {
+				var tagInput = tagsContainer.querySelector('input');
+				tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) { p.remove(); });
+				(data.tags || []).forEach(function(tag) { insertTagPill(tagsContainer, tag, tagInput); });
+			}
+
+			// Populate tool calls
+			var tcContainer = document.getElementById('editor-toolcalls-container');
+			if (tcContainer) { tcContainer.innerHTML = data.toolCallsHtml || ''; }
+
+			// Populate source material
+			var srcContainer = document.getElementById('editor-source-container');
+			if (srcContainer) { srcContainer.innerHTML = data.sourceHtml || ''; }
+
+			// Populate anchors
+			var ancContainer = document.getElementById('editor-anchors-container');
+			if (ancContainer) { ancContainer.innerHTML = data.anchorsHtml || ''; }
+
+			// Show panel
+			panel.classList.add('visible');
+			updateEditorPreview();
+			titleInput.focus();
+		}
+
+		function closeCardEditor() {
+			var panel = document.getElementById('card-editor-panel');
+			if (panel) { panel.classList.remove('visible'); }
+			document.querySelectorAll('.card-tile.editing').forEach(function(t) { t.classList.remove('editing'); });
+			_editorState = { open: false, tileId: null, tileType: null, mode: null };
+		}
+
+		function updateEditorPreview() {
+			clearTimeout(_editorPreviewTimer);
+			_editorPreviewTimer = setTimeout(function() {
+				var content = document.getElementById('editor-content');
+				var preview = document.getElementById('editor-preview');
+				if (!content || !preview) { return; }
+				preview.innerHTML = renderMarkdownPreview(content.value);
+			}, 300);
+		}
+
+		function renderMarkdownPreview(text) {
+			if (!text || !text.trim()) { return '<p style="opacity:0.4;font-style:italic;">Live preview will appear here…</p>'; }
+			// Lightweight markdown → HTML
+			var html = text
+				.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+				// Code blocks
+				.replace(/\`\`\`(\\w*)?\\n([\\s\\S]*?)\`\`\`/g, '<pre><code>$2</code></pre>')
+				// Inline code
+				.replace(/\`([^\`]+)\`/g, '<code>$1</code>')
+				// Headings
+				.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+				.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+				.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+				// Bold + italic
+				.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '<strong><em>$1</em></strong>')
+				.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+				.replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+				// Links
+				.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2">$1</a>')
+				// Unordered lists
+				.replace(/^[\\-\\*] (.+)$/gm, '<li>$1</li>')
+				// Line breaks → paragraphs (simple)
+				.replace(/\\n\\n/g, '</p><p>')
+				.replace(/\\n/g, '<br>');
+			return '<p>' + html + '</p>';
+		}
+
+		function saveCardFromEditor() {
+			if (!activeProjectId || !_editorState.tileId) { return; }
+			var titleInput = document.getElementById('editor-title');
+			var categorySelect = document.getElementById('editor-category');
+			var contentArea = document.getElementById('editor-content');
+			var tagsContainer = document.getElementById('editor-tags');
+			if (!titleInput || !categorySelect || !contentArea) { return; }
+
+			var tags = [];
+			if (tagsContainer) {
+				tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) {
+					var text = p.childNodes[0] ? p.childNodes[0].textContent.trim() : '';
+					if (text) { tags.push(text); }
+				});
+			}
+
+			var statusEl = document.getElementById('editor-status');
+			if (statusEl) { statusEl.textContent = 'Saving…'; }
+
+			if (_editorState.tileType === 'queue') {
+				vscode.postMessage({
+					command: 'approveCandidateWithEdits',
+					projectId: activeProjectId,
+					candidateId: _editorState.tileId,
+					title: titleInput.value,
+					category: categorySelect.value,
+					content: contentArea.value,
+					tags: tags
+				});
+			} else {
+				vscode.postMessage({
+					command: 'editKnowledgeCard',
+					projectId: activeProjectId,
+					cardId: _editorState.tileId,
+					title: titleInput.value,
+					category: categorySelect.value,
+					content: contentArea.value,
+					tags: tags
+				});
+			}
+			closeCardEditor();
+		}
+
+		function aiDraftFromEditor() {
+			if (!activeProjectId) { return; }
+			var statusEl = document.getElementById('editor-status');
+			if (statusEl) { statusEl.textContent = '✨ Generating AI draft…'; }
+
+			var selectedIds = Array.from(_tileSelection);
+			vscode.postMessage({
+				command: 'synthesizeCard',
+				projectId: activeProjectId,
+				candidateIds: selectedIds.length > 0 ? selectedIds : (_editorState.tileId ? [_editorState.tileId] : []),
+				currentTitle: document.getElementById('editor-title')?.value || '',
+				currentContent: document.getElementById('editor-content')?.value || ''
+			});
+		}
+
+		// ─── Card Canvas: Tags Editor ─────────────────────────────
+		function addEditorTag(value) {
+			var tag = (value || '').trim();
+			if (!tag) { return; }
+			var container = document.getElementById('editor-tags');
+			var input = document.getElementById('editor-tag-input');
+			if (!container || !input) { return; }
+			// Check duplicates
+			var existing = [];
+			container.querySelectorAll('.tag-pill').forEach(function(p) {
+				existing.push((p.childNodes[0]?.textContent || '').trim().toLowerCase());
+			});
+			if (existing.includes(tag.toLowerCase())) { return; }
+			insertTagPill(container, tag, input);
+		}
+
+		function insertTagPill(container, tag, beforeEl) {
+			var pill = document.createElement('span');
+			pill.className = 'tag-pill';
+			pill.innerHTML = tag + '<span class="tag-remove" onclick="this.parentElement.remove()">×</span>';
+			container.insertBefore(pill, beforeEl);
+		}
+
+		// ─── Card Canvas: Multi-Select Actions ────────────────────
+		function composeFromSelected() {
+			if (_tileSelection.size === 0) { return; }
+			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'compose' };
+			vscode.postMessage({
+				command: 'getCompositionData',
+				projectId: activeProjectId,
+				selectedIds: Array.from(_tileSelection)
+			});
+		}
+
+		function aiSynthesizeSelected() {
+			if (_tileSelection.size === 0 || !activeProjectId) { return; }
+			// Open editor panel with loading state
+			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'ai-synthesize' };
+			var panel = document.getElementById('card-editor-panel');
+			if (panel) { panel.classList.add('visible'); }
+			var titleInput = document.getElementById('editor-title');
+			var contentArea = document.getElementById('editor-content');
+			var statusEl = document.getElementById('editor-status');
+			var panelTitle = document.getElementById('editor-panel-title');
+			if (titleInput) { titleInput.value = ''; }
+			if (contentArea) { contentArea.value = ''; }
+			if (panelTitle) { panelTitle.textContent = 'AI Synthesize (' + _tileSelection.size + ' items)'; }
+			if (statusEl) { statusEl.textContent = '✨ Generating AI draft…'; }
+			updateEditorPreview();
+			vscode.postMessage({
+				command: 'synthesizeCard',
+				projectId: activeProjectId,
+				candidateIds: Array.from(_tileSelection)
+			});
+		}
+
+		function dismissSelected() {
+			if (_tileSelection.size === 0 || !activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'bulkRejectCandidates',
+				projectId: activeProjectId,
+				candidateIds: Array.from(_tileSelection)
+			});
+			_tileSelection.clear();
+			updateMultiSelectBar();
+		}
+
+		function bulkQuickSave() {
+			if (_tileSelection.size === 0 || !activeProjectId) { return; }
+			vscode.postMessage({
+				command: 'bulkQuickSave',
+				projectId: activeProjectId,
+				candidateIds: Array.from(_tileSelection)
+			});
+			_tileSelection.clear();
+			updateMultiSelectBar();
+		}
+
+		// Listen for editor population messages from backend
+		window.addEventListener('message', function(event) {
+			var msg = event.data;
+			if (msg.command === 'populateEditor') {
+				populateEditor(msg.data);
+			}
+			if (msg.command === 'aiDraftProgress') {
+				var statusEl = document.getElementById('editor-status');
+				if (!statusEl) { return; }
+				if (msg.phase === 'calling-model') {
+					statusEl.innerHTML = '<span class="ai-progress-spinner"></span> ' + (msg.detail || 'Connecting to model…');
+				} else if (msg.phase === 'streaming') {
+					var chars = msg.chars ? ' (' + msg.chars + ' chars received)' : '';
+					statusEl.innerHTML = '<span class="ai-progress-spinner"></span> Receiving AI response' + chars + '…';
+				} else if (msg.phase === 'parsing') {
+					statusEl.innerHTML = '<span class="ai-progress-spinner"></span> ' + (msg.detail || 'Parsing response…');
+				}
+			}
+			if (msg.command === 'aiDraftResult') {
+				var titleInput = document.getElementById('editor-title');
+				var categorySelect = document.getElementById('editor-category');
+				var contentArea = document.getElementById('editor-content');
+				var statusEl = document.getElementById('editor-status');
+				if (msg.data) {
+					if (msg.data.title && titleInput) { titleInput.value = msg.data.title; }
+					if (msg.data.category && categorySelect) { categorySelect.value = msg.data.category; }
+					if (msg.data.content && contentArea) { contentArea.value = msg.data.content; }
+					if (msg.data.tags) {
+						var tagsContainer = document.getElementById('editor-tags');
+						var tagInput = document.getElementById('editor-tag-input');
+						if (tagsContainer && tagInput) {
+							tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) { p.remove(); });
+							msg.data.tags.forEach(function(t) { insertTagPill(tagsContainer, t, tagInput); });
+						}
+					}
+					updateEditorPreview();
+				}
+				if (statusEl) { statusEl.textContent = msg.data ? '✨ AI draft applied' : '⚠ AI draft failed'; }
+			}
+		});
+
+		function toggleCollapsible(button) {
+			const icon = button.querySelector('.toggle-icon');
+			const content = button.parentElement.querySelector('.collapsible-content');
+			if (!content) { return; }
+			
+			if (content.style.display === 'none') {
+				content.style.display = 'block';
+				icon.textContent = '▼';
+				button.innerHTML = button.innerHTML.replace('Show', 'Hide');
+			} else {
+				content.style.display = 'none';
+				icon.textContent = '▶';
+				button.innerHTML = button.innerHTML.replace('Hide', 'Show');
+			}
+		}
+
+		// Make functions globally available for inline onclick handlers
+		window.toggleAllQueueItems = toggleAllQueueItems;
+		window.toggleCandidateSelection = toggleCandidateSelection;
+		window.approveCandidate = approveCandidate;
+		window.rejectCandidate = rejectCandidate;
+		window.editAndApproveCandidate = editAndApproveCandidate;
+		window.clearQueue = clearQueue;
+		window.distillQueue = distillQueue;
+		window.approveDistilledCard = approveDistilledCard;
+		window.approveAllDistilled = approveAllDistilled;
+		window.toggleCollapsible = toggleCollapsible;
+		// Card canvas globals
+		window.openTileInEditor = openTileInEditor;
+		window.closeCardEditor = closeCardEditor;
+		window.saveCardFromEditor = saveCardFromEditor;
+		window.aiDraftFromEditor = aiDraftFromEditor;
+		window.updateEditorPreview = updateEditorPreview;
+		window.addEditorTag = addEditorTag;
+		window.composeFromSelected = composeFromSelected;
+		window.aiSynthesizeSelected = aiSynthesizeSelected;
+		window.dismissSelected = dismissSelected;
+		window.bulkQuickSave = bulkQuickSave;
+		window.clearTileSelection = clearTileSelection;
+
+		// ─── Keyboard Shortcuts ────────────────────────────────────
+		document.addEventListener('keydown', function(e) {
+			// Don't trigger shortcuts when typing in inputs/textareas
+			var tag = (document.activeElement || {}).tagName || '';
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') { return; }
+
+			// Ctrl+K / Cmd+K → focus search in current tab
+			if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+				e.preventDefault();
+				var searchInput = document.querySelector('.tab-content:not([style*=\"display: none\"]) .search-input');
+				if (searchInput) { searchInput.focus(); searchInput.select(); }
+				return;
+			}
+
+			// Ctrl+Shift+K / Cmd+Shift+K → toggle selection of all visible cards
+			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'K') {
+				e.preventDefault();
+				if (activeProjectId) { uncheckAllCards(); }
+				return;
+			}
+
+			// Ctrl+N / Cmd+N → add card (if on knowledge tab)
+			if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+				var knowledgeTab = document.getElementById('tab-knowledge');
+				if (knowledgeTab && knowledgeTab.style.display !== 'none') {
+					e.preventDefault();
+					showAddCardForm();
+					return;
+				}
+			}
+
+			// 1-7 → switch tabs (when no modifier)
+			if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+				var tabMap = { '1': 'overview', '2': 'intelligence', '3': 'knowledge', '4': 'cache', '5': 'context', '6': 'settings' };
+				if (tabMap[e.key]) {
+					e.preventDefault();
+					switchTab(tabMap[e.key]);
+				}
+			}
+		});
+
+		// ─── Context menu on knowledge card text selection ──────────
+		(function setupCardContextMenu() {
+			// Create hidden context menu element
+			const menu = document.createElement('div');
+			menu.className = 'card-context-menu';
+			menu.innerHTML = \`
+				<div class="card-context-menu-item" data-action="askQuestion">💬 Ask Question about Selection</div>
+				<div class="card-context-menu-item" data-action="refineSelection">🔄 Refine Selection with AI</div>
+				<div class="card-context-menu-sep"></div>
+				<div class="card-context-menu-item" data-action="replaceSelection">✏️ Replace Selection</div>
+				<div class="card-context-menu-item" data-action="deleteSelection">🗑️ Delete Selection</div>
+				<div class="card-context-menu-sep"></div>
+				<div class="card-context-menu-item" data-action="newCard">📝 Create Card from Selection</div>
+				<div class="card-context-menu-item" data-action="newCardAI">🤖 Create Card with AI from Selection</div>
+			\`;
+			document.body.appendChild(menu);
+
+			let contextCardId = null;
+			let contextSelectedText = '';
+
+			// Show menu on mouseup over a card-view div when text is selected
+			document.addEventListener('mouseup', function(e) {
+				// Don't trigger on clicks inside the context menu or modal
+				if (menu.contains(e.target) || modalOverlay.contains(e.target)) return;
+
+				const sel = window.getSelection();
+				const text = sel?.toString().trim();
+				if (!text) return;
+
+				// Check if selection is inside a card view element
+				const cardView = e.target.closest?.('[id^="card-view-"]');
+				if (!cardView) return;
+
+				contextCardId = cardView.id.replace('card-view-', '');
+				contextSelectedText = text;
+
+				menu.style.left = e.clientX + 'px';
+				menu.style.top = e.clientY + 'px';
+				menu.classList.add('visible');
+			});
+
+			// Handle menu item clicks
+			menu.addEventListener('click', async function(e) {
+				const item = e.target.closest('.card-context-menu-item');
+				if (!item) return;
+				const action = item.getAttribute('data-action');
+				menu.classList.remove('visible');
+
+				if (action === 'replaceSelection') {
+					const preview = contextSelectedText.length > 60 ? contextSelectedText.substring(0, 60) + '…' : contextSelectedText;
+					const replacement = await showInlineModal('Replace Selection', 'Replace: "' + preview + '"', 'Enter replacement text…', 'Replace');
+					if (replacement !== null) {
+						vscode.postMessage({
+							command: 'replaceCardSelection',
+							projectId: activeProjectId,
+							selectedText: contextSelectedText,
+							sourceCardId: contextCardId,
+							replacement: replacement
+						});
+					}
+
+				} else if (action === 'deleteSelection') {
+					const preview = contextSelectedText.length > 80 ? contextSelectedText.substring(0, 80) + '…' : contextSelectedText;
+					const confirmed = await showInlineConfirm('Delete Selection', 'Remove this text from the card? "' + preview + '"', 'Delete');
+					if (confirmed) {
+						vscode.postMessage({
+							command: 'deleteCardSelection',
+							projectId: activeProjectId,
+							selectedText: contextSelectedText,
+							sourceCardId: contextCardId,
+							confirmed: true
+						});
+					}
+
+				} else if (action === 'refineSelection') {
+					const instruction = await showInlineModal('Refine Selection with AI', 'What should the AI do with this selection?', 'e.g., Summarize, Expand, Fix grammar, Rewrite as bullets…', 'Refine');
+					if (instruction) {
+						vscode.postMessage({
+							command: 'refineCardSelection',
+							projectId: activeProjectId,
+							selectedText: contextSelectedText,
+							sourceCardId: contextCardId,
+							instruction: instruction
+						});
+					}
+
+				} else if (action === 'newCard') {
+					const title = await showInlineModal('Create Card from Selection', 'The selected text will become the card content.', 'Enter a title for the new card…', 'Create');
+					if (title) {
+						vscode.postMessage({
+							command: 'createCardFromSelection',
+							projectId: activeProjectId,
+							selectedText: contextSelectedText,
+							sourceCardId: contextCardId,
+							title: title
+						});
+					}
+
+				} else if (action === 'askQuestion') {
+					vscode.postMessage({
+						command: 'askAboutSelection',
+						projectId: activeProjectId,
+						selectedText: contextSelectedText,
+						sourceCardId: contextCardId
+					});
+
+				} else if (action === 'newCardAI') {
+					vscode.postMessage({
+						command: 'createCardFromSelectionAI',
+						projectId: activeProjectId,
+						selectedText: contextSelectedText,
+						sourceCardId: contextCardId
+					});
+				}
+			});
+
+			// Hide menu on click elsewhere or scroll
+			document.addEventListener('mousedown', function(e) {
+				if (!menu.contains(e.target) && !modalOverlay.contains(e.target)) {
+					menu.classList.remove('visible');
+				}
+			});
+			document.addEventListener('scroll', function() { menu.classList.remove('visible'); }, true);
+		})();
+	</script>`;
+}

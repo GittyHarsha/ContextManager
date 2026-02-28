@@ -1,0 +1,29 @@
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#7c3aed',
+        primaryTextColor: '#e6edf3',
+        primaryBorderColor: '#a78bfa',
+        lineColor: '#8b949e',
+        secondaryColor: '#1c2333',
+        tertiaryColor: '#161b22',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: '14px',
+        nodeBorder: '#a78bfa',
+        mainBkg: '#1c2333',
+        nodeTextColor: '#e6edf3',
+        edgeLabelBackground: '#161b22',
+        clusterBkg: 'rgba(124, 58, 237, 0.08)',
+        clusterBorder: 'rgba(139, 148, 158, 0.25)',
+        titleColor: '#e6edf3'
+      },
+      flowchart: { curve: 'basis', padding: 16 },
+      sequence: { mirrorActors: false }
+    });
+  });
+</script>

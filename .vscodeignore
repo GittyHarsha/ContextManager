@@ -1,0 +1,81 @@
+# Build and development files
+.vscode
+.vscode-test
+.vscode-test.mjs
+
+# node_modules is in .gitignore; force-include it here, then strip dev-only parts
+!node_modules
+node_modules/@types
+node_modules/typescript
+
+# sql.js: only keep sql-wasm.js (Node entry); exclude all asm/browser/debug/worker variants and .wasm (bundled in out/)
+node_modules/sql.js/dist/sql-asm*
+node_modules/sql.js/dist/sql-wasm-browser*
+node_modules/sql.js/dist/sql-wasm-debug*
+node_modules/sql.js/dist/worker.*
+node_modules/sql.js/dist/*.wasm
+
+# Source files (we only need compiled output)
+src/**/*.ts
+src/**/*.tsx
+src/**/*.js
+!src/**/*.d.ts
+
+# Configuration files
+tsconfig.json
+eslint.config.mjs
+.eslintrc.json
+.eslintignore
+.prettierrc
+.editorconfig
+
+# Documentation (keep README, LICENSE, CHANGELOG)
+SPEC.md
+CONTRIBUTING.md
+ICON_GUIDE.md
+PRODUCTION_READY.md
+PUBLISHING.md
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Test files
+**/.test.*
+**/*.test.ts
+**/*.test.js
+**/test/**
+**/tests/**
+
+# Build artifacts
+*.vsix
+out/test/**
+
+# Scripts
+scripts/**
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor backups
+*~
+*.swp
+*.bak
+*.tmp
+
+# OS files
+.DS_Store
+ehthumbs.db
+
+# Keep these files for marketplace
+!README.md
+!LICENSE
+!CHANGELOG.md
+!ContextManager.png
+!package.json

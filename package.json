@@ -1,0 +1,1313 @@
+{
+	"name": "context-manager",
+	"publisher": "local-dev",
+	"displayName": "ContextManager - AI Project Memory",
+	"version": "2.1.0",
+	"description": "Give Copilot persistent project memory — knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, file-based staleness detection, customizable distiller prompts, data import/export, and a full dashboard. Works with @ctx chat, #ctx, #searchCards, #ctxSubagent, and #getCard.",
+	"icon": "ContextManager.png",
+	"galleryBanner": {
+		"color": "#1e1e1e",
+		"theme": "dark"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/GittyHarsha/ContextManager.git"
+	},
+	"homepage": "https://gittyharsha.github.io/ContextManager",
+	"bugs": {
+		"url": "https://github.com/GittyHarsha/ContextManager/issues"
+	},
+	"author": {
+		"name": "Harsha Narayana P"
+	},
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"categories": [
+		"AI",
+		"Chat",
+		"Programming Languages",
+		"Other"
+	],
+	"keywords": [
+		"ai",
+		"copilot",
+		"code explanation",
+		"knowledge management",
+		"todo",
+		"project management",
+		"context",
+		"chat participant",
+		"codebase navigation",
+		"architecture",
+		"code understanding",
+		"documentation"
+	],
+	"activationEvents": [
+		"*"
+	],
+	"preview": false,
+	"enabledApiProposals": [
+		"chatParticipantAdditions",
+		"chatStatusItem",
+		"languageModelSystem",
+		"mcpServerDefinitions",
+		"chatHooks",
+		"languageModelToolSupportsModel",
+		"chatSessionsProvider",
+		"embeddings"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "contextManager",
+					"title": "ContextManager",
+					"icon": "$(book)"
+				}
+			]
+		},
+		"views": {
+			"contextManager": [
+				{
+					"id": "contextManagerProjects",
+					"name": "Projects",
+					"icon": "$(folder)",
+					"contextualTitle": "ContextManager Projects"
+				}
+			]
+		},
+		"viewsWelcome": [
+			{
+				"view": "contextManagerProjects",
+				"contents": "No projects yet.\n[Create Project](command:contextManager.createProject)"
+			}
+		],
+		"chatParticipants": [
+			{
+				"id": "context-manager.ctx",
+				"fullName": "ContextManager",
+				"name": "ctx",
+				"description": "Project context management - explanations, knowledge cards, TODOs, and cached insights",
+				"isSticky": false,
+				"commands": [
+					{
+						"name": "chat",
+						"description": "Ask questions with project context (default)"
+					},
+					{
+						"name": "explain",
+						"description": "Explain the purpose of a symbol"
+					},
+					{
+						"name": "usage",
+						"description": "Explain why a symbol is used at this location"
+					},
+					{
+						"name": "relationships",
+						"description": "Explain class relationships and architecture"
+					},
+					{
+						"name": "todo",
+						"description": "Work on a TODO with full project context"
+					},
+					{
+						"name": "knowledge",
+						"description": "Research a topic and generate a knowledge card"
+					},
+					{
+						"name": "refine",
+						"description": "Refine an existing knowledge card with AI"
+					},
+					{
+						"name": "save",
+						"description": "Answer a question and save it as a knowledge card"
+					},
+					{
+						"name": "context",
+						"description": "Show current project context"
+					},
+					{
+						"name": "doc",
+						"description": "[Experimental] Generate and apply doc comments to selected code"
+					},
+					{
+						"name": "add",
+						"description": "Save the last AI response from this chat as a knowledge card"
+					},
+					{
+						"name": "done",
+						"description": "End-of-task retrospective: capture learnings, conventions, and tool hints from the completed task"
+					},
+					{
+						"name": "handoff",
+						"description": "Generate a handoff document from branch session, knowledge cards, and conventions for another engineer"
+					},
+					{
+						"name": "audit",
+						"description": "Scan knowledge cards for staleness: check if referenced files still exist, flag outdated content"
+					},
+					{
+						"name": "map",
+						"description": "Generate an architectural overview of a module or directory with entry points, relationships, and data flow"
+					}
+				],
+				"disambiguation": [
+					{
+						"category": "code_explanation",
+						"description": "The user wants to understand what a piece of code does or why it exists.",
+						"examples": [
+							"What does this class do?",
+							"Explain this function",
+							"Why is this method called here?",
+							"What is the purpose of TabStripModel?"
+						]
+					}
+				]
+			}
+		],
+		"chatSessions": [
+			{
+				"type": "ctx-sessions",
+				"name": "ctx",
+				"displayName": "ContextManager Sessions",
+				"icon": "$(book)",
+				"welcomeTitle": "ContextManager Session History",
+				"welcomeMessage": "Browse your TODO agent runs and branch sessions",
+				"description": "View TODO agent runs and branch session history from ContextManager projects",
+				"order": 10
+			}
+		],
+		"commands": [
+			{
+				"command": "contextManager.explainSymbol",
+				"title": "Explain",
+				"category": "ContextManager"
+			},
+			{
+				"command": "contextManager.explainUsage",
+				"title": "Explain Usage",
+				"category": "ContextManager"
+			},
+			{
+				"command": "contextManager.explainRelationships",
+				"title": "Explain Relationships",
+				"category": "ContextManager"
+			},
+			{
+				"command": "contextManager.clearCache",
+				"title": "Clear Explanation Cache",
+				"category": "ContextManager"
+			},
+			{
+				"command": "contextManager.openDashboard",
+				"title": "Open Dashboard",
+				"category": "ContextManager",
+				"icon": "$(dashboard)"
+			},
+			{
+				"command": "contextManager.createProject",
+				"title": "Create Project",
+				"category": "ContextManager",
+				"icon": "$(add)"
+			},
+			{
+				"command": "contextManager.deleteProject",
+				"title": "Delete Project",
+				"category": "ContextManager",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "contextManager.setActiveProject",
+				"title": "Set Active Project",
+				"category": "ContextManager",
+				"icon": "$(check)"
+			},
+			{
+				"command": "contextManager.deselectProject",
+				"title": "Deselect Project",
+				"category": "ContextManager",
+				"icon": "$(close)"
+			},
+			{
+				"command": "contextManager.refreshProjects",
+				"title": "Refresh Projects",
+				"category": "ContextManager",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "contextManager.smartSelect",
+				"title": "Smart Select Knowledge Cards",
+				"category": "ContextManager",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "contextManager.embedProject",
+				"title": "Embed Knowledge Cards",
+				"category": "ContextManager",
+				"icon": "$(database)"
+			},
+			{
+				"command": "contextManager.clearEmbeddings",
+				"title": "Clear Embeddings",
+				"category": "ContextManager",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "contextManager.captureExchange",
+				"title": "Capture Chat Exchange",
+				"category": "ContextManager",
+				"icon": "$(record)"
+			},
+			{
+				"command": "contextManager.saveAsCard",
+				"title": "Save Last Chat as Knowledge Card",
+				"category": "ContextManager",
+				"icon": "$(save-as)"
+			},
+			{
+				"command": "contextManager.installHooks",
+				"title": "Install Hooks",
+				"category": "ContextManager",
+				"icon": "$(plug)"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "contextManager.explainSymbol",
+					"when": "editorTextFocus",
+					"group": "1_contextManager@1"
+				},
+				{
+					"command": "contextManager.explainUsage",
+					"when": "editorTextFocus",
+					"group": "1_contextManager@2"
+				},
+				{
+					"command": "contextManager.explainRelationships",
+					"when": "editorTextFocus",
+					"group": "1_contextManager@3"
+				}
+			],
+			"view/title": [
+				{
+					"command": "contextManager.createProject",
+					"when": "view == contextManagerProjects",
+					"group": "navigation"
+				},
+				{
+					"command": "contextManager.deselectProject",
+					"when": "view == contextManagerProjects",
+					"group": "navigation"
+				},
+				{
+					"command": "contextManager.refreshProjects",
+					"when": "view == contextManagerProjects",
+					"group": "navigation"
+				},
+				{
+					"command": "contextManager.openDashboard",
+					"when": "view == contextManagerProjects",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "contextManager.setActiveProject",
+					"when": "view == contextManagerProjects && viewItem == project",
+					"group": "inline@1"
+				},
+				{
+					"command": "contextManager.deselectProject",
+					"when": "view == contextManagerProjects && viewItem == project-active",
+					"group": "inline@1"
+				},
+				{
+					"command": "contextManager.deleteProject",
+					"when": "view == contextManagerProjects && viewItem =~ /^project/",
+					"group": "inline"
+				}
+			]
+		},
+		"configuration": {
+			"title": "ContextManager",
+			"properties": {
+				"contextManager.showStatusBar": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show active project information in the status bar"
+				},
+				"contextManager.confirmDelete": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show confirmation dialog before deleting projects, TODOs, or knowledge cards"
+				},
+				"contextManager.autoSelectKnowledgeCards": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically select relevant knowledge cards based on context"
+				},
+				"contextManager.maxKnowledgeCardsInContext": {
+					"type": "number",
+					"default": 5,
+					"minimum": 1,
+					"maximum": 20,
+					"description": "Maximum number of knowledge cards to include in AI prompts"
+				},
+				"contextManager.cacheExpiration": {
+					"type": "number",
+					"default": 30,
+					"minimum": 0,
+					"maximum": 365,
+					"description": "Number of days to keep cached explanations (0 = never expire)"
+				},
+				"contextManager.enableContextByDefault": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable project context for newly created projects"
+				},
+				"contextManager.chat.includeCopilotInstructions": {
+					"type": "boolean",
+					"default": true,
+					"description": "Include .github/copilot-instructions.md in project context"
+				},
+				"contextManager.explanation.expandContext": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically expand code context when explaining symbols"
+				},
+				"contextManager.explanation.includeReferences": {
+					"type": "boolean",
+					"default": true,
+					"description": "Include file references in explanations"
+				},
+				"contextManager.dashboard.defaultTab": {
+					"type": "string",
+					"enum": [
+						"overview",
+						"knowledge",
+						"cache"
+					],
+					"default": "overview",
+					"description": "Default tab to show when opening the dashboard"
+				},
+				"contextManager.notifications.showProgress": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show progress notifications for long-running operations"
+				},
+				"contextManager.context.autoDeselectAfterUse": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Automatically deselect knowledge cards and cache entries after they've been included in a chat query or TODO. Useful for one-time context that doesn't need to persist across multiple queries."
+				},
+				"contextManager.experimental.enableProposedApi": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "⚠️ **Experimental** — Enable proposed VS Code APIs for enhanced features like inline file edits from chat (`/doc` command). Requires VS Code Insiders or compatible builds. May break at any time."
+				},
+				"contextManager.prompts.globalInstructions": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom instructions appended to **every** prompt (all commands). Use this for global style or behavior preferences."
+				},
+				"contextManager.prompts.chat": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for the default `@ctx` chat. Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.explain": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for `/explain`. Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.usage": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for `/usage`. Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.relationships": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for `/relationships`. Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.research": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for `/research` (knowledge card generation). Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.refine": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom system prompt for `/refine` (knowledge card refinement). Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.distillObservations": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom prompt for **Distill Observations** (extracts conventions, tool hints, and working notes from session observations). Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.distillQueue": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom prompt for **Distill Queue** (synthesizes card queue entries into knowledge card proposals). Leave empty to use built-in prompt."
+				},
+				"contextManager.prompts.synthesizeCard": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Custom prompt for **AI Draft / Synthesize Card** (generates a single knowledge card from selected sources in the card editor). Leave empty to use built-in prompt."
+				},
+				"contextManager.branch.baseBranch": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Base branch used for computing changed files and branch-scoped commits (e.g. `main`, `master`, `develop`). Leave empty to auto-detect `main` or `master`."
+				},
+				"contextManager.intelligence.enableTieredInjection": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable automatic injection of conventions and top tool hints into every chat prompt (Tier 1+2). Disable to rely on tool queries only."
+				},
+				"contextManager.intelligence.injectIntoAllParticipants": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Inject learned project intelligence (conventions, tool hints) into **all** chat participants — not just `@ctx`. When enabled, Copilot Chat, `@workspace`, and other agents automatically receive your project's learned conventions."
+				},
+				"contextManager.intelligence.tier1MaxTokens": {
+					"type": "integer",
+					"default": 400,
+					"minimum": 100,
+					"maximum": 1000,
+					"markdownDescription": "Token budget for Tier 1 (always-injected) learnings: confirmed conventions + top tool hints."
+				},
+				"contextManager.intelligence.tier2MaxTokens": {
+					"type": "integer",
+					"default": 400,
+					"minimum": 100,
+					"maximum": 1000,
+					"markdownDescription": "Token budget for Tier 2 (task-relevant) learnings: working notes and observed conventions matched by prompt keywords."
+				},
+				"contextManager.intelligence.injectionMaxChars": {
+					"type": "integer",
+					"default": 0,
+					"minimum": 0,
+					"markdownDescription": "Maximum characters of intelligence context injected per prompt. **0 = unlimited** (a built-in 32 000-char safety cap still applies)."
+				},
+				"contextManager.intelligence.injectConventions": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Include **conventions** in auto-injected intelligence context. Disable to stop conventions from being injected into non-@ctx prompts."
+				},
+				"contextManager.intelligence.injectWorkingNotes": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Include **working notes** in auto-injected intelligence context. Disable to stop working notes from being injected into non-@ctx prompts."
+				},
+				"contextManager.intelligence.injectToolHints": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Include **tool hints** in auto-injected intelligence context. Disable to stop tool hints from being injected into non-@ctx prompts."
+				},
+				"contextManager.intelligence.injectKnowledgeCards": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Include **knowledge cards** in auto-injected intelligence context. Disable to stop knowledge cards from being injected into non-@ctx prompts."
+				},
+				"contextManager.intelligence.enableStalenessTracking": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable file-based staleness tracking on working notes and knowledge cards. Items are flagged when their referenced files are modified."
+				},
+				"contextManager.intelligence.stalenessAgeDays": {
+					"type": "integer",
+					"default": 30,
+					"minimum": 7,
+					"maximum": 365,
+					"markdownDescription": "Knowledge cards not updated within this many days are flagged as age-stale in the dashboard."
+				},
+				"contextManager.intelligence.autoLearn": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable the **auto-learning pipeline**. After every chat interaction, automatically extract tool hints (search fail→success patterns), working notes (file co-access relationships), and conventions (pattern statements in responses). All items are active immediately — disable individual ones in the dashboard."
+				},
+				"contextManager.intelligence.autoLearn.useLLM": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Use a lightweight **LLM call** (~200 input tokens) for convention and working-note extraction instead of regex-only matching. Dramatically improves precision. Falls back to regex if no model is available."
+				},
+				"contextManager.intelligence.autoLearn.discardThreshold": {
+					"type": "integer",
+					"default": 5,
+					"minimum": 0,
+					"maximum": 50,
+					"markdownDescription": "Suppress a signal category after the user discards this many inferred items of that type. For example, after discarding 5 `naming` conventions, no more `naming` conventions will be auto-learned. Set to **0** to disable suppression."
+				},
+				"contextManager.intelligence.autoLearn.showInChat": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show auto-learn results as a **notification toast** after chat interactions. When disabled, auto-learned items are only visible in the dashboard."
+				},
+				"contextManager.intelligence.autoLearn.modelFamily": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Preferred language model family for auto-learn LLM extraction. This runs in the background after each chat interaction. Leave empty to use the default available model. Use the dashboard for a dropdown of available models."
+				},
+				"contextManager.intelligence.autoLearn.maxWorkingNotes": {
+					"type": "integer",
+					"default": 30,
+					"minimum": 5,
+					"maximum": 100,
+					"markdownDescription": "Maximum number of **inferred** working notes per project. When the cap is reached, the oldest inferred note is evicted before adding a new one. Notes promoted to `observed` or `confirmed` are never evicted."
+				},
+				"contextManager.intelligence.autoLearn.maxToolHints": {
+					"type": "integer",
+					"default": 20,
+					"minimum": 5,
+					"maximum": 100,
+					"markdownDescription": "Maximum number of tool hints per project. When the cap is reached, the least-used hint is evicted."
+				},
+				"contextManager.intelligence.autoLearn.maxConventions": {
+					"type": "integer",
+					"default": 15,
+					"minimum": 5,
+					"maximum": 50,
+					"markdownDescription": "Maximum number of **inferred** conventions per project. When the cap is reached, the oldest inferred convention is evicted. Conventions promoted to `observed` or `confirmed` are never evicted."
+				},
+				"contextManager.intelligence.autoLearn.extractToolHints": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Extract **tool hints** from search fail→success patterns. When a search returns no results but a subsequent search with a different query succeeds, the working query is recorded as a hint."
+				},
+				"contextManager.intelligence.autoLearn.extractWorkingNotes": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Extract **working notes** from file co-access patterns. When multiple files across different directories are read together, the relationship is recorded as an insight."
+				},
+				"contextManager.intelligence.autoLearn.extractConventions": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Extract **conventions** from response text. When the AI response contains statements like _\"always use…\"_, _\"never call…\"_, or mentions naming conventions, the pattern is recorded."
+				},
+				"contextManager.intelligence.autoLearn.hintsPerRun": {
+					"type": "integer",
+					"default": 3,
+					"minimum": 0,
+					"maximum": 10,
+					"markdownDescription": "Maximum tool hints to extract from a **single** chat interaction. Set to 0 to disable tool hint extraction per-run."
+				},
+				"contextManager.intelligence.autoLearn.notesPerRun": {
+					"type": "integer",
+					"default": 2,
+					"minimum": 0,
+					"maximum": 10,
+					"markdownDescription": "Maximum working notes to extract from a **single** chat interaction. Set to 0 to disable note extraction per-run."
+				},
+				"contextManager.intelligence.autoLearn.conventionsPerRun": {
+					"type": "integer",
+					"default": 1,
+					"minimum": 0,
+					"maximum": 5,
+					"markdownDescription": "Maximum conventions to extract from a **single** chat interaction. Set to 0 to disable convention extraction per-run."
+				},
+				"contextManager.intelligence.autoLearn.expiryDays": {
+					"type": "integer",
+					"default": 0,
+					"minimum": 0,
+					"maximum": 365,
+					"markdownDescription": "Auto-expire **inferred** learnings after this many days if never promoted to `observed` or `confirmed`. Set to **0** to disable auto-expiry (items only evicted when cap is reached)."
+				},
+				"contextManager.autoCapture.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable **auto-capture** of observations from all chat participants (Copilot, @workspace, etc.). Every model response is recorded as a lightweight observation for session continuity. Unlike auto-learn, this captures from **all** participants, not just `@ctx`."
+				},
+				"contextManager.autoCapture.learnFromAllParticipants": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Run lightweight **LLM extraction** on non-@ctx chat interactions to learn conventions and working notes. This extends the auto-learn pipeline to cover normal Copilot Chat and other participants."
+				},
+				"contextManager.autoCapture.maxObservations": {
+					"type": "integer",
+					"default": 50,
+					"minimum": 10,
+					"maximum": 200,
+					"markdownDescription": "Maximum number of observations to store in the circular buffer. Older observations are evicted when the buffer is full."
+				},
+				"contextManager.subagent.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable the `#subagent` tool, which lets any agent (local, background, or cloud) delegate complex ContextManager tasks — TODO execution, knowledge card generation/refinement, research — to an autonomous subagent loop with its own context window."
+				},
+				"contextManager.subagent.maxIterations": {
+					"type": "integer",
+					"default": 50,
+					"minimum": 10,
+					"maximum": 200,
+					"markdownDescription": "Maximum number of tool-calling iterations a subagent can run before stopping. Higher values allow longer autonomous runs but consume more tokens."
+				},
+				"contextManager.subagent.modelFamily": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Preferred language model family for subagent loops. Leave empty to use the default available model."
+				},
+				"contextManager.tools.backgroundMode": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "When **enabled** (default), the `#saveCard`, `#saveCache`, `#searchCache`, and `#readCache` tools run silently with only a brief status line — the chat session is never interrupted. When **disabled**, each tool invocation shows a confirmation dialog before proceeding."
+				},
+				"contextManager.search.enableFTS": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable BM25 full-text search (SQLite FTS5) for knowledge cards, TODOs, cache, branch sessions, and agent conversations. Provides ranked relevance search instead of simple keyword matching. Disable to fall back to basic keyword search."
+				},
+				"contextManager.search.maxCardResults": {
+					"type": "integer",
+					"default": 5,
+					"minimum": 1,
+					"maximum": 20,
+					"markdownDescription": "Maximum number of knowledge cards returned by `#searchCards`. Higher values provide more context but consume more tokens."
+				},
+				"contextManager.search.maxSearchResults": {
+					"type": "integer",
+					"default": 10,
+					"minimum": 1,
+					"maximum": 50,
+					"markdownDescription": "Maximum number of results returned by `#search` (cross-entity full-text search). Higher values provide broader context but consume more tokens."
+				},
+				"contextManager.search.snippetTokens": {
+					"type": "integer",
+					"default": 16,
+					"minimum": 8,
+					"maximum": 64,
+					"markdownDescription": "Number of context tokens around each match highlight in `#search` snippets. Higher values show more surrounding text per result."
+				},
+				"contextManager.internal.autoLearn.llmCostWarningShown": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Internal flag — tracks whether the one-time auto-learn LLM cost notification has been shown. Do not modify manually.",
+					"scope": "application"
+				},
+				"contextManager.autoDistill.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Automatically distill observations into conventions and knowledge cards at compaction checkpoints."
+				},
+				"contextManager.autoDistill.intervalMinutes": {
+					"type": "number",
+					"default": 30,
+					"minimum": 5,
+					"markdownDescription": "Minimum minutes between automatic distillation runs per project."
+				},
+				"contextManager.autoDistill.dedupThreshold": {
+					"type": "number",
+					"default": 0.8,
+					"minimum": 0.5,
+					"maximum": 1,
+					"markdownDescription": "Jaccard similarity threshold for detecting duplicate conventions/notes. 0.5=loose (more merges), 1.0=strict (exact matches only). Default: 0.8"
+				},
+				"contextManager.saveAsCard.smartMerge": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable smart merge detection when saving knowledge cards (checks for semantic overlap with existing cards)."
+				},
+				"contextManager.saveAsCard.showFollowups": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show 'Save as Knowledge Card' follow-up buttons after @ctx commands."
+				},
+				"contextManager.cardQueue.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Automatically detect card-worthy content in chat responses and add to review queue for approval."
+				},
+				"contextManager.cardQueue.minResponseLength": {
+					"type": "number",
+					"default": 300,
+					"minimum": 50,
+					"maximum": 5000,
+					"markdownDescription": "Minimum character length of a model response to queue it as a card candidate. Responses shorter than this are skipped. Default: 300"
+				},
+				"contextManager.cardQueue.maxSize": {
+					"type": "number",
+					"default": 30,
+					"minimum": 5,
+					"maximum": 100,
+					"markdownDescription": "Maximum number of candidates in the review queue. Oldest items are dropped when the limit is reached."
+				},
+				"contextManager.cardQueue.distillBatchSize": {
+					"type": "number",
+					"default": 2,
+					"minimum": 1,
+					"maximum": 10,
+					"markdownDescription": "Number of candidates processed per LLM call during distillation. Lower = more calls but no content truncation. Higher = fewer calls but may hit context limits."
+				},
+				"contextManager.cardQueue.maxCardsPerDistill": {
+					"type": "number",
+					"default": 12,
+					"minimum": 1,
+					"maximum": 30,
+					"markdownDescription": "Maximum number of knowledge cards to extract in a single distill run."
+				},
+				"contextManager.context.stubLines": {
+					"type": "number",
+					"default": 5,
+					"minimum": 1,
+					"maximum": 30,
+					"markdownDescription": "Lines of code captured per anchor stub when a knowledge card is extracted from chat sessions."
+				}
+			}
+		},
+		"languageModelTools": [
+			{
+				"name": "contextManager_semanticSearch",
+				"tags": [
+					"search",
+					"knowledge",
+					"semantic",
+					"embeddings",
+					"cards"
+				],
+				"toolReferenceName": "searchCards",
+				"displayName": "Search Knowledge Cards",
+				"modelDescription": "Semantically searches the user's knowledge cards using embedding-based similarity. Use this tool when the user asks a question that might be answered by their saved knowledge cards, or when you need to find specific architectural notes, patterns, conventions, or explanations the user has curated. Supports semantic search (via embeddings) with automatic keyword fallback. Can optionally auto-select matching cards for context injection.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(search)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"query"
+					],
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "Natural-language query to search knowledge cards for. Be descriptive — e.g. 'authentication flow for the API layer' rather than just 'auth'."
+						},
+						"topK": {
+							"type": "number",
+							"description": "Maximum number of matching cards to return. Default 5, max 10.",
+							"default": 5
+						},
+						"autoSelect": {
+							"type": "boolean",
+							"description": "If true, automatically select the matched cards for context injection into subsequent prompts.",
+							"default": false
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_ctx",
+				"tags": [
+					"search",
+					"find",
+					"query",
+					"conventions",
+					"notes",
+					"hints",
+					"knowledge",
+					"intelligence",
+					"memory",
+					"learn"
+				],
+				"toolReferenceName": "ctx",
+				"displayName": "Project Memory",
+				"modelDescription": "Unified tool for ALL project knowledge operations. Modes:\n\n**search** (default): BM25 search across all entity types. Use entityTypes to filter: 'convention', 'workingNote', 'toolHint', 'card', 'cache', 'observation', 'session', 'agentMessage', 'project'. Examples: query='auth' entityTypes=['convention','workingNote'] to search only conventions and notes.\n\n**list**: List all items of a type. Set type to 'conventions', 'workingNotes', 'toolHints', or 'cards'. No query needed.\n\n**learn**: Create new intelligence. Set learnType to 'convention' (needs category+title+content), 'toolHint' (needs toolName+pattern+example), or 'workingNote' (needs subject+insight).\n\n**getCard**: Read a knowledge card by ID.\n\n**retrospect**: End-of-task learning. Provide newConventions, newToolHints, knowledgeCards arrays.\n\n**timeline/fetch**: Observation progressive disclosure. Use mode='timeline' with observationId, or mode='fetch' with observationIds.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(search-fuzzy)",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"mode": {
+							"type": "string",
+							"enum": ["search", "list", "learn", "getCard", "timeline", "fetch", "economics", "retrospect"],
+							"description": "Operation mode. Default 'search'.",
+							"default": "search"
+						},
+						"query": {
+							"type": "string",
+							"description": "Search query (for mode='search'). Supports quoted phrases."
+						},
+						"entityTypes": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"enum": ["card", "convention", "workingNote", "toolHint", "cache", "observation", "session", "agentMessage", "project"]
+							},
+							"description": "Filter search to specific entity types."
+						},
+						"limit": {
+							"type": "number",
+							"description": "Max results for search. Default 10.",
+							"default": 10
+						},
+						"type": {
+							"type": "string",
+							"enum": ["conventions", "workingNotes", "toolHints", "cards"],
+							"description": "For mode='list': which type to list."
+						},
+						"learnType": {
+							"type": "string",
+							"enum": ["convention", "toolHint", "workingNote"],
+							"description": "For mode='learn': what to create."
+						},
+						"id": {
+							"type": "string",
+							"description": "Card ID for mode='getCard'."
+						},
+						"category": {
+							"type": "string",
+							"enum": ["architecture", "naming", "patterns", "testing", "tooling", "pitfalls"],
+							"description": "Convention category (for learn convention)."
+						},
+						"title": { "type": "string", "description": "Title (for learn convention)." },
+						"content": { "type": "string", "description": "Content (for learn convention)." },
+						"confidence": { "type": "string", "enum": ["observed", "inferred"], "description": "Confidence level." },
+						"learnedFrom": { "type": "string", "description": "Source of the convention." },
+						"toolName": { "type": "string", "description": "Tool name (for learn toolHint)." },
+						"pattern": { "type": "string", "description": "Search pattern (for learn toolHint)." },
+						"antiPattern": { "type": "string", "description": "Anti-pattern (for learn toolHint)." },
+						"example": { "type": "string", "description": "Example (for learn toolHint)." },
+						"subject": { "type": "string", "description": "Subject (for learn workingNote)." },
+						"insight": { "type": "string", "description": "Insight (for learn workingNote)." },
+						"relatedFiles": { "type": "array", "items": { "type": "string" }, "description": "Related files (for learn workingNote)." },
+						"relatedSymbols": { "type": "array", "items": { "type": "string" }, "description": "Related symbols (for learn workingNote)." },
+						"observationId": { "type": "string", "description": "Observation ID for timeline mode." },
+						"observationIds": { "type": "array", "items": { "type": "string" }, "description": "Observation IDs for fetch mode." },
+						"timelineDepth": { "type": "number", "description": "Timeline depth. Default 5.", "default": 5 },
+						"taskSummary": { "type": "string", "description": "Task summary (for retrospect)." },
+						"newConventions": { "type": "array", "items": { "type": "object", "properties": { "category": { "type": "string" }, "title": { "type": "string" }, "content": { "type": "string" } }, "required": ["title", "content"] }, "description": "New conventions (for retrospect)." },
+						"newToolHints": { "type": "array", "items": { "type": "object", "properties": { "toolName": { "type": "string" }, "pattern": { "type": "string" }, "antiPattern": { "type": "string" }, "example": { "type": "string" } }, "required": ["toolName", "pattern"] }, "description": "New tool hints (for retrospect)." },
+						"knowledgeCards": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "content": { "type": "string" }, "category": { "type": "string" } }, "required": ["title", "content"] }, "description": "New knowledge cards (for retrospect)." }
+					}
+				}
+			},
+			{
+				"name": "contextManager_runSubagent",
+				"tags": [
+					"subagent",
+					"agent",
+					"autonomous",
+					"delegate",
+					"background",
+					"todo",
+					"knowledge"
+				],
+				"toolReferenceName": "ctxSubagent",
+				"displayName": "ContextManager Subagent",
+				"modelDescription": "Launch an autonomous subagent to handle complex, multi-step ContextManager tasks in its own isolated context window. The subagent has access to all ContextManager tools plus workspace search/read tools and runs a full tool-calling loop independently. Use this to delegate tasks that require multiple iterations without consuming the main agent's context budget.\n\nSupported task types:\n- 'executeTodo': Execute a TODO item — research, implement, and update its status. Requires todoId.\n- 'generateKnowledge': Research a topic across the codebase and create a knowledge card. Requires topic.\n- 'refineKnowledge': Improve an existing knowledge card with fresh research. Requires cardId.\n- 'research': General research task — explore the codebase and project memory to answer a question.\n- 'analyzeCode': Analyze code patterns, architecture, or relationships.\n\nThe subagent does NOT run in the background — you wait for its result. It returns a single text result summarizing findings and actions taken.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(sparkle)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"task",
+						"prompt"
+					],
+					"properties": {
+						"task": {
+							"type": "string",
+							"description": "The type of task to delegate to the subagent.",
+							"enum": [
+								"executeTodo",
+								"generateKnowledge",
+								"refineKnowledge",
+								"research",
+								"analyzeCode"
+							]
+						},
+						"prompt": {
+							"type": "string",
+							"description": "Detailed instructions for the subagent. Be specific about what you want it to accomplish."
+						},
+						"todoId": {
+							"type": "string",
+							"description": "The TODO ID to execute (required for 'executeTodo' task)."
+						},
+						"cardId": {
+							"type": "string",
+							"description": "The knowledge card ID to refine (required for 'refineKnowledge' task)."
+						},
+						"topic": {
+							"type": "string",
+							"description": "The topic to research and create a knowledge card for (used with 'generateKnowledge')."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_saveKnowledgeCard",
+				"tags": [
+					"knowledge",
+					"card",
+					"save",
+					"background",
+					"memory"
+				],
+				"toolReferenceName": "saveCard",
+				"displayName": "Save Knowledge Card",
+				"modelDescription": "Silently saves a knowledge card to the active project without interrupting the chat session. No confirmation required — runs in background. Provide a title, content (markdown), optional category ('architecture'|'pattern'|'convention'|'explanation'|'note'|'other'), optional tags, and optional source reference.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(notebook-edit)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"title",
+						"content"
+					],
+					"properties": {
+						"title": {
+							"type": "string",
+							"description": "Title of the knowledge card."
+						},
+						"content": {
+							"type": "string",
+							"description": "Full markdown content of the card."
+						},
+						"category": {
+							"type": "string",
+							"description": "Category for the card. Default: 'note'.",
+							"enum": [
+								"architecture",
+								"pattern",
+								"convention",
+								"explanation",
+								"note",
+								"other"
+							]
+						},
+						"tags": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Optional list of tags for discovery."
+						},
+						"source": {
+							"type": "string",
+							"description": "Optional source reference (e.g. doc URL or file path)."
+						},
+						"folderName": {
+							"type": "string",
+							"description": "Optional folder name to place the card into. If omitted, auto-assigns to the best matching folder."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_saveCache",
+				"tags": [
+					"cache",
+					"save",
+					"explanation",
+					"background",
+					"memory"
+				],
+				"toolReferenceName": "saveCache",
+				"displayName": "Save to Cache",
+				"modelDescription": "Silently saves a code explanation or analysis note to the cache without interrupting the chat session. No confirmation required — runs in background. Cached entries are searchable and can be retrieved by symbol name later.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(save)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"symbolName",
+						"content"
+					],
+					"properties": {
+						"symbolName": {
+							"type": "string",
+							"description": "Symbol or concept name for this cache entry."
+						},
+						"content": {
+							"type": "string",
+							"description": "The explanation or content to cache."
+						},
+						"type": {
+							"type": "string",
+							"description": "Type of cached content. Default: 'explain'.",
+							"enum": [
+								"explain",
+								"usage",
+								"relationships"
+							]
+						},
+						"filePath": {
+							"type": "string",
+							"description": "Optional file path the explanation relates to."
+						},
+						"lineNumber": {
+							"type": "number",
+							"description": "Optional line number within filePath."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_searchCache",
+				"tags": [
+					"cache",
+					"search",
+					"find",
+					"explanation",
+					"memory"
+				],
+				"toolReferenceName": "searchCache",
+				"displayName": "Search Cache",
+				"modelDescription": "Searches cached code explanations and notes by keyword or symbol name. Filters to the active project's cache. Returns matching entries with snippets and IDs. Use contextManager_readCache to retrieve the full content of a specific entry.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(search)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"query"
+					],
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "Keyword or phrase to search for in cache entries."
+						},
+						"limit": {
+							"type": "number",
+							"description": "Maximum results to return. Default 10.",
+							"default": 10
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_readCache",
+				"tags": [
+					"cache",
+					"read",
+					"explanation",
+					"memory"
+				],
+				"toolReferenceName": "readCache",
+				"displayName": "Read Cache Entry",
+				"modelDescription": "Reads a specific cached explanation in full by its ID or symbol name. Provide either 'id' (exact cache entry ID) or 'symbolName' (finds the most recent match for that symbol in the active project). Use contextManager_searchCache first to discover entry IDs.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(book)",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"id": {
+							"type": "string",
+							"description": "Cache entry ID (exact)."
+						},
+						"symbolName": {
+							"type": "string",
+							"description": "Symbol name to look up (finds the most recent match)."
+						},
+						"type": {
+							"type": "string",
+							"description": "Type filter when using symbolName. Optional.",
+							"enum": [
+								"explain",
+								"usage",
+								"relationships"
+							]
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_getCard",
+				"tags": [
+					"knowledge",
+					"card",
+					"read",
+					"get",
+					"detail"
+				],
+				"toolReferenceName": "getCard",
+				"displayName": "Get Knowledge Card",
+				"modelDescription": "Reads the full content of a knowledge card by its ID. Returns title, content, category, tags, anchors (code stubs that ground the card), and staleness warnings if anchor files have changed. Use this tool after seeing the card index from #projectContext to read a specific card. Always prefer this over re-searching when you already have a card ID.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(open-preview)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"id"
+					],
+					"properties": {
+						"id": {
+							"type": "string",
+							"description": "The knowledge card ID (from the project context index)."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_editKnowledgeCard",
+				"tags": [
+					"knowledge",
+					"card",
+					"edit",
+					"update",
+					"memory"
+				],
+				"toolReferenceName": "editCard",
+				"displayName": "Edit Knowledge Card",
+				"modelDescription": "Updates fields on an existing knowledge card in the active project. Only the fields you supply are changed — omitted fields are left as-is. Use contextManager_semanticSearch or contextManager_fullTextSearch to find the card ID first.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(edit)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"id"
+					],
+					"properties": {
+						"id": {
+							"type": "string",
+							"description": "ID of the knowledge card to edit."
+						},
+						"title": {
+							"type": "string",
+							"description": "New title. Omit to keep existing."
+						},
+						"content": {
+							"type": "string",
+							"description": "New markdown content. Omit to keep existing."
+						},
+						"category": {
+							"type": "string",
+							"description": "New category. Omit to keep existing.",
+							"enum": [
+								"architecture",
+								"pattern",
+								"convention",
+								"explanation",
+								"note",
+								"other"
+							]
+						},
+						"tags": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Replacement tag list. Omit to keep existing."
+						},
+						"source": {
+							"type": "string",
+							"description": "New source reference. Omit to keep existing."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_organizeKnowledgeCards",
+				"tags": [
+					"knowledge",
+					"card",
+					"folder",
+					"organize",
+					"move",
+					"memory"
+				],
+				"toolReferenceName": "organizeCards",
+				"displayName": "Organize Knowledge Cards",
+				"modelDescription": "Organizes knowledge cards into folders. Actions: 'listFolders' (show all folders and card counts), 'createFolder' (create a folder, optionally nested under parentFolderName), 'moveCard' (move card by ID to a folder by name, auto-creates folder if needed), 'autoOrganize' (auto-assign all unorganized cards to best-matching folders).",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(folder)",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"action": {
+							"type": "string",
+							"description": "Action to perform. Defaults to 'listFolders' if omitted.",
+							"enum": [
+								"listFolders",
+								"createFolder",
+								"moveCard",
+								"autoOrganize"
+							],
+							"default": "listFolders"
+						},
+						"folderName": {
+							"type": "string",
+							"description": "Folder name (for createFolder)."
+						},
+						"parentFolderName": {
+							"type": "string",
+							"description": "Parent folder name (for creating subfolders)."
+						},
+						"cardId": {
+							"type": "string",
+							"description": "Card ID to move (for moveCard)."
+						},
+						"targetFolderName": {
+							"type": "string",
+							"description": "Target folder name (for moveCard). Empty = root/uncategorized."
+						}
+					}
+				}
+			},
+			{
+				"name": "contextManager_editCache",
+				"tags": [
+					"cache",
+					"edit",
+					"update",
+					"explanation",
+					"memory"
+				],
+				"toolReferenceName": "editCache",
+				"displayName": "Edit Cache Entry",
+				"modelDescription": "Updates an existing cache entry's content and/or symbol name by its ID. Only supplied fields are changed. Use contextManager_searchCache to find the entry ID first.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(edit)",
+				"inputSchema": {
+					"type": "object",
+					"required": [
+						"id"
+					],
+					"properties": {
+						"id": {
+							"type": "string",
+							"description": "Cache entry ID to edit."
+						},
+						"content": {
+							"type": "string",
+							"description": "Replacement content. Omit to keep existing."
+						},
+						"symbolName": {
+							"type": "string",
+							"description": "Replacement symbol name. Omit to keep existing."
+						}
+					}
+				}
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./ && node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','out/sql-wasm.wasm')\"",
+		"watch": "tsc -watch -p ./",
+		"lint": "eslint src",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@types/node": "^22",
+		"@types/sql.js": "^1.4.9",
+		"@types/vscode": "^1.100.0",
+		"typescript": "^5.9.2",
+		"vitest": "^4.0.18"
+	},
+	"dependencies": {
+		"@vscode/prompt-tsx": "^0.3.0-alpha.12",
+		"katex": "^0.16.28",
+		"sql.js": "^1.14.0"
+	}
+}
