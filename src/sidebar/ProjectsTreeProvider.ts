@@ -53,12 +53,19 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<TreeItemTyp
 		item.description = `${selectedCards}/${project.knowledgeCards?.length || 0} cards`;
 		item.contextValue = isActive ? 'project-active' : 'project';
 
+		// Click to set active (or deselect if already active)
+		item.command = {
+			command: isActive ? 'contextManager.deselectProject' : 'contextManager.setActiveProject',
+			title: isActive ? 'Deselect Project' : 'Set Active Project',
+			arguments: isActive ? [] : [project.id]
+		};
+
 		if (isActive) {
 			item.iconPath = new vscode.ThemeIcon('folder-opened', new vscode.ThemeColor('charts.green'));
-			item.tooltip = `${project.name} (active) — ${item.description}`;
+			item.tooltip = `${project.name} (active) — ${item.description} — click to deselect`;
 		} else {
 			item.iconPath = new vscode.ThemeIcon('folder');
-			item.tooltip = `${project.name} — ${item.description}`;
+			item.tooltip = `${project.name} — ${item.description} — click to activate`;
 		}
 
 		return item;

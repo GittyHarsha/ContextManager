@@ -75,6 +75,16 @@ export class DashboardPanel {
 		projectManager.onDidChangeProjects(() => this._guardedUpdate(), null, this._disposables);
 		projectManager.onDidChangeActiveProject(() => this._guardedUpdate(), null, this._disposables);
 
+		// Auto-release suppression when user switches away from the dashboard.
+		// Forms/editors remain "visible" in the hidden webview DOM, which prevents the
+		// webview-side focusout handler from releasing suppression. When the user comes
+		// back, _endSuppression flushes any queued updates (e.g. new queue items).
+		this._panel.onDidChangeViewState(() => {
+			if (!this._panel.active && this._suppressUpdate) {
+				this._endSuppression();
+			}
+		}, null, this._disposables);
+
 		// Refresh stalenesson file save (debounced — only if dashboard is open)
 		let stalenessTimer: ReturnType<typeof setTimeout> | undefined;
 		vscode.workspace.onDidSaveTextDocument(() => {
@@ -130,9 +140,10 @@ export class DashboardPanel {
 			? vscode.window.activeTextEditor.viewColumn
 			: undefined;
 
-		// If panel already exists, show it
+		// If panel already exists, show it and refresh content
 		if (DashboardPanel.currentPanel) {
 			DashboardPanel.currentPanel._panel.reveal(column);
+			DashboardPanel.currentPanel._flushUpdate();
 			return;
 		}
 
