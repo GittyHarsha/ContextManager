@@ -79,6 +79,7 @@ export interface KnowledgeCard {
 	pinned?: boolean;              // Pinned cards appear first in index; default false
 	includeInContext?: boolean;    // Shown in knowledge_index; default true
 	archived?: boolean;            // Hidden from index and normal views; default false
+	isGlobal?: boolean;            // Global cards are injected into all projects' context
 	anchors?: AnchorStub[];        // Grounded code stubs from anchor extraction
 }
 

@@ -723,6 +723,15 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			setTimeout(function() { setInteracting(false); }, 600);
 		}
 
+		/**
+		 * Toggle global flag on the card currently open in the editor.
+		 * Called from the 🌐 Global checkbox in the editor footer.
+		 */
+		function toggleEditorGlobal(checked) {
+			if (!_editorState.tileId || _editorState.tileType === 'queue') { return; }
+			setCardFlag(_editorState.tileId, 'isGlobal', checked);
+		}
+
 		function uncheckAllCards() {
 			vscode.postMessage({
 				command: 'deselectAllCards',
@@ -1365,72 +1374,49 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		}
 
 		// Also suppress during inline title editing and notes editing
-		document.addEventListener('focusin', function(e) {
-			const el = e.target;
-			if (el && (
+		function _isTrackedInput(el) {
+			if (!el || !el.id) { return false; }
+			return (
 				el.id === 'newTodoTitle' ||
 				el.id === 'newTodoDesc' ||
-				(el.id && el.id.startsWith('todo-title-edit-')) ||
-				(el.id && el.id.startsWith('todo-desc-edit-')) ||
-				(el.id && el.id.startsWith('todo-notes-')) ||
-				(el.id && el.id.startsWith('cache-name-editor-')) ||
-				(el.id && el.id.startsWith('cache-editor-')) ||
-				(el.id && el.id.startsWith('card-title-editor-')) ||
-				(el.id && el.id.startsWith('card-editor-')) ||
+				el.id.startsWith('todo-title-edit-') ||
+				el.id.startsWith('todo-desc-edit-') ||
+				el.id.startsWith('todo-notes-') ||
+				el.id.startsWith('cache-name-editor-') ||
+				el.id.startsWith('cache-editor-') ||
+				el.id.startsWith('card-title-editor-') ||
+				el.id.startsWith('card-editor-') ||
 				el.id === 'newProjectName' ||
 				el.id === 'newCardTitle' ||
 				el.id === 'newCardContent' ||
 				el.id === 'contextGoals' ||
 				el.id === 'contextConventions' ||
-				el.id === 'contextKeyFiles'
-			)) {
+				el.id === 'contextKeyFiles' ||
+				// Card canvas editor panel inputs
+				el.id === 'editor-title' ||
+				el.id === 'editor-content' ||
+				el.id === 'editor-category' ||
+				el.id === 'editor-tag-input' ||
+				el.id === 'editor-custom-prompt'
+			);
+		}
+		document.addEventListener('focusin', function(e) {
+			if (_isTrackedInput(e.target)) {
 				setInteracting(true);
 			}
 		});
 		document.addEventListener('focusout', function(e) {
-			const el = e.target;
-			if (el && (
-				el.id === 'newTodoTitle' ||
-				el.id === 'newTodoDesc' ||
-				(el.id && el.id.startsWith('todo-title-edit-')) ||
-				(el.id && el.id.startsWith('todo-desc-edit-')) ||
-				(el.id && el.id.startsWith('todo-notes-')) ||
-				(el.id && el.id.startsWith('cache-name-editor-')) ||
-				(el.id && el.id.startsWith('cache-editor-')) ||
-				(el.id && el.id.startsWith('card-title-editor-')) ||
-				(el.id && el.id.startsWith('card-editor-')) ||
-				el.id === 'newProjectName' ||
-				el.id === 'newCardTitle' ||
-				el.id === 'newCardContent' ||
-				el.id === 'contextGoals' ||
-				el.id === 'contextConventions' ||
-				el.id === 'contextKeyFiles'
-			)) {
+			if (_isTrackedInput(e.target)) {
 				// Small delay to allow focus to move to another tracked element
 				setTimeout(() => {
 					const active = document.activeElement;
 					const todoFormVisible = document.getElementById('addTodoForm')?.style.display !== 'none';
 					const cardFormVisible = document.getElementById('addCardForm')?.style.display !== 'none';
 					const cacheEditVisible = document.querySelector('.inline-edit[id^="cache-edit-"][style*="block"]');
-				const cardEditVisible = document.querySelector('.inline-edit[id^="card-edit-"][style*="block"]');
-				const stillEditing = active && (
-						active.id === 'newTodoTitle' ||
-						active.id === 'newTodoDesc' ||
-						(active.id && active.id.startsWith('todo-title-edit-')) ||
-						(active.id && active.id.startsWith('todo-desc-edit-')) ||
-						(active.id && active.id.startsWith('todo-notes-')) ||
-						(active.id && active.id.startsWith('cache-name-editor-')) ||
-						(active.id && active.id.startsWith('cache-editor-')) ||
-						(active.id && active.id.startsWith('card-title-editor-')) ||
-						(active.id && active.id.startsWith('card-editor-')) ||
-						active.id === 'newProjectName' ||
-						active.id === 'newCardTitle' ||
-						active.id === 'newCardContent' ||
-						active.id === 'contextGoals' ||
-						active.id === 'contextConventions' ||
-						active.id === 'contextKeyFiles'
-					);
-					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible) {
+					const cardEditVisible = document.querySelector('.inline-edit[id^="card-edit-"][style*="block"]');
+					const editorPanelVisible = document.getElementById('card-editor-panel')?.classList.contains('visible');
+					const stillEditing = _isTrackedInput(active);
+					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible && !editorPanelVisible) {
 						setInteracting(false);
 					}
 				}, 100);
@@ -1978,7 +1964,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		// ─── Workbench: Restore persisted filter state ────────────
 		(function restoreWorkbenchFilter() {
 			var saved = previousState.workbenchFilter;
-			if (!saved) { return; }
+			if (!saved) {
+				// No saved state — still apply default sort (newest first)
+				requestAnimationFrame(function() { applyWorkbenchFilter(); });
+				return;
+			}
 			requestAnimationFrame(function() {
 				// Restore kind checkboxes
 				if (saved.enabledKinds) {
@@ -2196,6 +2186,18 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var ancContainer = document.getElementById('editor-anchors-container');
 			if (ancContainer) { ancContainer.innerHTML = data.anchorsHtml || ''; }
 
+			// Show/hide global toggle (only for saved cards, not queue items)
+			var globalToggle = document.getElementById('editor-global-toggle');
+			var globalCb = document.getElementById('editor-global-cb');
+			if (globalToggle && globalCb) {
+				if (!data.isQueue) {
+					globalToggle.style.display = '';
+					globalCb.checked = !!data.isGlobal;
+				} else {
+					globalToggle.style.display = 'none';
+				}
+			}
+
 			// Show panel
 			panel.classList.add('visible');
 			updateEditorPreview();
@@ -2211,6 +2213,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var promptInput = document.getElementById('editor-custom-prompt');
 			if (promptContainer) { promptContainer.style.display = 'none'; }
 			if (promptInput) { promptInput.value = ''; }
+			// Reset global toggle
+			var globalToggle = document.getElementById('editor-global-toggle');
+			if (globalToggle) { globalToggle.style.display = 'none'; }
 			_editorState = { open: false, tileId: null, tileType: null, mode: null };
 		}
 
@@ -2521,6 +2526,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		window.aiDraftFromEditor = aiDraftFromEditor;
 		window.updateEditorPreview = updateEditorPreview;
 		window.addEditorTag = addEditorTag;
+		window.toggleEditorGlobal = toggleEditorGlobal;
 		window.composeFromSelected = composeFromSelected;
 		window.aiSynthesizeSelected = aiSynthesizeSelected;
 		window.dismissSelected = dismissSelected;

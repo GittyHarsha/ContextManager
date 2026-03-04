@@ -571,6 +571,24 @@ export class ProjectManager extends vscode.Disposable {
 		);
 	}
 
+	/**
+	 * Get all global cards across ALL projects (excluding archived).
+	 * Avoids duplicates when the same card is already selected in the requesting project.
+	 */
+	getGlobalCards(excludeProjectId?: string): KnowledgeCard[] {
+		const globals: KnowledgeCard[] = [];
+		for (const project of this.getAllProjects()) {
+			for (const card of project.knowledgeCards) {
+				if (card.isGlobal && !card.archived) {
+					// Tag with source project for attribution (add if not already set)
+					if (excludeProjectId && project.id === excludeProjectId) { continue; }
+					globals.push(card);
+				}
+			}
+		}
+		return globals;
+	}
+
 	getKnowledgeFolders(projectId: string): KnowledgeFolder[] {
 		const project = this.getProject(projectId);
 		return project?.knowledgeFolders || [];
@@ -1230,6 +1248,20 @@ export class ProjectManager extends vscode.Disposable {
 		if (!card) {
 			console.error(`[CardQueue] Failed to create card for candidate ${candidateId}`);
 			return undefined;
+		}
+
+		// Transfer tool call records to knowledge tool usages
+		if (candidate.toolCalls?.length) {
+			const toolUsages: import('./types').KnowledgeToolUsage[] = candidate.toolCalls.map(tc => ({
+				toolName: tc.toolName,
+				pattern: tc.input.substring(0, 200),
+				example: tc.output.substring(0, 200),
+				successCount: 1,
+				lastUsed: Date.now(),
+			}));
+			await this.updateKnowledgeCard(projectId, card.id, {
+				toolUsages, trackToolUsage: true
+			});
 		}
 
 		// Remove from queue

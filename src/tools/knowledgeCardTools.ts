@@ -145,10 +145,17 @@ export class GetCardTool implements vscode.LanguageModelTool<IGetCardParams> {
 		}
 
 		const cards = this.projectManager.getKnowledgeCards(project.id);
-		const card = cards.find(c => c.id === id);
+		let card = cards.find(c => c.id === id);
+
+		// If not found in active project, search global cards from other projects
+		if (!card) {
+			const globalCards = this.projectManager.getGlobalCards(project.id);
+			card = globalCards.find(c => c.id === id);
+		}
+
 		if (!card) {
 			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-				`No knowledge card found with ID "${id}" in project "${project.name}".`
+				`No knowledge card found with ID "${id}" in project "${project.name}" or in global cards.`
 			)]);
 		}
 

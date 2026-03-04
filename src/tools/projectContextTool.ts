@@ -67,9 +67,16 @@ export class ProjectContextTool implements vscode.LanguageModelTool<IProjectCont
 			const selectedCards = this.projectManager.getSelectedKnowledgeCards(activeProject.id);
 			// Filter: only includeInContext=true cards, exclude archived
 			const visibleCards = selectedCards.filter(c => c.includeInContext !== false && !c.archived);
-			if (visibleCards.length > 0) {
+
+			// Also include global cards from OTHER projects
+			const globalCards = this.projectManager.getGlobalCards(activeProject.id)
+				.filter(c => !visibleCards.some(v => v.id === c.id));
+
+			const allCards = [...visibleCards, ...globalCards];
+
+			if (allCards.length > 0) {
 				// Sort: pinned first, then by title
-				const sorted = [...visibleCards].sort((a, b) => {
+				const sorted = [...allCards].sort((a, b) => {
 					if (a.pinned && !b.pinned) { return -1; }
 					if (!a.pinned && b.pinned) { return 1; }
 					return a.title.localeCompare(b.title);
@@ -78,8 +85,9 @@ export class ProjectContextTool implements vscode.LanguageModelTool<IProjectCont
 				parts.push('Index of project knowledge cards. Use the #getCard tool with the card ID to read full content.');
 				for (const card of sorted) {
 					const pin = card.pinned ? ' [pinned]' : '';
+					const global = card.isGlobal ? ' [global]' : '';
 					const tags = card.tags.length > 0 ? ` (${card.tags.join(', ')})` : '';
-					parts.push(`- **${card.title}** [${card.category}]${pin}${tags} — ID: \`${card.id}\``);
+					parts.push(`- **${card.title}** [${card.category}]${pin}${global}${tags} — ID: \`${card.id}\``);
 				}
 			} else {
 				parts.push('No knowledge cards are currently selected for context injection.');

@@ -177,7 +177,11 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 		const activeProject = this.projectManager.getActiveProject();
 		if (!activeProject) { return this._text('No active project.'); }
 		if (!input.id) { return this._text('Missing: id (knowledge card ID).'); }
-		const card = this.projectManager.getKnowledgeCards(activeProject.id).find(c => c.id === input.id);
+		let card = this.projectManager.getKnowledgeCards(activeProject.id).find(c => c.id === input.id);
+		// Also search global cards from other projects
+		if (!card) {
+			card = this.projectManager.getGlobalCards(activeProject.id).find(c => c.id === input.id);
+		}
 		if (!card) { return this._text(`Card not found: ${input.id}`); }
 		const parts = [
 			`## ${card.title} [${card.category}]`,

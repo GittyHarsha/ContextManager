@@ -760,14 +760,21 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						}
 						break;
 					case 'editKnowledgeCard': {
-						const cardUpdates: Record<string, string | boolean> = {};
+						const cardUpdates: Record<string, any> = {};
+						// Canvas editor sends title/content/category/tags directly
+						if (message.title !== undefined) { cardUpdates.title = message.title; }
+						if (message.content !== undefined) { cardUpdates.content = message.content; }
+						if (message.category !== undefined) { cardUpdates.category = message.category; }
+						if (message.tags !== undefined) { cardUpdates.tags = message.tags; }
+						// Legacy inline-edit fields
 						if (message.newTitle !== undefined) { cardUpdates.title = message.newTitle; }
 						if (message.newContent !== undefined) { cardUpdates.content = message.newContent; }
 						if (message.trackToolUsage !== undefined) { cardUpdates.trackToolUsage = message.trackToolUsage === true; }
-						// Boolean flag toggles: pinned, archived, includeInContext
+						// Boolean flag toggles: pinned, archived, includeInContext, isGlobal
 						if (message.pinned !== undefined) { cardUpdates.pinned = message.pinned === true; }
 						if (message.archived !== undefined) { cardUpdates.archived = message.archived === true; }
 						if (message.includeInContext !== undefined) { cardUpdates.includeInContext = message.includeInContext === true; }
+						if (message.isGlobal !== undefined) { cardUpdates.isGlobal = message.isGlobal === true; }
 						if (Object.keys(cardUpdates).length > 0) {
 							await projectManager.updateKnowledgeCard(
 								message.projectId,
@@ -1341,6 +1348,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 								category: card.category,
 								content: card.content,
 								tags: card.tags || [],
+								isGlobal: !!card.isGlobal,
 								toolCallsHtml: '',
 								sourceHtml: '',
 								anchorsHtml: renderAnchorPills(card.anchors || []),

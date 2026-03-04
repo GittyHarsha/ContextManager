@@ -138,6 +138,7 @@ export function renderCardTile(item: WorkbenchItem, opts: TileOptions = {}): str
 	let timestamp: number | undefined;
 	let pinned = false;
 	let archived = false;
+	let isGlobal = false;
 
 	switch (kind) {
 		case 'queue': {
@@ -184,6 +185,7 @@ export function renderCardTile(item: WorkbenchItem, opts: TileOptions = {}): str
 			timestamp = k.updated;
 			pinned = !!k.pinned;
 			archived = !!k.archived;
+			isGlobal = !!k.isGlobal;
 			break;
 		}
 	}
@@ -201,7 +203,7 @@ export function renderCardTile(item: WorkbenchItem, opts: TileOptions = {}): str
 
 	const kindBadge = KIND_BADGES[kind];
 
-	return `<div class="${classes}" data-tile-id="${escapeHtml(id)}" data-tile-type="${kind}" data-tile-category="${escapeHtml(category)}" data-tile-tags="${escapeHtml(tags.join(','))}" data-tile-pinned="${pinned}" data-tile-archived="${archived}" data-tile-timestamp="${timestamp || 0}">
+	return `<div class="${classes}" data-tile-id="${escapeHtml(id)}" data-tile-type="${kind}" data-tile-category="${escapeHtml(category)}" data-tile-tags="${escapeHtml(tags.join(','))}" data-tile-pinned="${pinned}" data-tile-archived="${archived}" data-tile-global="${isGlobal}" data-tile-timestamp="${timestamp || 0}">
 		<div class="card-tile-actions">
 			<button class="tile-edit-btn" data-id="${escapeHtml(id)}" title="Edit">✏️</button>
 			<button class="tile-dismiss-btn" data-id="${escapeHtml(id)}" title="${kind === 'queue' ? 'Remove from queue' : 'Delete'}">✕</button>
@@ -209,7 +211,7 @@ export function renderCardTile(item: WorkbenchItem, opts: TileOptions = {}): str
 		<div class="card-tile-header">
 			<input type="checkbox" class="tile-select-cb" data-id="${escapeHtml(id)}" data-kind="${kind}"
 				${isSelected ? 'checked' : ''} onclick="event.stopPropagation()" title="Select for workbench actions">
-			<span class="card-tile-title">${pinned ? '📌 ' : ''}${escapeHtml(title)}</span>
+			<span class="card-tile-title">${isGlobal ? '🌐 ' : ''}${pinned ? '📌 ' : ''}${escapeHtml(title)}</span>
 		</div>
 		<div class="card-tile-meta">
 			<span class="kind-badge ${kindBadge.css}">${kindBadge.icon} ${kindBadge.label}</span>
@@ -312,6 +314,9 @@ export function renderEditorPanel(): string {
 			<button id="editor-save-btn" onclick="saveCardFromEditor()">💾 Save</button>
 			<button class="secondary" onclick="closeCardEditor()">Cancel</button>
 			<button class="secondary" id="editor-ai-btn" onclick="aiDraftFromEditor()" title="Generate or improve content with AI">✨ AI Draft</button>
+			<label id="editor-global-toggle" class="editor-flag-toggle" style="display:none;" title="Global cards are injected into all projects' context">
+				<input type="checkbox" id="editor-global-cb" onchange="toggleEditorGlobal(this.checked)"> 🌐 Global
+			</label>
 			<span style="flex:1"></span>
 			<span id="editor-status" style="font-size:0.82em; opacity:0.5;"></span>
 		</div>

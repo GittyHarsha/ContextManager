@@ -1291,6 +1291,17 @@ export function getDashboardStyles(): string {
 			background: var(--vscode-textBlockQuote-background, rgba(0,0,0,0.1));
 		}
 		.card-editor-footer button { font-size: 0.88em; }
+		.editor-flag-toggle {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 0.85em;
+			cursor: pointer;
+			opacity: 0.8;
+			white-space: nowrap;
+		}
+		.editor-flag-toggle:hover { opacity: 1; }
+		.editor-flag-toggle input[type="checkbox"] { margin: 0; }
 
 		/* Source material & anchors in editor */
 		.editor-source-material {
