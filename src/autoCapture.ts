@@ -193,6 +193,7 @@ function extractFilePaths(text: string): string[] {
 export class AutoCaptureService {
 	private _observations: Observation[] = [];
 	private _searchIndex?: import('./search/SearchIndex').SearchIndex;
+	private _workflowEngine?: import('./workflows/WorkflowEngine').WorkflowEngine;
 
 	constructor(
 		private readonly _context: vscode.ExtensionContext,
@@ -215,6 +216,11 @@ export class AutoCaptureService {
 		} catch {
 			this._observations = [];
 		}
+	}
+
+	/** Attach the centralized WorkflowEngine for observation-created triggers. */
+	setWorkflowEngine(engine: import('./workflows/WorkflowEngine').WorkflowEngine): void {
+		this._workflowEngine = engine;
 	}
 
 	/** Flush in-memory observations to disk (synchronous). */
@@ -296,6 +302,13 @@ export class AutoCaptureService {
 		this._persistToDisk();
 		this._indexObservation(observation, project.id);
 
+		// Fire observation-created workflow trigger
+		if (observation.projectId) {
+			this._workflowEngine?.fireObservationCreated(observation.projectId, observation).catch(err =>
+				console.warn('[AutoCapture/Workflow] observation-created trigger error:', err)
+			);
+		}
+
 		console.log(`[ContextManager] Auto-captured ${OBSERVATION_TYPE_EMOJI[obsType]} ${obsType} from ${observation.participant} (saved ${discoveryTokens - readTokens} tokens)`);
 
 		if (ConfigurationManager.autoCaptureLearnFromAll && ConfigurationManager.autoLearnUseLLM) {
@@ -375,6 +388,13 @@ export class AutoCaptureService {
 
 		this._persistToDisk();
 		this._indexObservation(observation, project.id);
+
+		// Fire observation-created workflow trigger
+		if (observation.projectId) {
+			this._workflowEngine?.fireObservationCreated(observation.projectId, observation).catch(err =>
+				console.warn('[AutoCapture/Workflow] observation-created trigger error:', err)
+			);
+		}
 
 		console.log(`[ContextManager] Captured ${allToolCalls.length} tool calls from /${command} (${OBSERVATION_TYPE_EMOJI[obsType]} ${obsType}, saved ${discoveryTokens - readTokens} tokens)`);
 	}

@@ -11,6 +11,7 @@ import { initBackgroundTasks, getLastChatExchange } from './backgroundTasks';
 import { AutoCaptureService } from './autoCapture';
 import { HookWatcher, SCRIPTS_DIR, QUEUE_FILE } from './hooks/HookWatcher';
 import { GitHubInstructionsManager } from './githubInstructions';
+import { WorkflowEngine } from './workflows/WorkflowEngine';
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -86,8 +87,15 @@ export function activate(context: vscode.ExtensionContext) {
 		const autoCapture = new AutoCaptureService(context, projectManager);
 		outputChannel.appendLine('[ContextManager] Auto-capture initialized');
 
+		// Initialize centralized WorkflowEngine singleton
+		const workflowEngine = new WorkflowEngine(projectManager);
+		workflowEngine.setAutoCapture(autoCapture);
+		projectManager.setWorkflowEngine(workflowEngine);
+		autoCapture.setWorkflowEngine(workflowEngine);
+		outputChannel.appendLine('[ContextManager] WorkflowEngine initialized');
+
 		// Initialize Hook Watcher — ingests captures from .github/hooks/ agent hook scripts
-		const hookWatcher = new HookWatcher(autoCapture, projectManager);
+		const hookWatcher = new HookWatcher(autoCapture, projectManager, workflowEngine);
 		context.subscriptions.push(hookWatcher);
 		outputChannel.appendLine(`[ContextManager] HookWatcher started — queue: ${QUEUE_FILE}`);
 

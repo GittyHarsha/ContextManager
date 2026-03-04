@@ -1808,6 +1808,7 @@ Return ONLY valid JSON:
 					message.trigger || 'manual',
 					message.outputAction || 'create-card',
 					message.targetCardId || undefined,
+					message.maxItems ?? 20,
 				);
 				await projectManager.addWorkflow(activeProject.id, wf);
 				ctx.update();
@@ -1823,6 +1824,7 @@ Return ONLY valid JSON:
 				if (message.trigger !== undefined) { updates.trigger = message.trigger; }
 				if (message.outputAction !== undefined) { updates.outputAction = message.outputAction; }
 				if (message.targetCardId !== undefined) { updates.targetCardId = message.targetCardId || undefined; }
+				if (message.maxItems !== undefined) { updates.maxItems = message.maxItems; }
 				await projectManager.updateWorkflow(activeProject.id, message.workflowId, updates);
 				ctx.update();
 				break;
@@ -1858,6 +1860,8 @@ Return ONLY valid JSON:
 				// Build context based on what input is available
 				const { WorkflowEngine } = await import('../workflows/WorkflowEngine.js');
 				const engine = new WorkflowEngine(projectManager);
+				// Give the engine access to AutoCaptureService for observations.recent
+				if (ctx.autoCapture) { engine.setAutoCapture(ctx.autoCapture); }
 				const wfCtx: import('../workflows/WorkflowEngine').WorkflowContext = {
 					projectId: activeProject.id,
 				};
@@ -1875,6 +1879,11 @@ Return ONLY valid JSON:
 					// Pick target card if prompt references card vars
 					if (workflow.promptTemplate.includes('{{card.') && workflow.targetCardId) {
 						wfCtx.card = (activeProject.knowledgeCards || []).find(c => c.id === workflow.targetCardId);
+					}
+					// Pick latest convention if prompt references convention vars
+					if (workflow.promptTemplate.includes('{{convention.') && (activeProject.conventions || []).length > 0) {
+						const sorted = [...(activeProject.conventions || [])].sort((a, b) => b.updatedAt - a.updatedAt);
+						wfCtx.convention = sorted[0];
 					}
 				}
 

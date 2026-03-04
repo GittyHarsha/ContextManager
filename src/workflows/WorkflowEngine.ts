@@ -4,14 +4,20 @@
  * Resolves {{template}} variables in the prompt, calls the vscode.lm API,
  * and performs the configured output action (create card, update card, or
  * append to a collector card).
+ *
+ * Supports collection variables ({{cards.all}}, {{toolHints.all}}, etc.)
+ * with a per-workflow maxItems cap, plus event-specific variables for
+ * convention-learned and observation-created triggers.
  */
 
 import * as vscode from 'vscode';
 import type { ProjectManager } from '../projects/ProjectManager';
-import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard } from '../projects/types';
+import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard, Convention } from '../projects/types';
+import type { AutoCaptureService, Observation } from '../autoCapture';
 import { ConfigurationManager } from '../config';
 
 const WORKFLOW_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_ITEMS = 20;
 
 // ── Context passed to a workflow run ────────────────────────────
 
@@ -21,6 +27,10 @@ export interface WorkflowContext {
 	queueItem?: QueuedCardCandidate;
 	/** Card that the workflow targets (manual run on a card). */
 	card?: KnowledgeCard;
+	/** Convention that triggered the workflow (convention-learned event). */
+	convention?: Convention;
+	/** Observation that triggered the workflow (observation-created event). */
+	observation?: Observation;
 }
 
 export interface WorkflowResult {
@@ -38,11 +48,16 @@ function resolveTemplate(
 	template: string,
 	ctx: WorkflowContext,
 	projectManager: ProjectManager,
+	autoCapture: AutoCaptureService | undefined,
+	maxItems: number,
 ): string {
 	const project = projectManager.getProject(ctx.projectId);
 	const q = ctx.queueItem;
 	const c = ctx.card;
+	const conv = ctx.convention;
+	const obs = ctx.observation;
 
+	// ── Scalar variables ────────────────────────────────────────
 	const vars: Record<string, string> = {
 		'queue.prompt': q?.prompt ?? '',
 		'queue.response': q?.response ?? '',
@@ -59,7 +74,55 @@ function resolveTemplate(
 			.filter(cv => cv.enabled !== false)
 			.map(cv => `- ${cv.title}: ${cv.content}`)
 			.join('\n') || '(none)',
+		// Event-specific: convention
+		'convention.title': conv?.title ?? '',
+		'convention.content': conv?.content ?? '',
+		// Event-specific: observation
+		'observation.summary': obs?.responseSummary ?? '',
+		'observation.files': obs?.filesReferenced?.join(', ') ?? '',
 	};
+
+	// ── Collection variables (capped by maxItems) ───────────────
+	if (project) {
+		const allCards = project.knowledgeCards || [];
+		const selectedIds = new Set(project.selectedCardIds || []);
+		const selectedCards = allCards.filter(cd => selectedIds.has(cd.id));
+
+		vars['cards.all'] = allCards.slice(0, maxItems).map(cd =>
+			`### ${cd.title}\n${cd.content}\nTags: ${cd.tags?.join(', ') || '(none)'}`
+		).join('\n\n') || '(none)';
+
+		vars['cards.selected'] = selectedCards.slice(0, maxItems).map(cd =>
+			`### ${cd.title}\n${cd.content}\nTags: ${cd.tags?.join(', ') || '(none)'}`
+		).join('\n\n') || '(none)';
+
+		vars['conventions.all'] = (project.conventions || [])
+			.filter(cv => cv.enabled !== false)
+			.slice(0, maxItems)
+			.map(cv => `[${cv.category}] ${cv.title}: ${cv.content}`)
+			.join('\n') || '(none)';
+
+		vars['toolHints.all'] = (project.toolHints || [])
+			.slice(0, maxItems)
+			.map(th => `Tool: ${th.toolName} | Pattern: ${th.pattern} | Example: ${th.example}`)
+			.join('\n') || '(none)';
+
+		vars['workingNotes.all'] = (project.workingNotes || [])
+			.filter(wn => wn.enabled !== false)
+			.slice(0, maxItems)
+			.map(wn => `Subject: ${wn.subject} | Insight: ${wn.insight} | Files: ${wn.relatedFiles.join(', ') || '(none)'}`)
+			.join('\n') || '(none)';
+	}
+
+	// Observations come from AutoCaptureService, not Project
+	if (autoCapture) {
+		const recentObs = autoCapture.getRecentObservations(24 * 60 * 60 * 1000, ctx.projectId);
+		vars['observations.recent'] = recentObs.slice(0, maxItems).map(o =>
+			`[${new Date(o.timestamp).toLocaleTimeString()}] ${o.type} — ${o.prompt}\nSummary: ${o.responseSummary}\nFiles: ${o.filesReferenced.join(', ') || '(none)'}`
+		).join('\n\n') || '(none)';
+	} else {
+		vars['observations.recent'] = '(observations unavailable)';
+	}
 
 	return template.replace(/\{\{(\w+\.\w+)\}\}/g, (match, key) => {
 		return vars[key] ?? match;
@@ -69,7 +132,16 @@ function resolveTemplate(
 // ── Engine ──────────────────────────────────────────────────────
 
 export class WorkflowEngine {
+	private _autoCapture: AutoCaptureService | undefined;
+	/** Re-entrancy guard — prevents infinite loops from card-updated/card-created triggers. */
+	private _isExecuting = false;
+
 	constructor(private projectManager: ProjectManager) {}
+
+	/** Set the AutoCaptureService reference (called from extension.ts after construction). */
+	setAutoCapture(ac: AutoCaptureService): void {
+		this._autoCapture = ac;
+	}
 
 	/**
 	 * Execute a single workflow. Returns the result and updates the workflow's
@@ -83,7 +155,8 @@ export class WorkflowEngine {
 
 		try {
 			// 1. Resolve prompt template
-			const prompt = resolveTemplate(workflow.promptTemplate, ctx, this.projectManager);
+			const maxItems = workflow.maxItems ?? DEFAULT_MAX_ITEMS;
+			const prompt = resolveTemplate(workflow.promptTemplate, ctx, this.projectManager, this._autoCapture, maxItems);
 			if (!prompt.trim()) {
 				return this._fail(workflow, projectId, 'Resolved prompt is empty — check your template variables.');
 			}
@@ -127,8 +200,14 @@ export class WorkflowEngine {
 				return this._fail(workflow, projectId, 'Model returned empty response.');
 			}
 
-			// 5. Execute output action
-			const result = await this._executeOutput(workflow, ctx, text);
+			// 5. Execute output action (with re-entrancy guard)
+			this._isExecuting = true;
+			let result: WorkflowResult;
+			try {
+				result = await this._executeOutput(workflow, ctx, text);
+			} finally {
+				this._isExecuting = false;
+			}
 
 			// 6. Record success
 			await this.projectManager.updateWorkflow(projectId, workflow.id, {
@@ -144,11 +223,10 @@ export class WorkflowEngine {
 		}
 	}
 
-	/**
-	 * Fire all auto-triggered workflows for a queue-item event.
-	 * Runs fire-and-forget — errors are logged, not thrown.
-	 */
+	// ── Auto-trigger: Queue item added ──────────────────────────
+
 	async fireAutoQueue(projectId: string, queueItem: QueuedCardCandidate): Promise<void> {
+		if (this._isExecuting) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && (w.trigger === 'auto-queue' || w.trigger === 'both')
@@ -161,6 +239,86 @@ export class WorkflowEngine {
 				await this.execute(wf, { projectId, queueItem });
 			} catch (err) {
 				console.warn(`[WorkflowEngine] auto-queue workflow "${wf.name}" failed:`, err);
+			}
+		}
+	}
+
+	// ── Auto-trigger: Convention learned ─────────────────────────
+
+	async fireConventionLearned(projectId: string, convention: Convention): Promise<void> {
+		if (this._isExecuting) { return; }
+		const workflows = this.projectManager.getWorkflows(projectId);
+		const eligible = workflows.filter(
+			w => w.enabled && w.trigger === 'convention-learned'
+		);
+		if (!eligible.length) { return; }
+
+		console.log(`[WorkflowEngine] Firing ${eligible.length} convention-learned workflow(s)`);
+		for (const wf of eligible) {
+			try {
+				await this.execute(wf, { projectId, convention });
+			} catch (err) {
+				console.warn(`[WorkflowEngine] convention-learned workflow "${wf.name}" failed:`, err);
+			}
+		}
+	}
+
+	// ── Auto-trigger: Card created ──────────────────────────────
+
+	async fireCardCreated(projectId: string, card: KnowledgeCard): Promise<void> {
+		if (this._isExecuting) { return; }
+		const workflows = this.projectManager.getWorkflows(projectId);
+		const eligible = workflows.filter(
+			w => w.enabled && w.trigger === 'card-created'
+		);
+		if (!eligible.length) { return; }
+
+		console.log(`[WorkflowEngine] Firing ${eligible.length} card-created workflow(s)`);
+		for (const wf of eligible) {
+			try {
+				await this.execute(wf, { projectId, card });
+			} catch (err) {
+				console.warn(`[WorkflowEngine] card-created workflow "${wf.name}" failed:`, err);
+			}
+		}
+	}
+
+	// ── Auto-trigger: Card updated ──────────────────────────────
+
+	async fireCardUpdated(projectId: string, card: KnowledgeCard): Promise<void> {
+		if (this._isExecuting) { return; }
+		const workflows = this.projectManager.getWorkflows(projectId);
+		const eligible = workflows.filter(
+			w => w.enabled && w.trigger === 'card-updated'
+		);
+		if (!eligible.length) { return; }
+
+		console.log(`[WorkflowEngine] Firing ${eligible.length} card-updated workflow(s)`);
+		for (const wf of eligible) {
+			try {
+				await this.execute(wf, { projectId, card });
+			} catch (err) {
+				console.warn(`[WorkflowEngine] card-updated workflow "${wf.name}" failed:`, err);
+			}
+		}
+	}
+
+	// ── Auto-trigger: Observation created ───────────────────────
+
+	async fireObservationCreated(projectId: string, observation: Observation): Promise<void> {
+		if (this._isExecuting) { return; }
+		const workflows = this.projectManager.getWorkflows(projectId);
+		const eligible = workflows.filter(
+			w => w.enabled && w.trigger === 'observation-created'
+		);
+		if (!eligible.length) { return; }
+
+		console.log(`[WorkflowEngine] Firing ${eligible.length} observation-created workflow(s)`);
+		for (const wf of eligible) {
+			try {
+				await this.execute(wf, { projectId, observation });
+			} catch (err) {
+				console.warn(`[WorkflowEngine] observation-created workflow "${wf.name}" failed:`, err);
 			}
 		}
 	}

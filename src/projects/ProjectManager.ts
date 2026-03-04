@@ -9,10 +9,12 @@ import { Storage } from './storage';
 import { ExplanationCache } from '../cache';
 import { ConfigurationManager } from '../config';
 import type { SearchIndex } from '../search/SearchIndex';
+import type { WorkflowEngine } from '../workflows/WorkflowEngine';
 
 export class ProjectManager extends vscode.Disposable {
 	private storage: Storage;
 	private _searchIndex: SearchIndex | undefined;
+	private _workflowEngine: WorkflowEngine | undefined;
 	private _onDidChangeProjects = new vscode.EventEmitter<void>();
 	readonly onDidChangeProjects = this._onDidChangeProjects.event;
 
@@ -30,6 +32,11 @@ export class ProjectManager extends vscode.Disposable {
 	/** Attach the FTS4 search index for incremental updates on mutations. */
 	setSearchIndex(index: SearchIndex): void {
 		this._searchIndex = index;
+	}
+
+	/** Attach the centralized WorkflowEngine for auto-trigger events. */
+	setWorkflowEngine(engine: WorkflowEngine): void {
+		this._workflowEngine = engine;
 	}
 
 	// ============ Projects ============
@@ -794,6 +801,11 @@ export class ProjectManager extends vscode.Disposable {
 			source: card.source || '',
 		});
 
+		// Fire card-created workflow trigger
+		this._workflowEngine?.fireCardCreated(projectId, card).catch(err =>
+			console.warn('[ProjectManager/Workflow] card-created trigger error:', err)
+		);
+
 		return card;
 	}
 
@@ -877,6 +889,11 @@ export class ProjectManager extends vscode.Disposable {
 			category: card.category, tags: card.tags?.join(', ') || '',
 			source: card.source || '',
 		});
+
+		// Fire card-updated workflow trigger
+		this._workflowEngine?.fireCardUpdated(projectId, card).catch(err =>
+			console.warn('[ProjectManager/Workflow] card-updated trigger error:', err)
+		);
 
 		return card;
 	}
@@ -1403,6 +1420,10 @@ export class ProjectManager extends vscode.Disposable {
 				category: conventions[existingIdx].category, relatedFiles: '', relatedSymbols: '',
 				confidence: conventions[existingIdx].confidence,
 			});
+			// Fire convention-learned workflow trigger
+			this._workflowEngine?.fireConventionLearned(projectId, conventions[existingIdx]).catch(err =>
+				console.warn('[ProjectManager/Workflow] convention-learned trigger error:', err)
+			);
 			return conventions[existingIdx];
 		}
 
@@ -1417,6 +1438,10 @@ export class ProjectManager extends vscode.Disposable {
 			category: convention.category, relatedFiles: '', relatedSymbols: '',
 			confidence: convention.confidence,
 		});
+		// Fire convention-learned workflow trigger
+		this._workflowEngine?.fireConventionLearned(projectId, convention).catch(err =>
+			console.warn('[ProjectManager/Workflow] convention-learned trigger error:', err)
+		);
 		return convention;
 	}
 

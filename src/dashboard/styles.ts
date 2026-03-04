@@ -1624,6 +1624,11 @@ export function getDashboardStyles(): string {
 			color: var(--vscode-editorWarning-foreground);
 			border: 1px solid var(--vscode-editorWarning-foreground)40;
 		}
+		.wf-badge-event {
+			background: var(--vscode-charts-purple)20;
+			color: var(--vscode-charts-purple, #b180d7);
+			border: 1px solid var(--vscode-charts-purple, #b180d7)40;
+		}
 		.wf-var-btn {
 			background: var(--vscode-editor-background);
 			border: 1px solid var(--vscode-widget-border);

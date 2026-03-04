@@ -51,7 +51,7 @@ export interface Project {
 
 // ─── Custom Workflow Types ─────────────────────────────────────
 
-export type WorkflowTrigger = 'auto-queue' | 'manual' | 'both';
+export type WorkflowTrigger = 'auto-queue' | 'manual' | 'both' | 'convention-learned' | 'card-created' | 'card-updated' | 'observation-created';
 export type WorkflowOutputAction = 'update-card' | 'create-card' | 'append-collector';
 
 export interface CustomWorkflow {
@@ -61,6 +61,7 @@ export interface CustomWorkflow {
 	trigger: WorkflowTrigger;             // When the workflow fires
 	outputAction: WorkflowOutputAction;   // What to do with AI result
 	targetCardId?: string;                // For 'update-card' & 'append-collector'
+	maxItems?: number;                    // Max items per collection variable (default 20)
 	enabled: boolean;
 	created: number;
 	lastRun?: number;
@@ -75,6 +76,7 @@ export function createWorkflow(
 	trigger: WorkflowTrigger,
 	outputAction: WorkflowOutputAction,
 	targetCardId?: string,
+	maxItems?: number,
 ): CustomWorkflow {
 	return {
 		id: generateId(),
@@ -83,6 +85,7 @@ export function createWorkflow(
 		trigger,
 		outputAction,
 		targetCardId,
+		maxItems: maxItems ?? 20,
 		enabled: true,
 		created: Date.now(),
 		runCount: 0,
@@ -426,9 +429,13 @@ export function generateId(): string {
 
 
 // ─── Workflow Template Variables ───────────────────────────────
-// Available: {{queue.prompt}}, {{queue.response}}, {{queue.participant}},
-// {{queue.toolCalls}}, {{card.title}}, {{card.content}}, {{card.tags}},
-// {{project.name}}, {{project.conventions}}, {{project.description}}
+// Queue:       {{queue.prompt}}, {{queue.response}}, {{queue.participant}}, {{queue.toolCalls}}
+// Card:        {{card.title}}, {{card.content}}, {{card.tags}}
+// Project:     {{project.name}}, {{project.description}}, {{project.conventions}}
+// Collections: {{cards.all}}, {{cards.selected}}, {{toolHints.all}}, {{workingNotes.all}},
+//              {{observations.recent}}, {{conventions.all}}
+// Event:       {{convention.title}}, {{convention.content}},
+//              {{observation.summary}}, {{observation.files}}
 
 export type BackgroundTaskType =
 	| 'auto-learn'     // Auto-learning pipeline

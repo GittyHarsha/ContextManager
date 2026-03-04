@@ -19,7 +19,7 @@ import type { AutoCaptureService } from '../autoCapture';
 import type { ProjectManager } from '../projects/ProjectManager';
 import type { KnowledgeCard } from '../projects/types';
 import { ConfigurationManager } from '../config';
-import { WorkflowEngine } from '../workflows/WorkflowEngine';
+import type { WorkflowEngine } from '../workflows/WorkflowEngine';
 
 // ── Paths ──────────────────────────────────────────────────────
 export const CM_DIR         = path.join(os.homedir(), '.contextmanager');
@@ -55,8 +55,9 @@ export class HookWatcher implements vscode.Disposable {
 	constructor(
 		private autoCapture: AutoCaptureService,
 		private projectManager: ProjectManager,
+		workflowEngine: WorkflowEngine,
 	) {
-		this._workflowEngine = new WorkflowEngine(projectManager);
+		this._workflowEngine = workflowEngine;
 		this._ensureDir();
 		this._loadOffset();
 		this._startWatching();

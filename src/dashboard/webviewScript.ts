@@ -2601,6 +2601,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			document.getElementById('wf-output').value = 'create-card';
 			document.getElementById('wf-target-card').value = '';
 			document.getElementById('wf-target-row').style.display = 'none';
+			var maxItemsEl = document.getElementById('wf-maxitems');
+			if (maxItemsEl) maxItemsEl.value = '20';
 			form.style.display = 'block';
 			document.getElementById('btn-add-workflow').style.display = 'none';
 			setInteracting(true);
@@ -2642,6 +2644,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var outputAction = document.getElementById('wf-output').value;
 			var targetCardId = document.getElementById('wf-target-card').value || '';
 			var editId = document.getElementById('wf-edit-id').value;
+			var maxItemsEl = document.getElementById('wf-maxitems');
+			var maxItems = maxItemsEl ? parseInt(maxItemsEl.value) || 20 : 20;
 
 			if (!name) { alert('Please enter a workflow name.'); return; }
 			if (!promptTemplate) { alert('Please enter a prompt template.'); return; }
@@ -2657,7 +2661,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					promptTemplate: promptTemplate,
 					trigger: trigger,
 					outputAction: outputAction,
-					targetCardId: targetCardId
+					targetCardId: targetCardId,
+					maxItems: maxItems
 				});
 			} else {
 				vscode.postMessage({
@@ -2666,7 +2671,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					promptTemplate: promptTemplate,
 					trigger: trigger,
 					outputAction: outputAction,
-					targetCardId: targetCardId
+					targetCardId: targetCardId,
+					maxItems: maxItems
 				});
 			}
 			hideWorkflowForm();
@@ -2684,6 +2690,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			document.getElementById('wf-output').value = item.getAttribute('data-wf-output') || 'create-card';
 			wfOutputChanged();
 			document.getElementById('wf-target-card').value = item.getAttribute('data-wf-target') || '';
+			var maxItemsEl = document.getElementById('wf-maxitems');
+			if (maxItemsEl) maxItemsEl.value = item.getAttribute('data-wf-maxitems') || '20';
 		}
 
 		function deleteWorkflow(workflowId) {
@@ -2720,6 +2728,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				document.getElementById('wf-output').value = wf.outputAction || 'create-card';
 				wfOutputChanged();
 				document.getElementById('wf-target-card').value = wf.targetCardId || '';
+				var maxItemsEl = document.getElementById('wf-maxitems');
+				if (maxItemsEl) maxItemsEl.value = String(wf.maxItems || 20);
 			}
 		});
 

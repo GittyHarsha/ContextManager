@@ -441,15 +441,19 @@ export class DashboardPanel {
 				<span style="opacity: 0.6; font-size: 0.82em; margin-left: 8px;">User-defined AI pipelines</span>
 			</summary>
 			<p style="opacity: 0.6; font-size: 0.85em; margin: 8px 0 12px 0;">
-				Create AI workflows that fire automatically on new queue items or run manually. Use <code>{{queue.response}}</code>, <code>{{card.content}}</code>, <code>{{project.name}}</code> and more in your prompt template.
+				Create AI workflows that fire on events (queue add, convention learned, card created/updated, observation) or run manually. Use <code>{{cards.all}}</code>, <code>{{conventions.all}}</code>, <code>{{queue.response}}</code> and more in your prompt template.
 			</p>
 
 			<!-- Existing workflows list -->
 			${workflows.length > 0 ? `
 			<div class="workflow-list" style="margin-bottom: 12px;">
 				${workflows.map(wf => {
-					const triggerBadge = wf.trigger === 'auto-queue' ? '<span class="wf-badge wf-badge-auto">auto</span>'
-						: wf.trigger === 'both' ? '<span class="wf-badge wf-badge-both">auto+manual</span>'
+					const triggerBadge = wf.trigger === 'auto-queue' ? '<span class="wf-badge wf-badge-auto">auto-queue</span>'
+						: wf.trigger === 'both' ? '<span class="wf-badge wf-badge-both">queue+manual</span>'
+						: wf.trigger === 'convention-learned' ? '<span class="wf-badge wf-badge-event">on convention</span>'
+						: wf.trigger === 'card-created' ? '<span class="wf-badge wf-badge-event">on card create</span>'
+						: wf.trigger === 'card-updated' ? '<span class="wf-badge wf-badge-event">on card update</span>'
+						: wf.trigger === 'observation-created' ? '<span class="wf-badge wf-badge-event">on observation</span>'
 						: '<span class="wf-badge wf-badge-manual">manual</span>';
 					const outputBadge = wf.outputAction === 'create-card' ? '📄 create'
 						: wf.outputAction === 'update-card' ? '✏️ update'
@@ -458,7 +462,7 @@ export class DashboardPanel {
 					const lastRunInfo = wf.lastRun ? `Last: ${formatAge(wf.lastRun)} ${statusIcon}` : 'Never run';
 					const targetName = wf.targetCardId ? (cards.find(c => c.id === wf.targetCardId)?.title || 'Unknown card') : '';
 					return `
-				<div class="workflow-item${!wf.enabled ? ' workflow-disabled' : ''}" data-workflow-id="${wf.id}" data-wf-name="${escapeHtml(wf.name)}" data-wf-prompt="${escapeHtml(wf.promptTemplate)}" data-wf-trigger="${wf.trigger}" data-wf-output="${wf.outputAction}" data-wf-target="${wf.targetCardId || ''}">
+				<div class="workflow-item${!wf.enabled ? ' workflow-disabled' : ''}" data-workflow-id="${wf.id}" data-wf-name="${escapeHtml(wf.name)}" data-wf-prompt="${escapeHtml(wf.promptTemplate)}" data-wf-trigger="${wf.trigger}" data-wf-output="${wf.outputAction}" data-wf-target="${wf.targetCardId || ''}" data-wf-maxitems="${wf.maxItems ?? 20}">
 					<div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
 						<label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
 							<input type="checkbox" ${wf.enabled ? 'checked' : ''} onchange="toggleWorkflow('${wf.id}', this.checked)">
@@ -489,9 +493,25 @@ export class DashboardPanel {
 				<div class="form-group" style="margin-bottom:8px;">
 					<label style="font-weight:600;font-size:0.85em;">Prompt Template</label>
 					<textarea id="wf-prompt" rows="5" placeholder="Extract all file paths from this response:\\n{{queue.response}}" style="width:100%;padding:6px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;resize:vertical;font-family:var(--vscode-editor-font-family);font-size:0.9em;"></textarea>
-					<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
-						<span style="opacity:0.5;font-size:0.75em;">Insert:</span>
-						${['queue.prompt','queue.response','queue.participant','queue.toolCalls','card.title','card.content','card.tags','project.name','project.conventions','project.description'].map(v =>
+				<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+						<span style="opacity:0.5;font-size:0.75em;width:100%;margin-bottom:2px;">Queue:</span>
+						${['queue.prompt','queue.response','queue.participant','queue.toolCalls'].map(v =>
+							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
+						).join('')}
+						<span style="opacity:0.5;font-size:0.75em;width:100%;margin-bottom:2px;margin-top:4px;">Card:</span>
+						${['card.title','card.content','card.tags'].map(v =>
+							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
+						).join('')}
+						<span style="opacity:0.5;font-size:0.75em;width:100%;margin-bottom:2px;margin-top:4px;">Project:</span>
+						${['project.name','project.description','project.conventions'].map(v =>
+							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
+						).join('')}
+						<span style="opacity:0.5;font-size:0.75em;width:100%;margin-bottom:2px;margin-top:4px;">Collections:</span>
+						${['cards.all','cards.selected','conventions.all','toolHints.all','workingNotes.all','observations.recent'].map(v =>
+							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
+						).join('')}
+						<span style="opacity:0.5;font-size:0.75em;width:100%;margin-bottom:2px;margin-top:4px;">Event:</span>
+						${['convention.title','convention.content','observation.summary','observation.files'].map(v =>
 							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
 						).join('')}
 					</div>
@@ -502,7 +522,11 @@ export class DashboardPanel {
 						<select id="wf-trigger" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
 							<option value="manual">Manual only</option>
 							<option value="auto-queue">Auto (on queue add)</option>
-							<option value="both">Both</option>
+							<option value="both">Both (queue + manual)</option>
+							<option value="convention-learned">On convention learned</option>
+							<option value="card-created">On card created</option>
+							<option value="card-updated">On card updated</option>
+							<option value="observation-created">On observation created</option>
 						</select>
 					</div>
 					<div class="form-group" style="flex:1;">
@@ -520,6 +544,11 @@ export class DashboardPanel {
 						<option value="">(select a card)</option>
 						${cardOptions}
 					</select>
+				</div>
+				<div class="form-group" style="margin-bottom:10px;">
+					<label style="font-weight:600;font-size:0.85em;">Max items per collection variable</label>
+					<input type="number" id="wf-maxitems" min="1" max="100" value="20" style="width:80px;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
+					<span style="opacity:0.5;font-size:0.78em;margin-left:6px;">Caps {{cards.all}}, {{toolHints.all}}, etc.</span>
 				</div>
 				<div style="display:flex;gap:8px;justify-content:flex-end;">
 					<button class="secondary" onclick="hideWorkflowForm()">Cancel</button>
