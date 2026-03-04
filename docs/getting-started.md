@@ -125,6 +125,19 @@ Each session builds on everything that came before it.
 
 ---
 
+## Optional: Custom AI Workflows
+
+Once you have knowledge accumulating, you can automate recurring AI tasks:
+
+1. Open the Dashboard → **Intelligence** tab → **Custom AI Workflows**
+2. Click **+ New Workflow** and define a prompt template using `{{variable}}` placeholders
+3. Choose a trigger — manual, auto-queue, or event-based (convention-learned, card-created, etc.)
+4. Set the output action — create card, update card, or append to a collector card
+
+Workflows run against your project data and produce structured output automatically. See [Custom AI Workflows]({% link features/workflows.md %}) for details.
+
+---
+
 ## Next Steps
 
 [Features →]({% link features/index.md %})

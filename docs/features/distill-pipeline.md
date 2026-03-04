@@ -3,6 +3,9 @@ layout: default
 title: Distill Pipeline
 parent: Features
 nav_order: 6
+prev_page:
+  url: /features/workflows/
+  title: Custom AI Workflows
 ---
 
 # Distill Pipeline

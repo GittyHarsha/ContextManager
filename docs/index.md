@@ -51,6 +51,10 @@ ContextManager was built specifically for this gap - persistent project memory t
     <p>Automatic staging buffer that captures AI responses and synthesizes high-quality knowledge card proposals.</p>
   </div>
   <div class="feature-card">
+    <h4>⚡ Custom AI Workflows</h4>
+    <p>Define reusable AI pipelines with template variables, event triggers, and automatic output actions. Summarize, classify, audit — on autopilot.</p>
+  </div>
+  <div class="feature-card">
     <h4>📊 Dashboard</h4>
     <p>Centralized management with 4 tabs: Intelligence, Knowledge, Context, and Settings.</p>
   </div>
@@ -120,12 +124,11 @@ Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover
 
 ---
 
-## What's New in v2.1
+## What's New in v2.3
 
-- **Zero-command workflow** — Everything works without typing a single command. Install, create a project, chat normally.
-- **Smart-merge on queue approval** — When approving a queued card, similar existing cards surface for merging (Jaccard ≥ 30%). Merge is the default action.
-- **Unified `#ctx` tool** — Single entry point for search, list, learn, and getCard across all knowledge types
-- **copilot-instructions.md managed block** — Auto-synced tool discovery instructions and pinned card titles
-- **Auto-captured cards staged in queue** — Auto-Learn never silently creates cards; everything goes through review
+- **Custom AI Workflows** — Define reusable AI pipelines with `{{template}}` variables, 7 trigger types (manual, auto-queue, convention-learned, card-created, card-updated, observation-created), and 3 output actions (create card, update card, append to collector)
+- **Entity data sources** — Workflow prompts can reference collection variables: `{{cards.all}}`, `{{conventions.all}}`, `{{toolHints.all}}`, `{{workingNotes.all}}`, `{{observations.recent}}`, each capped by a per-workflow Max Items setting
+- **Event triggers** — Workflows can fire automatically when conventions are learned, cards are created/updated, or observations are captured
+- **Re-entrancy protection** — Prevents infinite loops when workflow output actions create or update entities that would re-trigger other workflows
 
 See the [full changelog]({% link changelog.md %}) for complete version history.

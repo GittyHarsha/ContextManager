@@ -47,6 +47,14 @@ The command center for the intelligence pipeline:
 - Type badges (bugfix, feature, change, etc.) shown as summary counts in the header
 - Actions: Delete (✕), Distill with AI (🧠)
 
+### Custom AI Workflows
+- **+ New Workflow** — define name, trigger, prompt template, output action, target card, and max items
+- **Template variable buttons** — grouped by category (Queue, Card, Project, Collections, Event) for easy insertion into prompts
+- **Trigger badges** — color-coded: blue (auto-queue), gray (manual), purple (event triggers like convention-learned, card-created, card-updated, observation-created)
+- **▶ Run** — manually execute any workflow
+- **Enable/Disable** toggle, Edit, Delete actions
+- See [Custom AI Workflows]({% link features/workflows.md %}) for full documentation
+
 ---
 
 ## Knowledge Tab

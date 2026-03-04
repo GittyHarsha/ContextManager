@@ -12,6 +12,20 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.3.0] - 2026-03-05
+
+### Added
+- **Custom AI Workflows** — User-defined pipelines with custom prompt templates using `{{variable}}` syntax. Define workflows in the Dashboard Intelligence tab with clickable variable insertion buttons.
+- **7 trigger types** — Manual, auto-queue, both, convention-learned, card-created, card-updated, observation-created. Event triggers fire automatically in the background.
+- **3 output actions** — Create card, update card, append to collector card (with dated separator).
+- **Collection template variables** — `{{cards.all}}`, `{{cards.selected}}`, `{{conventions.all}}`, `{{toolHints.all}}`, `{{workingNotes.all}}`, `{{observations.recent}}` — each capped by a per-workflow Max Items setting (default 20).
+- **Event template variables** — `{{convention.title}}`, `{{convention.content}}`, `{{observation.summary}}`, `{{observation.files}}` available when triggered by entity events.
+- **Re-entrancy guard** — Prevents infinite loops when workflow output actions create/update entities that would re-trigger other workflows.
+- **WorkflowEngine singleton** — Centralized engine created in extension activation, injected via setters into ProjectManager, AutoCaptureService, and HookWatcher.
+- **Purple event badges** — Dashboard workflow list shows color-coded trigger badges (blue auto-queue, gray manual, purple event triggers).
+
+---
+
 ## [2.2.0] - 2026-03-03
 
 ### Added

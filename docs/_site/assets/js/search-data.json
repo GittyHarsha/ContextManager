@@ -63,1116 +63,1207 @@
     "relUrl": "/changelog/"
   },"9": {
     "doc": "Changelog",
+    "title": "[2.3.0] - 2026-03-05",
+    "content": "Added . | Custom AI Workflows — User-defined pipelines with custom prompt templates using `` syntax. Define workflows in the Dashboard Intelligence tab with clickable variable insertion buttons. | 7 trigger types — Manual, auto-queue, both, convention-learned, card-created, card-updated, observation-created. Event triggers fire automatically in the background. | 3 output actions — Create card, update card, append to collector card (with dated separator). | Collection template variables — ,, ,, , — each capped by a per-workflow Max Items setting (default 20). | Event template variables — ,, , available when triggered by entity events. | Re-entrancy guard — Prevents infinite loops when workflow output actions create/update entities that would re-trigger other workflows. | WorkflowEngine singleton — Centralized engine created in extension activation, injected via setters into ProjectManager, AutoCaptureService, and HookWatcher. | Purple event badges — Dashboard workflow list shows color-coded trigger badges (blue auto-queue, gray manual, purple event triggers). | . ",
+    "url": "/ContextManager/changelog/#230---2026-03-05",
+    
+    "relUrl": "/changelog/#230---2026-03-05"
+  },"10": {
+    "doc": "Changelog",
     "title": "[2.2.0] - 2026-03-03",
     "content": "Added . | Tags in distill-to-approve pipeline — Distilled cards now carry 2–5 keyword tags from the LLM, propagated through the full approve chain (individual and batch) | Custom prompt for AI synthesis — ✨ AI Synthesize opens the editor with an optional custom prompt textarea for user-directed generation | Generate with AI uses LM API directly — Knowledge tab button now calls the Language Model API directly with cancellable progress and robust JSON parsing | Descriptive error messages — All AI failure paths show specific reasons instead of generic messages | . Changed . | Unified card selection for hook injection — Knowledge tab checkboxes now drive the “Inject into Every Prompt” hook system directly. The duplicate card picker in the injection section has been removed. | Hook renamed SessionStart → UserPromptSubmit — Capture script now uses UserPromptSubmit with hookSpecificOutput wrapper instead of the old SessionStart event | Injection section simplified — Dashboard injection section shows selected card count, custom instruction, and full-content toggle only | . Fixed . | Multi-strategy JSON parsing — 3 fallback strategies for parsing LLM responses with preamble text | Config crash on non-string values — Safe getString() helper prevents .trim() on null/undefined | . Removed . | Agents feature — Entire feature removed (dashboard tab, handlers, methods, types, config, hook entries) | Overview tab — Removed from dashboard. Intelligence is now the default tab. | . ",
     "url": "/ContextManager/changelog/#220---2026-03-03",
     
     "relUrl": "/changelog/#220---2026-03-03"
-  },"10": {
+  },"11": {
     "doc": "Changelog",
     "title": "[2.1.0] - 2026-02-27",
     "content": "Added . | Smart-merge on queue approval - When approving a card from the queue, ContextManager checks for similar existing cards (Jaccard ≥ 30%) and offers a QuickPick: “Create new” or “Merge into: [title] (XX% similar)”. Merge appends new content to the target card with a dated separator. | Knowledge cards in intelligence injection - Tier 1 now includes pinned and includeInContext cards (full content). Tier 2 uses BM25 search to inject task-relevant cards alongside conventions and working notes. | . Changed . | Auto-capture routes cards to queue - Knowledge cards and architecture notes extracted by the Auto-Capture / Auto-Learn service are no longer silently created. They are staged in the Card Queue for user review and approval, the same as hook-captured cards. | Tier token defaults raised to 800 - intelligence.tier1MaxTokens and intelligence.tier2MaxTokens both default to 800 (was 400). | Intelligence injection cap raised to 32 000 chars - Previous hard cap of 2 000 characters was far too restrictive; raised to 32 k to support cards with substantial content. | . ",
     "url": "/ContextManager/changelog/#210---2026-02-27",
     
     "relUrl": "/changelog/#210---2026-02-27"
-  },"11": {
+  },"12": {
     "doc": "Changelog",
     "title": "[2.0.0] - 2026-02-27",
     "content": "Added . | distillQueue() - cross-response card synthesis - New pipeline that reads the entire card queue in one LLM call and synthesizes high-quality knowledge card proposals across all responses | Tool call capture - Agent hook system now captures tool.execution_start entries from VS Code Copilot transcripts alongside responses (capped at 10, inputs truncated to 200 chars) | Observations distill now produces knowledge cards - distillObservations extended with a cards[] array | Approve All - One-click approval for all distilled card proposals | cardQueue.minResponseLength setting - Configurable minimum (default 300, range 50–5000) | . Changed . | Card Queue merged into Intelligence tab - Standalone Queue tab replaced with inline section | Card Queue redesigned as zero-cost staging buffer - No per-response LLM call; quality assessed at distill time | Queue capped at 30 items - FIFO eviction | Distill results render inline - In Intelligence tab, not a modal | . ",
     "url": "/ContextManager/changelog/#200---2026-02-27",
     
     "relUrl": "/changelog/#200---2026-02-27"
-  },"12": {
+  },"13": {
     "doc": "Changelog",
     "title": "[1.9.0] - 2026-02-26",
     "content": "Added . | Intelligence tab - New dashboard tab (🧠 Intelligence) for Auto-Capture, Auto-Learn, observations, conventions, tool hints, working notes, token economics, card queue | . Changed . | TODOs tab removed - TODOs are now user-managed only (no agent TODO tools) | Observations and Token Economics moved to Intelligence tab | . ",
     "url": "/ContextManager/changelog/#190---2026-02-26",
     
     "relUrl": "/changelog/#190---2026-02-26"
-  },"13": {
+  },"14": {
     "doc": "Changelog",
     "title": "[1.8.0] - 2026-02-26",
     "content": "Added . | Disk-backed project storage - JSON files on disk instead of VS Code globalState | BM25 full-text search - FTS4 with BM25 ranking from matchinfo('pcnalx') | Knowledge card flags - pinned, archived, includeInContext | Knowledge index file - ~/.contextmanager/knowledge-index.txt | #getCard tool - Read a card by ID (read-only, no confirmation) | . Changed . | FTS4 migration - From FTS5 (not available in sql.js 1.14.0) to FTS4 | Storage migration - Transparent lossless migration from globalState to disk | . ",
     "url": "/ContextManager/changelog/#180---2026-02-26",
     
     "relUrl": "/changelog/#180---2026-02-26"
-  },"14": {
+  },"15": {
     "doc": "Changelog",
     "title": "[1.7.0] - 2025-02-25",
     "content": "Added . | Typed observations - bugfix 🔴, feature 🟣, discovery 🔵, decision ⚖️, refactor 🔄, change ✅ | Content-hash deduplication - SHA-based with 30-second window | Privacy tags - &lt;private&gt; content stripped before storage | Token economics - discoveryTokens vs readTokens, ROI tracking | 3-layer search - search (index), timeline (context), fetch (detail) | File path extraction - Auto-indexed from prompts and responses | . ",
     "url": "/ContextManager/changelog/#170---2025-02-25",
     
     "relUrl": "/changelog/#170---2025-02-25"
-  },"15": {
+  },"16": {
     "doc": "Changelog",
     "title": "[1.6.0] - 2025-02-25",
     "content": "Added . | Auto-Capture Service - Zero-friction observation logging from all chat participants | Session Continuity - Injects context from previous sessions into new ones | Cross-participant LLM learning - Learns from regular Copilot Chat | Observation buffer - Circular buffer (default 50 entries) | 8 new settings for auto-capture and session continuity | . ",
     "url": "/ContextManager/changelog/#160---2025-02-25",
     
     "relUrl": "/changelog/#160---2025-02-25"
-  },"16": {
+  },"17": {
     "doc": "Changelog",
     "title": "[1.5.0] - 2026-02-24",
     "content": "Added . | Progressive disclosure - 3-tier knowledge card injection | BM25 OR fallback - Automatic retry with OR when AND returns zero | camelCase query expansion | Nested folders - Hierarchical folder structure for cards | Drag-and-drop cards - Move cards between folders | Card staleness detection - 30+ day warning | Card Health dashboard - Analytics, duplicates, usage tracking | Git-tracked card storage - Export as .md with YAML frontmatter | SKILL.md export - Claude Code compatibility | #organizeCards tool - listFolders, createFolder, moveCard, autoOrganize | Card templates - 6 structured templates | Keyboard shortcuts - 1-7 tabs, Ctrl+K search, Ctrl+N new card | . ",
     "url": "/ContextManager/changelog/#150---2026-02-24",
     
     "relUrl": "/changelog/#150---2026-02-24"
-  },"17": {
+  },"18": {
     "doc": "Changelog",
     "title": "[1.4.0] - 2026-02-19",
     "content": "Added . | Project Intelligence Layer - Conventions, tool hints, working notes | Tiered injection - Confirmed always, relevant matched, rest on-demand (800 token cap) | #projectIntelligence tool - learnConvention, learnToolHint, learnNote, retrospect | Branch session enhancements - Living document model, checkpoint, gitDiff | @ctx /done command - End-of-task retrospective | Data import/export - Full and per-project export/import | LaTeX rendering - KaTeX with MathML output | . ",
     "url": "/ContextManager/changelog/#140---2026-02-19",
     
     "relUrl": "/changelog/#140---2026-02-19"
-  },"18": {
+  },"19": {
     "doc": "Changelog",
     "title": "[1.3.0] - 2026-02-19",
     "content": "Added . | Inline context menu modals - Replace, Delete, Refine, Create Card | /add command - Save last AI response as card | Find in Card - Ctrl+F-style search within cards | . ",
     "url": "/ContextManager/changelog/#130---2026-02-19",
     
     "relUrl": "/changelog/#130---2026-02-19"
-  },"19": {
+  },"20": {
     "doc": "Changelog",
     "title": "[1.2.0] - 2026-02-18",
     "content": "Added . | Global knowledge cards (planned) - Share across all projects | Mermaid code block styling - Styled display for ` ```mermaid ` blocks | Research &amp; Save as Card inline input | Concurrent /save queue - No UI conflicts | . ",
     "url": "/ContextManager/changelog/#120---2026-02-18",
     
     "relUrl": "/changelog/#120---2026-02-18"
-  },"20": {
+  },"21": {
     "doc": "Changelog",
     "title": "[1.0.0] - 2026-02-16",
     "content": "Added . | BM25 full-text search - SQLite FTS5 via sql.js WebAssembly | Branch tracking &amp; git integration | Custom prompt system - 6 customizable system prompts | Content Security Policy - nonce-based | 11 proposed API integrations - auto-activating on VS Code Insiders | . ",
     "url": "/ContextManager/changelog/#100---2026-02-16",
     
     "relUrl": "/changelog/#100---2026-02-16"
-  },"21": {
+  },"22": {
     "doc": "Changelog",
     "title": "[0.1.0] - 2025-07-18",
     "content": "Added . | Chat participant @ctx with 10 commands | #projectContext Language Model Tool | Knowledge cards with AI generation and refinement | TODO management with AI agents | Explanation cache | Dashboard with 6 tabs | 17+ settings | Sidebar tree view and status bar | . ",
     "url": "/ContextManager/changelog/#010---2025-07-18",
     
     "relUrl": "/changelog/#010---2025-07-18"
-  },"22": {
+  },"23": {
     "doc": "Chat Participant",
     "title": "Chat Participant (@ctx)",
     "content": "Manual control commands for when you want to direct ContextManager explicitly. All of this is optional — ContextManager works fully in the background without a single @ctx command. You don’t need these commands. ContextManager captures knowledge, injects intelligence, and maintains session continuity automatically from all Copilot interactions. Use @ctx when you want to give explicit instructions, trigger a retrospective, or create cards on demand. ",
     "url": "/ContextManager/features/chat-participant/#chat-participant-ctx",
     
     "relUrl": "/features/chat-participant/#chat-participant-ctx"
-  },"23": {
+  },"24": {
     "doc": "Chat Participant",
     "title": "Overview",
     "content": "Type @ctx in Copilot Chat to access the ContextManager chat participant. Every command automatically includes your selected knowledge cards, cached explanations, and project intelligence as context. ",
     "url": "/ContextManager/features/chat-participant/#overview",
     
     "relUrl": "/features/chat-participant/#overview"
-  },"24": {
+  },"25": {
     "doc": "Chat Participant",
     "title": "Commands",
     "content": "/chat - Ask with Project Context . Default . Ask any question with full project context injected. This is the default command when you type @ctx without a slash command. @ctx How does the caching layer work? @ctx /chat What's the difference between Service A and Service B? . /explain - Deep-Dive Explanation . Get a thorough explanation of a symbol, class, module, or concept. Results are auto-cached. @ctx /explain AuthenticationService . You can also right-click any symbol in the editor → Explain for the same result. /usage - Explain Why Code Is Used . Understand why a specific piece of code exists at a particular location. @ctx /usage Why is EventEmitter used here instead of callbacks? . /relationships - Show Architecture . Display class hierarchies, component relationships, and architectural patterns. @ctx /relationships Show the inheritance tree of BaseController . /todo - Work on a TODO . Work on a TODO item with full project context injected. @ctx /todo Fix the authentication bug in LoginService . /knowledge - Research &amp; Generate Card . The AI researches your codebase and creates a structured knowledge card. @ctx /knowledge Research the observer pattern in this codebase @ctx /knowledge How does dependency injection work here? . /refine - Improve a Card . Pick an existing knowledge card and improve it with fresh codebase research. @ctx /refine . The AI uses the full tool-calling loop - it can read files, search, and navigate your entire codebase to update the card. /save - Answer + Save as Card . Answer a question and save the response as a knowledge card in one step. @ctx /save How does the error handling pipeline work? . /add - Save Last Response as Card . Save the most recent AI response from the current chat session as a card. @ctx /add . /done - End-of-Task Retrospective . Capture structured learnings from the current task. @ctx /done . Extracts: outcome summary, new conventions, tool hints, and creates knowledge cards from insights. /handoff - Generate Handoff Document . Package the complete project context - knowledge cards, conventions, intelligence - into a handoff document for another engineer. @ctx /handoff . /audit - Knowledge Freshness Scan . Scan all knowledge cards for staleness: check if referenced files still exist, flag outdated content. @ctx /audit . /map - Architectural Overview . Generate an architectural overview of a module or directory with entry points, relationships, and data flow. @ctx /map src/auth/ . /context - Show Current Context . Display the current project context - metadata, selected cards, cached explanations, intelligence summary. @ctx /context . /doc - Generate Doc Comments . Experimental . Generate and apply doc comments to selected code. Requires VS Code Insiders for inline diff support. @ctx /doc . ",
     "url": "/ContextManager/features/chat-participant/#commands",
     
     "relUrl": "/features/chat-participant/#commands"
-  },"25": {
+  },"26": {
     "doc": "Chat Participant",
     "title": "Context Injection",
     "content": "Every @ctx command automatically injects: . | Project metadata - name, goals, root paths | Selected knowledge cards - via progressive disclosure (full → summary → metadata) | Selected cache entries - previously cached explanations | Project intelligence - conventions, tool hints, relevant working notes | Copilot instructions - .github/copilot-instructions.md (if present) | README - README.md (if present) | . ",
     "url": "/ContextManager/features/chat-participant/#context-injection",
     
     "relUrl": "/features/chat-participant/#context-injection"
-  },"26": {
+  },"27": {
     "doc": "Chat Participant",
     "title": "Followup Suggestions",
     "content": "After each response, @ctx suggests contextual followup actions: . | 📥 Add last response as card - after /chat and /save | 🔍 Search for more - when the response references searchable topics | 📖 Explain deeper - for complex explanations | . ",
     "url": "/ContextManager/features/chat-participant/#followup-suggestions",
     
     "relUrl": "/features/chat-participant/#followup-suggestions"
-  },"27": {
+  },"28": {
     "doc": "Chat Participant",
     "title": "Next Steps",
     "content": "Search → . ",
     "url": "/ContextManager/features/chat-participant/#next-steps",
     
     "relUrl": "/features/chat-participant/#next-steps"
-  },"28": {
+  },"29": {
     "doc": "Chat Participant",
     "title": "Chat Participant",
     "content": " ",
     "url": "/ContextManager/features/chat-participant/",
     
     "relUrl": "/features/chat-participant/"
-  },"29": {
+  },"30": {
     "doc": "Configuration",
     "title": "Configuration",
     "content": "All settings are accessible from the ⚙ Settings tab in the Dashboard or via VS Code’s settings JSON. ",
     "url": "/ContextManager/configuration/",
     
     "relUrl": "/configuration/"
-  },"30": {
+  },"31": {
     "doc": "Configuration",
     "title": "General",
     "content": "| Setting | Default | Description | . | contextManager.showStatusBar | true | Show active project in the status bar | . | contextManager.confirmDelete | true | Confirmation dialog before deleting items | . | contextManager.maxKnowledgeCardsInContext | 10 | Maximum cards to include in AI prompts (1–20) | . ",
     "url": "/ContextManager/configuration/#general",
     
     "relUrl": "/configuration/#general"
-  },"31": {
+  },"32": {
     "doc": "Configuration",
     "title": "Auto-Capture",
     "content": "| Setting | Default | Description | . | contextManager.autoCapture.enabled | true | Enable automatic observation recording | . | contextManager.autoCapture.learnFromAllParticipants | true | Learn from all chat participant interactions | . | contextManager.autoCapture.maxObservations | 50 | Max observations in circular buffer | . ",
     "url": "/ContextManager/configuration/#auto-capture",
     
     "relUrl": "/configuration/#auto-capture"
-  },"32": {
+  },"33": {
     "doc": "Configuration",
     "title": "Auto-Distill",
     "content": "| Setting | Default | Description | . | contextManager.autoDistill.enabled | true | Automatically distill observations into conventions and knowledge cards at compaction checkpoints | . | contextManager.autoDistill.intervalMinutes | 30 | Minimum minutes between automatic distillation runs per project | . | contextManager.autoDistill.dedupThreshold | 0.8 | Jaccard similarity threshold for duplicate detection (0.5–1.0) | . ",
     "url": "/ContextManager/configuration/#auto-distill",
     
     "relUrl": "/configuration/#auto-distill"
-  },"33": {
+  },"34": {
     "doc": "Configuration",
     "title": "Project Intelligence",
     "content": "| Setting | Default | Description | . | contextManager.intelligence.enableTieredInjection | true | Auto-inject conventions and top tool hints into every chat prompt (Tier 1+2) | . | contextManager.intelligence.enableStalenessTracking | true | File-based staleness tracking on working notes and knowledge cards | . | contextManager.intelligence.stalenessAgeDays | 30 | Days before knowledge cards are flagged as age-stale (7–365) | . | contextManager.intelligence.tier1MaxTokens | 400 | Token budget for Tier 1 (always-injected) learnings (100–1000) | . | contextManager.intelligence.tier2MaxTokens | 400 | Token budget for Tier 2 (task-relevant) learnings (100–1000) | . Auto-Learn . | Setting | Default | Description | . | contextManager.intelligence.autoLearn | true | Enable the auto-learning pipeline | . | contextManager.intelligence.autoLearn.useLLM | true | Use lightweight LLM call for extraction instead of regex-only | . | contextManager.intelligence.autoLearn.modelFamily | (auto) | Preferred model family for auto-learn LLM extraction (dynamic dropdown in dashboard) | . | contextManager.intelligence.autoLearn.showInChat | true | Show auto-learn results as a notification toast | . | contextManager.intelligence.autoLearn.extractConventions | true | Extract conventions from response text | . | contextManager.intelligence.autoLearn.extractToolHints | true | Extract tool hints from search fail→success patterns | . | contextManager.intelligence.autoLearn.extractWorkingNotes | true | Extract working notes from file co-access patterns | . | contextManager.intelligence.autoLearn.conventionsPerRun | 1 | Max conventions to extract per interaction | . | contextManager.intelligence.autoLearn.hintsPerRun | 3 | Max tool hints to extract per interaction | . | contextManager.intelligence.autoLearn.notesPerRun | 2 | Max working notes to extract per interaction | . | contextManager.intelligence.autoLearn.maxConventions | 15 | Max inferred conventions per project | . | contextManager.intelligence.autoLearn.maxToolHints | 20 | Max tool hints per project | . | contextManager.intelligence.autoLearn.maxWorkingNotes | 30 | Max inferred working notes per project | . | contextManager.intelligence.autoLearn.expiryDays | 0 | Auto-expire inferred learnings after N days (0 = disabled) | . | contextManager.intelligence.autoLearn.discardThreshold | 5 | Suppress a category after N discards (0 = disabled) | . Intelligence Injection . | Setting | Default | Description | . | contextManager.intelligence.injectConventions | true | Include conventions in auto-injected context | . | contextManager.intelligence.injectToolHints | true | Include tool hints in auto-injected context | . | contextManager.intelligence.injectWorkingNotes | true | Include working notes in auto-injected context | . | contextManager.intelligence.injectKnowledgeCards | true | Include knowledge cards in auto-injected context | . ",
     "url": "/ContextManager/configuration/#project-intelligence",
     
     "relUrl": "/configuration/#project-intelligence"
-  },"34": {
+  },"35": {
     "doc": "Configuration",
     "title": "Card Queue",
     "content": "| Setting | Default | Description | . | contextManager.cardQueue.enabled | true | Enable automatic response queuing | . | contextManager.cardQueue.minResponseLength | 300 | Min response length to queue (50–5000) | . | contextManager.cardQueue.distillBatchSize | 2 | Candidates processed per LLM call during distillation | . | contextManager.cardQueue.maxCardsPerDistill | 12 | Max knowledge cards to extract per distill run | . | contextManager.cardQueue.maxSize | 30 | Max candidates in the review queue | . ",
     "url": "/ContextManager/configuration/#card-queue",
     
     "relUrl": "/configuration/#card-queue"
-  },"35": {
+  },"36": {
     "doc": "Configuration",
     "title": "Prompt Customization",
     "content": "Customize the system prompts used by the distill pipelines. Leave empty to use defaults. | Setting | Default | Description | . | contextManager.prompts.globalInstructions | (empty) | Global custom instructions appended to all prompts | . | contextManager.prompts.distillObservations | (built-in) | System prompt for distilling observations into conventions, tool hints, and working notes | . | contextManager.prompts.distillQueue | (built-in) | System prompt for synthesizing card queue candidates into knowledge cards | . | contextManager.prompts.synthesizeCard | (built-in) | System prompt for the dashboard’s “Synthesize Card” action | . ",
     "url": "/ContextManager/configuration/#prompt-customization",
     
     "relUrl": "/configuration/#prompt-customization"
-  },"36": {
+  },"37": {
     "doc": "Configuration",
     "title": "Search",
     "content": "| Setting | Default | Description | . | contextManager.search.enableFTS | true | Enable BM25 full-text search | . | contextManager.search.maxCardResults | 5 | Max results for card search | . | contextManager.search.maxSearchResults | 10 | Max results for cross-entity search | . | contextManager.search.snippetTokens | 16 | Snippet preview size in tokens | . ",
     "url": "/ContextManager/configuration/#search",
     
     "relUrl": "/configuration/#search"
-  },"37": {
+  },"38": {
     "doc": "Configuration",
     "title": "Explanations",
     "content": "| Setting | Default | Description | . | contextManager.explanation.expandContext | true | Expand surrounding code when explaining | . ",
     "url": "/ContextManager/configuration/#explanations",
     
     "relUrl": "/configuration/#explanations"
-  },"38": {
+  },"39": {
     "doc": "Configuration",
     "title": "Context",
     "content": "| Setting | Default | Description | . | contextManager.context.stubLines | 5 | Lines of code captured per anchor stub for knowledge cards | . ",
     "url": "/ContextManager/configuration/#context",
     
     "relUrl": "/configuration/#context"
-  },"39": {
+  },"40": {
     "doc": "Configuration",
     "title": "Save As Card",
     "content": "| Setting | Default | Description | . | contextManager.saveAsCard.smartMerge | true | Enable smart merge detection when saving knowledge cards | . ",
     "url": "/ContextManager/configuration/#save-as-card",
     
     "relUrl": "/configuration/#save-as-card"
-  },"40": {
+  },"41": {
     "doc": "Configuration",
     "title": "Tools",
     "content": "| Setting | Default | Description | . | contextManager.tools.backgroundMode | true | Run save/search/read tools silently without confirmation dialogs | . ",
     "url": "/ContextManager/configuration/#tools",
     
     "relUrl": "/configuration/#tools"
-  },"41": {
+  },"42": {
     "doc": "Configuration",
     "title": "Experimental",
     "content": "| Setting | Default | Description | . | contextManager.experimental.enableProposedApi | false | Enable proposed VS Code APIs for enhanced features like Smart Select embeddings. Requires VS Code Insiders. | . ",
     "url": "/ContextManager/configuration/#experimental",
     
     "relUrl": "/configuration/#experimental"
-  },"42": {
+  },"43": {
     "doc": "Dashboard",
     "title": "Dashboard",
     "content": "Centralized management for all ContextManager features — 4 tabs, one WebView. ",
     "url": "/ContextManager/features/dashboard/",
     
     "relUrl": "/features/dashboard/"
-  },"43": {
+  },"44": {
     "doc": "Dashboard",
     "title": "Opening the Dashboard",
     "content": ". | Click the status bar item (shows active project name) | Run command: ContextManager: Open Dashboard | Click the 📖 icon in the Activity Bar → project → Dashboard | . ",
     "url": "/ContextManager/features/dashboard/#opening-the-dashboard",
     
     "relUrl": "/features/dashboard/#opening-the-dashboard"
-  },"44": {
+  },"45": {
     "doc": "Dashboard",
     "title": "Tab Overview",
     "content": "| Tab | What’s Inside | . | 🧠 Intelligence | Auto-Capture/Auto-Learn controls, observations feed, AI Distill | . | Knowledge | All cards with search, filter, folders, select/deselect (drives hook injection), inline editing, card health, card queue | . | Context | Project goals, conventions, tool hints, working notes, key files | . | ⚙ Settings | All extension settings editable in-dashboard, data import/export | . ",
     "url": "/ContextManager/features/dashboard/#tab-overview",
     
     "relUrl": "/features/dashboard/#tab-overview"
-  },"45": {
+  },"46": {
     "doc": "Dashboard",
     "title": "Intelligence Tab",
-    "content": "The command center for the intelligence pipeline: . Controls . | Auto-Capture ON/OFF toggle with observation count | Auto-Learn ON/OFF toggle | 🤖 Distill Observations button — extract conventions, tool hints, and working notes from observations | . Observations Feed . | Per-source filter pills: dynamically generated from observation sources | Each observation shows timestamp, participant source, and prompt preview | Type badges (bugfix, feature, change, etc.) shown as summary counts in the header | Actions: Delete (✕), Distill with AI (🧠) | . ",
+    "content": "The command center for the intelligence pipeline: . Controls . | Auto-Capture ON/OFF toggle with observation count | Auto-Learn ON/OFF toggle | 🤖 Distill Observations button — extract conventions, tool hints, and working notes from observations | . Observations Feed . | Per-source filter pills: dynamically generated from observation sources | Each observation shows timestamp, participant source, and prompt preview | Type badges (bugfix, feature, change, etc.) shown as summary counts in the header | Actions: Delete (✕), Distill with AI (🧠) | . Custom AI Workflows . | + New Workflow — define name, trigger, prompt template, output action, target card, and max items | Template variable buttons — grouped by category (Queue, Card, Project, Collections, Event) for easy insertion into prompts | Trigger badges — color-coded: blue (auto-queue), gray (manual), purple (event triggers like convention-learned, card-created, card-updated, observation-created) | ▶ Run — manually execute any workflow | Enable/Disable toggle, Edit, Delete actions | See Custom AI Workflows for full documentation | . ",
     "url": "/ContextManager/features/dashboard/#intelligence-tab",
     
     "relUrl": "/features/dashboard/#intelligence-tab"
-  },"46": {
+  },"47": {
     "doc": "Dashboard",
     "title": "Knowledge Tab",
     "content": "Card Management . | Search bar - keyword filtering across all cards | Category filter - architecture, pattern, convention, explanation, note, all | Folder tree - collapsible hierarchy with drag-and-drop | Card actions - Select, Edit, Delete, Refine, 📌 Pin, 👁 Include, 🗃 Archive, 🌐 Global | Generate with AI - enter a topic and the LLM generates a structured card using the Language Model API directly | Card checkboxes drive hook injection - cards checked here are automatically included in the session context injected into every prompt via the agent hook system | . AI Synthesis with Custom Prompt . | Select items from the card queue and click ✨ AI Synthesize | The editor opens with an optional custom prompt textarea | Enter specific instructions (e.g., “Focus on security”) or leave blank for defaults | Click ✨ AI Draft to generate — errors now show descriptive reasons instead of generic failures | . Inline Editing . | Click Edit on any card to expand the editor | Auto-sizing textarea (min 300px, max 80vh) | Scroll position preserved during edit | Rendered markdown preview with LaTeX support | . Card Health . | Collapsible analytics section | Total / selected / stale / never-used counts | Top 5 most-used cards | Duplicate detection (Jaccard ≥40%) | . Card Queue . | Pending count, Distill into Cards, Clear Queue | Check items to include in distill, or save individual items directly as cards | Tags are auto-generated by the LLM during distill and propagated through approval | See Card Queue for details | . Context Menu . Replace, Delete, Refine with AI, Create Card from Selection, Ask Question . ",
     "url": "/ContextManager/features/dashboard/#knowledge-tab",
     
     "relUrl": "/features/dashboard/#knowledge-tab"
-  },"47": {
+  },"48": {
     "doc": "Dashboard",
     "title": "Context Tab",
     "content": "Project Metadata . | Project name, goals, key files | Auto-saves on edit (800ms debounce) | . 🏗 Conventions . | Codebase conventions learned by the agent | Enable/disable toggle per convention | Edit, delete actions | Injected into all AI prompts when enabled | . 🔧 Tool Hints . | Search patterns that work (and don’t work) in this codebase | Checkbox selection for prompt injection | If none selected, top 5 by recency are injected by default | . 📝 Working Notes . | Insights discovered during codebase exploration | Expandable details with staleness badges (🟢 fresh, ⚠️ possibly-stale, 🔴 stale) | Matched by file path for task-relevant injection | Actions: Mark Fresh, Discard, Delete | . ",
     "url": "/ContextManager/features/dashboard/#context-tab",
     
     "relUrl": "/features/dashboard/#context-tab"
-  },"48": {
+  },"49": {
     "doc": "Dashboard",
     "title": "Settings Tab",
     "content": "All extension settings editable directly in the dashboard - no need to open VS Code settings JSON. Data Management . | 📦 Export All Data / Import Data - full dump/restore | Export Current Project / Import Project - single-project with duplicate handling | . ",
     "url": "/ContextManager/features/dashboard/#settings-tab",
     
     "relUrl": "/features/dashboard/#settings-tab"
-  },"49": {
+  },"50": {
     "doc": "Dashboard",
     "title": "Keyboard Shortcuts",
     "content": "| Shortcut | Action | . | 1–4 | Switch tabs | . | Ctrl+K | Focus search | . | Ctrl+Shift+K | Deselect all cards | . | Ctrl+N | New card | . ",
     "url": "/ContextManager/features/dashboard/#keyboard-shortcuts",
     
     "relUrl": "/features/dashboard/#keyboard-shortcuts"
-  },"50": {
+  },"51": {
     "doc": "Dashboard",
     "title": "Rendering",
     "content": ". | Markdown - full rendering with headers, lists, code blocks, blockquotes, tables | LaTeX - $...$ inline, $$...$$ display, KaTeX with MathML output | Mermaid - ` ```mermaid ` blocks displayed as styled code blocks with syntax highlighting | Code syntax - language-tagged code blocks with VS Code theme colors | . ",
     "url": "/ContextManager/features/dashboard/#rendering",
     
     "relUrl": "/features/dashboard/#rendering"
-  },"51": {
+  },"52": {
     "doc": "Dashboard",
     "title": "Next Steps",
     "content": "Language Model Tools → . ",
     "url": "/ContextManager/features/dashboard/#next-steps",
     
     "relUrl": "/features/dashboard/#next-steps"
-  },"52": {
+  },"53": {
     "doc": "Data Flow",
     "title": "Data Flow",
     "content": "How data moves through ContextManager’s pipelines - from capture to injection. ",
     "url": "/ContextManager/architecture/data-flow/",
     
     "relUrl": "/architecture/data-flow/"
-  },"53": {
+  },"54": {
     "doc": "Data Flow",
     "title": "Three Pipelines",
     "content": "ContextManager has three main data pipelines that operate concurrently: . | Tool Pipeline — LM tool invocations → immediate processing | Auto-Capture Pipeline - all chat responses → background processing | Hook Pipeline - VS Code Copilot transcript → file-based queue | . ",
     "url": "/ContextManager/architecture/data-flow/#three-pipelines",
     
     "relUrl": "/architecture/data-flow/#three-pipelines"
-  },"54": {
+  },"55": {
     "doc": "Data Flow",
     "title": "1. Tool Pipeline",
     "content": "When agents invoke ContextManager’s Language Model Tools, data flows synchronously: . graph TD A[Agent invokes #ctx or #saveCard] --> B[Tool handler receives request] B --> C[Query project data] C --> D[Return structured result] D --> E[Post-processing] E --> F[Auto-capture records observation] style A fill:#1f6feb,stroke:#388bfd,color:#fff style C fill:#1158c7,stroke:#388bfd,color:#fff style F fill:#238636,stroke:#3fb950,color:#fff . ",
     "url": "/ContextManager/architecture/data-flow/#1-tool-pipeline",
     
     "relUrl": "/architecture/data-flow/#1-tool-pipeline"
-  },"55": {
+  },"56": {
     "doc": "Data Flow",
     "title": "2. Auto-Capture Pipeline",
     "content": "Runs in the background for all chat participants: . graph TD A[Any Model Response] --> B[AutoCaptureService] B --> C[Strip private tags] C --> D{Content hash dedup} D -->|New| E[Classify observation type] D -->|Duplicate| X[Skip] E --> F[Extract file paths] F --> G[Calculate token economics] G --> H[Add to observation buffer] H --> I[Update FTS index] I --> J{autoLearn enabled?} J -->|Yes| K[LLM extraction] K --> L[Conventions + Working Notes] J -->|No| N[Done] style A fill:#1f6feb,stroke:#388bfd,color:#fff style H fill:#1158c7,stroke:#388bfd,color:#fff style K fill:#9e6a03,stroke:#d29922,color:#fff style L fill:#238636,stroke:#3fb950,color:#fff style X fill:#21262d,stroke:#30363d,color:#8b949e . ",
     "url": "/ContextManager/architecture/data-flow/#2-auto-capture-pipeline",
     
     "relUrl": "/architecture/data-flow/#2-auto-capture-pipeline"
-  },"56": {
+  },"57": {
     "doc": "Data Flow",
     "title": "3. Hook Pipeline",
     "content": "Captures from VS Code Copilot’s native transcript system: . graph TD A[Copilot processes tool call] --> B[Chat Hooks API fires PostToolUse] B --> C[capture.ps1 runs] C --> D[Write PostToolUse entry] C --> E[Find Copilot transcript] E --> F[Get-LastCompletedTurn] F --> G{New turn?} G -->|Yes| H[Write synthetic Stop entry] G -->|No| I[Skip] H --> J[HookWatcher detects change] J --> K[Parse JSONL entries] K --> L{Route by hookType} L --> L1[Stop: autoCapture + cardQueue] L --> L2[PostToolUse: observation] L --> L3[PreCompact: multi-turn] style A fill:#1f6feb,stroke:#388bfd,color:#fff style C fill:#9e6a03,stroke:#d29922,color:#fff style J fill:#1158c7,stroke:#388bfd,color:#fff style L1 fill:#238636,stroke:#3fb950,color:#fff style L2 fill:#238636,stroke:#3fb950,color:#fff style L3 fill:#238636,stroke:#3fb950,color:#fff style I fill:#21262d,stroke:#30363d,color:#8b949e . ",
     "url": "/ContextManager/architecture/data-flow/#3-hook-pipeline",
     
     "relUrl": "/architecture/data-flow/#3-hook-pipeline"
-  },"57": {
+  },"58": {
     "doc": "Data Flow",
     "title": "Storage Architecture",
     "content": "Disk-Backed JSON . All project data persists to JSON files in globalStorageUri: . globalStorageUri/ ├── projects.json # All project metadata (single file for all projects) ├── observations.json # All observations (managed by AutoCaptureService) └── search-fts4.db # SQLite FTS4 search index . In-memory caching: Data loaded once at startup, served from memory on read, flushed to disk on every write. Zero I/O overhead for reads. File-Based Queue . The hook system uses a simple append-only JSONL file: . ~/.contextmanager/ ├── hook-queue.jsonl # Append-only entries from capture.ps1 ├── .queue-offset # Byte offset (HookWatcher resumption point) ├── session-context.txt # Written by HookWatcher (project name + root path only) ├── knowledge-index.txt # Card index (actively written for PreCompact hook) ├── seen-turn-&lt;sid&gt; # Dedup files (last processed userId per session) ├── stop-debug.log # Debug log for Stop hook └── scripts/ ├── capture.ps1 # The hook script (Windows) └── capture.sh # The hook script (Linux/macOS) . ",
     "url": "/ContextManager/architecture/data-flow/#storage-architecture",
     
     "relUrl": "/architecture/data-flow/#storage-architecture"
-  },"58": {
+  },"59": {
     "doc": "Data Flow",
     "title": "Context Injection Flow",
     "content": "When context is injected into a prompt: . graph TD A[Project data changes] --> B[syncInstructions triggers] B --> C[Write copilot-instructions.md managed block] C --> D[Pinned cards + tool discovery] D --> G[Always included by VS Code on every request] E[\"Agent invokes #ctx tool\"] --> F[On-demand search / getCard / learn] F --> H[Context returned to agent] I[\"Agent invokes #getCard\"] --> J[Knowledge cards returned] J --> H G --> K[Language model receives context] H --> K style A fill:#1f6feb,stroke:#388bfd,color:#fff style C fill:#238636,stroke:#3fb950,color:#fff style G fill:#1158c7,stroke:#388bfd,color:#fff style E fill:#9e6a03,stroke:#d29922,color:#fff style K fill:#238636,stroke:#3fb950,color:#fff . ",
     "url": "/ContextManager/architecture/data-flow/#context-injection-flow",
     
     "relUrl": "/architecture/data-flow/#context-injection-flow"
-  },"59": {
+  },"60": {
     "doc": "Data Flow",
     "title": "Token Budget Summary",
     "content": "| Component | Setting | Default | Range | . | Intelligence Tier 1 | intelligence.tier1MaxTokens | 400 tokens | 100–1000 | . | Intelligence Tier 2 | intelligence.tier2MaxTokens | 400 tokens | 100–1000 | . | Knowledge Cards | maxKnowledgeCardsInContext | 10 cards | 1–20 | . ",
     "url": "/ContextManager/architecture/data-flow/#token-budget-summary",
     
     "relUrl": "/architecture/data-flow/#token-budget-summary"
-  },"60": {
+  },"61": {
     "doc": "Data Flow",
     "title": "Next Steps",
     "content": "Hook System → . ",
     "url": "/ContextManager/architecture/data-flow/#next-steps",
     
     "relUrl": "/architecture/data-flow/#next-steps"
-  },"61": {
+  },"62": {
     "doc": "Distill Pipeline",
     "title": "Distill Pipeline",
     "content": "Full transparency into how ContextManager’s AI agents process your interactions in the background. ",
     "url": "/ContextManager/features/distill-pipeline/",
     
     "relUrl": "/features/distill-pipeline/"
-  },"62": {
+  },"63": {
     "doc": "Distill Pipeline",
     "title": "Overview",
     "content": "ContextManager runs three distillation pipelines that transform raw AI interactions into structured project knowledge. All pipelines are user-triggered or rate-limited — nothing runs without your awareness. Every distill pipeline uses the model configured in Extraction Model (intelligence.autoLearn.modelFamily). Choose a small/cheap model (e.g., GPT-4.1 Nano, Claude Haiku) to minimize cost. The dashboard shows a dynamic dropdown of all models available in your VS Code instance. ",
     "url": "/ContextManager/features/distill-pipeline/#overview",
     
     "relUrl": "/features/distill-pipeline/#overview"
-  },"63": {
+  },"64": {
     "doc": "Distill Pipeline",
     "title": "Pipeline 1: Observation Distillation",
     "content": "Trigger: Manual (“🤖 Distill Observations” button) or automatic at compaction checkpoints Input: Up to 40 unprocessed observations from the circular buffer Output: Conventions, tool hints, and working notes LLM calls: 1 per run Timeout: 30 seconds . Algorithm . 1. Filter observations: only unprocessed (learningsExtracted = false), scoped to active project 2. Format each observation as a compact text block: [1] from:&lt;participant&gt; type:&lt;type&gt; Q: &lt;prompt excerpt, 200 chars&gt; A: &lt;response excerpt, 200 chars&gt; files: &lt;up to 5 referenced files&gt; 3. Send to LLM with extraction prompt (customizable via prompts.distillObservations setting) 4. Parse JSON response → { conventions[], toolHints[], workingNotes[] } 5. Cap at 5 items per category 6. Mark all input observations as learningsExtracted = true (prevents re-processing) . What the LLM is asked to extract . | Category | What it captures | Example | . | Conventions | Coding patterns, file organization, naming rules specific to this codebase | “Use kebab-case for all API route files” | . | Tool Hints | Which search strategies, folders, and file patterns work for finding things | “Auth logic lives in src/middleware/auth/, search for ‘jwt’ or ‘bearer’” | . | Working Notes | What the agent discovered about specific components/areas | “The payment service uses a saga pattern with compensating transactions” | . Auto-Distill (Background) . When autoDistill.enabled is true, the same pipeline runs automatically at compaction checkpoints: . Guards: - autoDistill.enabled must be true - At least 4 observations in the last 2 hours for this project - Rate-limited: minimum intervalMinutes between runs (default 30) Behavior: - Runs distillObservations(40, projectId) - Auto-saves up to 3 conventions and 3 working notes - Deduplicates against existing items by title (case-insensitive) - All auto-saved items get confidence = \"inferred\" - Logs to background tasks for audit trail . ",
     "url": "/ContextManager/features/distill-pipeline/#pipeline-1-observation-distillation",
     
     "relUrl": "/features/distill-pipeline/#pipeline-1-observation-distillation"
-  },"64": {
+  },"65": {
     "doc": "Distill Pipeline",
     "title": "Pipeline 2: Card Queue Distillation",
     "content": "Trigger: Manual (“Distill into Cards” button in Knowledge tab) Input: All queued card candidates (up to cardQueue.maxSize, default 30) Output: Knowledge card proposals with confidence scores LLM calls: ceil(candidates / batchSize) — up to 15 with a full queue (default batch size 2, max 30 candidates) Timeout: 60 seconds per batch . Algorithm . 1. Load all candidates from the card queue 2. Split into batches of distillBatchSize (default 2) candidates each 3. For each batch: a. Format full prompt + response text (NO truncation — full content preserved) b. Send to LLM with synthesis prompt (customizable via prompts.distillQueue setting) c. Parse JSON response → { cards[] } (each card includes tags) d. Accumulate cards, stopping at maxCardsPerDistill (default 12) 4. Return all accumulated card proposals to the UI 5. User reviews each proposal: title, category, content, tags, confidence %, reasoning, source indices 6. User clicks \"Add Card\" per proposal or \"Approve All\" to batch-create — tags are propagated through the entire approve chain . Why batching matters . Each candidate can be thousands of tokens (full AI response). Sending all 30 candidates in one prompt would exceed most model context windows. Batching ensures: . | No content truncation — every response is sent in full to the LLM | Cross-response synthesis — within each batch, the LLM can identify patterns across responses | Graceful degradation — if one batch fails to parse, others still succeed | Budget control — maxCardsPerDistill caps total output regardless of batch count | . What the LLM produces per card . | Field | Purpose | . | title | Descriptive title (5–10 words) | . | category | architecture, pattern, convention, explanation, or note | . | content | Full technical content — code snippets, commands, file paths, config values, edge cases preserved verbatim | . | tags | 2–5 lowercase keywords for filtering and search (e.g., [\"auth\", \"jwt\", \"middleware\"]) | . | reasoning | Which source response(s) this came from and why it’s worth keeping | . | confidence | 0.0–1.0 score reflecting how reusable and project-specific this knowledge is | . | sourceIndices | Array of 1-based indices into the candidate list | . ",
     "url": "/ContextManager/features/distill-pipeline/#pipeline-2-card-queue-distillation",
     
     "relUrl": "/features/distill-pipeline/#pipeline-2-card-queue-distillation"
-  },"65": {
+  },"66": {
     "doc": "Distill Pipeline",
     "title": "Pipeline 3: Multi-Turn Extraction",
     "content": "Trigger: Automatic on PreCompact hook events (when Copilot compacts conversation history) Input: Array of user/assistant turn pairs from the compacted conversation Output: Conventions and working notes (saved directly, no user review) LLM calls: 1 per turn (iterative accumulator pattern) Timeout: 15 seconds per extraction call . Algorithm . 1. Receive turns[] from PreCompact hook entry 2. Initialize accumulators: { conventions: [], relationships: [] } 3. For each turn: a. Truncate user + assistant to 1500 chars each b. Send to LLM with: - The extraction prompt (CAPTURE_EXTRACTION_PROMPT) - \"Learned so far: &lt;accumulated JSON&gt;\" - \"New turn: &lt;user + assistant text&gt;\" - \"Add NEW items only. No repeats.\" c. Merge new conventions/relationships into accumulators (dedup by title, case-insensitive) 4. After all turns processed: a. Save up to 5 conventions (validated: category must be in allowed set, title &gt;= 5 chars, content &gt;= 10 chars) b. Save up to 3 relationships as working notes c. All items saved with confidence = \"inferred\", source = \"auto-captured from multi-turn PreCompact\" . The iterative accumulator pattern . This is the key design: rather than sending all turns at once (which would exceed context windows for long conversations), each turn is processed individually with the accumulated state passed forward. The LLM sees what was already found and only adds genuinely new insights. Turn 1 → LLM(\"Learned: {}, Turn: ...\") → {conventions: [A]} Turn 2 → LLM(\"Learned: {A}, Turn: ...\") → {conventions: [A, B]} Turn 3 → LLM(\"Learned: {A, B}, Turn: ...\") → {conventions: [A, B, C]} . This approach: . | Handles conversations of any length | Avoids duplicate extraction across turns | Keeps each LLM call small and fast | Naturally prioritizes patterns that appear across multiple turns | . ",
     "url": "/ContextManager/features/distill-pipeline/#pipeline-3-multi-turn-extraction",
     
     "relUrl": "/features/distill-pipeline/#pipeline-3-multi-turn-extraction"
-  },"66": {
+  },"67": {
     "doc": "Distill Pipeline",
     "title": "Anchor Extraction (Post-Card)",
     "content": "After multi-turn extraction produces a knowledge card, an optional anchor extraction pass identifies code stubs that ground the card to specific files and line ranges. 1. For each card produced by multi-turn extraction: a. Scan turns for tool call results (file reads, search results) b. Send card content + tool results to LLM with ANCHOR_EXTRACTION_PROMPT c. LLM identifies which code snippets are \"load-bearing\" for the card d. Extract AnchorStub objects: { filePath, symbolName, startLine, endLine, stubContent } 2. Anchors are stored on the card and used for: - Staleness detection (if file changes, card may be stale) - Context grounding (when #getCard reads a card, anchors are verified against current file content) . ",
     "url": "/ContextManager/features/distill-pipeline/#anchor-extraction-post-card",
     
     "relUrl": "/features/distill-pipeline/#anchor-extraction-post-card"
-  },"67": {
+  },"68": {
     "doc": "Distill Pipeline",
     "title": "Prompt Customization",
     "content": "All three distill pipelines use customizable system prompts: . | Setting | Pipeline | What to customize | . | prompts.distillObservations | Observation Distillation | What categories to extract, how many, filtering criteria | . | prompts.distillQueue | Card Queue Distillation | Card format, content preservation rules, confidence criteria | . | prompts.synthesizeCard | Dashboard “Synthesize” action | Single-card synthesis behavior | . Customization replaces only the instruction part of the prompt. The data (observations, candidates, source material) is always appended after your custom instructions. Leave empty to use the built-in defaults. The defaults are battle-tested and work well for most projects. Customize when you want to focus extraction on specific areas (e.g., “only extract security-related conventions”) or change the output format. ",
     "url": "/ContextManager/features/distill-pipeline/#prompt-customization",
     
     "relUrl": "/features/distill-pipeline/#prompt-customization"
-  },"68": {
+  },"69": {
     "doc": "Distill Pipeline",
     "title": "Data Flow Summary",
     "content": "graph TD A[User chats with Copilot] --> B[\"Hook Scripts (all participants)\"] B -- \"capture.ps1 / capture.sh\" --> C[append to hook-queue.jsonl] C --> D[HookWatcher] D -- \"byte-offset tracking, dedup\" --> E{Route by hookType} E --> F[Stop] E --> G[PostToolUse] E --> H[PreCompact] F --> I[\"Observe + Queue\"] G --> J[Observe] H --> K[\"Multi-Turn Extraction (iterative)\"] I --> L[\"Card Queue (staging)\"] K --> M[\"Auto-save conventions + notes\"] L --> N[\"User: Distill\"] N --> O[Batch synthesis] O --> P[Review + Add] style A fill:#1f6feb,stroke:#388bfd,color:#fff style B fill:#9e6a03,stroke:#d29922,color:#fff style D fill:#1158c7,stroke:#388bfd,color:#fff style F fill:#238636,stroke:#3fb950,color:#fff style G fill:#238636,stroke:#3fb950,color:#fff style H fill:#238636,stroke:#3fb950,color:#fff style L fill:#1f6feb,stroke:#388bfd,color:#fff style M fill:#238636,stroke:#3fb950,color:#fff style P fill:#238636,stroke:#3fb950,color:#fff . ",
     "url": "/ContextManager/features/distill-pipeline/#data-flow-summary",
     
     "relUrl": "/features/distill-pipeline/#data-flow-summary"
-  },"69": {
+  },"70": {
     "doc": "Distill Pipeline",
     "title": "Cost &amp; Performance",
     "content": "| Pipeline | LLM calls | Tokens per call | Frequency | . | Observation Distill | 1 | ~2K input, ~500 output | Manual or every 30 min | . | Card Queue Distill | 2–5 | ~4K input, ~2K output per batch | Manual only | . | Multi-Turn Extract | N (one per turn) | ~500 input, ~300 output | On compaction events | . | Auto-Distill | 1 | ~2K input, ~500 output | Rate-limited, background | . All calls use the configured Extraction Model, which defaults to whatever is available. For minimal cost, set it to a small model — the extraction tasks are simple structured-output tasks that don’t need frontier-class models. ",
     "url": "/ContextManager/features/distill-pipeline/#cost--performance",
     
     "relUrl": "/features/distill-pipeline/#cost--performance"
-  },"70": {
+  },"71": {
     "doc": "FAQ",
     "title": "Frequently Asked Questions",
     "content": ". ",
     "url": "/ContextManager/faq/#frequently-asked-questions",
     
     "relUrl": "/faq/#frequently-asked-questions"
-  },"71": {
+  },"72": {
     "doc": "FAQ",
     "title": "General",
     "content": "How is this different from .github/copilot-instructions.md? . They complement each other. ContextManager now auto-syncs a managed block into your .github/copilot-instructions.md containing #ctx tool discovery instructions and pinned card titles. The instruction file provides the always-on baseline (VS Code includes it in every prompt), while ContextManager adds structured, selectable, taggable knowledge cards with per-project organization, a learning intelligence layer, BM25 search, and a full dashboard. Instruction files describe rules; ContextManager records the reasoning behind them. Does my context persist across VS Code restarts? . Yes. All data (projects, knowledge cards, intelligence, observations) is stored on disk in JSON files. Nothing is lost when VS Code restarts or the context window resets. Can Copilot see my context without any special commands? . Yes. ContextManager auto-syncs a managed block into .github/copilot-instructions.md with #ctx tool discovery instructions and pinned card titles — VS Code always includes this file, so every agent starts informed. Type #ctx in any Copilot Chat query for on-demand access to all project knowledge. All 6 Language Model Tools are available to background agents, cloud agents, and Codex. Is my data sent anywhere? . Project data (cards, intelligence, observations) is stored locally. The only external communication is standard VS Code language model API calls - the same API Copilot Chat uses for any conversation. No data is sent to ContextManager-specific servers. ",
     "url": "/ContextManager/faq/#general",
     
     "relUrl": "/faq/#general"
-  },"72": {
+  },"73": {
     "doc": "FAQ",
     "title": "Knowledge Cards",
     "content": "How many cards can I have? . There’s no hard limit on the number of cards. The maxKnowledgeCardsInContext setting (default: 10) controls how many are injected into AI prompts, not how many you can create. Do all cards go into every prompt? . No. Selected cards (checked in the Knowledge tab) are injected into every prompt via the agent hook system. Pinned cards also have their titles in the copilot-instructions.md managed block. For additional cards, agents can search on demand via #ctx or #searchCards. Archived cards are automatically excluded from injection. How do I share cards with my team? . Export cards as git-tracked Markdown files to .contextmanager/cards/. Team members clone the repo and import the folder. Use “Export Cards to Filesystem” for multi-file markdown export. What are global cards? . Global cards are a planned feature that will allow sharing cards across all projects. This is not yet implemented. ",
     "url": "/ContextManager/faq/#knowledge-cards",
     
     "relUrl": "/faq/#knowledge-cards"
-  },"73": {
+  },"74": {
     "doc": "FAQ",
     "title": "Intelligence",
     "content": "What’s the difference between Auto-Capture and Auto-Learn? . Auto-Capture records every AI response as a lightweight observation (always on, zero LLM cost). Auto-Learn runs an LLM extraction on chat interactions to learn conventions, tool hints, and working notes (configurable, moderate LLM cost). How does staleness tracking work? . Working notes track relatedFiles. ContextManager checks file modification times to determine if those files have changed since the note was last updated: . | 🟢 Fresh — files unchanged | ⚠️ Possibly stale — some files modified | 🔴 Stale — significant changes | . Knowledge cards also show staleness indicators: ⚠️ file-stale (anchor/reference files changed) and ⏳ age-stale (not updated in N days, configurable via stalenessAgeDays). Checks run on dashboard open and file save. What are tool hints? . Learned search patterns specific to your codebase. Example: “Search TabStripController not tab strip controller” - the first returns precise results, the second returns CSS noise. The AI uses these to navigate more efficiently. ",
     "url": "/ContextManager/faq/#intelligence",
     
     "relUrl": "/faq/#intelligence"
-  },"74": {
+  },"75": {
     "doc": "FAQ",
     "title": "Search",
     "content": "What search technology is used? . SQLite FTS4 via sql.js (WebAssembly). No native binaries required - works everywhere VS Code runs. BM25 ranking is computed in JavaScript from matchinfo('pcnalx'). Does search work offline? . Yes. The search index is local and doesn’t require any network connection. ",
     "url": "/ContextManager/faq/#search",
     
     "relUrl": "/faq/#search"
-  },"75": {
+  },"76": {
     "doc": "FAQ",
     "title": "Card Queue",
     "content": "Does the card queue use LLM calls? . Queueing: No. Responses are silently queued at zero LLM cost. Distilling: Yes. When you click “Distill into Cards,” a single LLM call synthesizes all queued items into card proposals. How many items can be in the queue? . Maximum 30. Oldest items are evicted when the cap is exceeded (FIFO). ",
     "url": "/ContextManager/faq/#card-queue",
     
     "relUrl": "/faq/#card-queue"
-  },"76": {
+  },"77": {
     "doc": "FAQ",
     "title": "Hooks",
     "content": "Do I need hooks for ContextManager to work? . No. Hooks are optional. All core features work without hooks. Hooks enable automatic capture from VS Code Copilot’s native transcript - enriching the card queue and observation buffer without manual intervention. Why doesn’t the Stop hook fire for VS Code Copilot? . This is a known VS Code limitation. ContextManager works around it by harvesting completed turns from the Copilot transcript during PostToolUse events, using ID-based deduplication. ",
     "url": "/ContextManager/faq/#hooks",
     
     "relUrl": "/faq/#hooks"
-  },"77": {
+  },"78": {
     "doc": "FAQ",
     "title": "Performance",
     "content": "Does ContextManager slow down VS Code? . Minimal impact. Key design choices: . | In-memory caching - disk reads only on startup | Async I/O - search index never blocks the extension host | Debounced processing - hook queue batches entries at 400ms intervals | Circular buffer - observation count is bounded (default: 50) | . How much disk space does it use? . Typically 1–5 MB per project. The search index is usually under 1 MB. The VSIX itself is ~9.5 MB (mostly sql.js WebAssembly + Mermaid.js). ",
     "url": "/ContextManager/faq/#performance",
     
     "relUrl": "/faq/#performance"
-  },"78": {
+  },"79": {
     "doc": "FAQ",
     "title": "FAQ",
     "content": " ",
     "url": "/ContextManager/faq/",
     
     "relUrl": "/faq/"
-  },"79": {
+  },"80": {
     "doc": "Getting Started",
     "title": "Getting Started",
     "content": "Set up once. ContextManager works in the background from that point forward. ",
     "url": "/ContextManager/getting-started/",
     
     "relUrl": "/getting-started/"
-  },"80": {
+  },"81": {
     "doc": "Getting Started",
     "title": "Step 1 — Create a Project",
     "content": ". | Click the 📖 book icon in the Activity Bar | Click + to create a new project | Name your project (e.g., “my-app”) | Select the workspace folders that belong to this project | Open the Dashboard (click the status bar item or run ContextManager: Open Dashboard) | . Your project is now active. ContextManager will capture knowledge from all future Copilot interactions in this workspace. ContextManager auto-discovers .github/copilot-instructions.md and README.md and includes them in project context. ",
     "url": "/ContextManager/getting-started/#step-1--create-a-project",
     
     "relUrl": "/getting-started/#step-1--create-a-project"
-  },"81": {
+  },"82": {
     "doc": "Getting Started",
     "title": "Step 2 — (One-time) Register the Hook",
     "content": "To capture responses from all chat participants, register the VS Code agent hook once: . | Open the Dashboard → Settings tab | Expand the 🪝 Agent Hooks section | Click Install Hooks — this copies capture.ps1 to ~/.contextmanager/scripts/ and writes hooks.json to .github/hooks/ | . Without the hook, intelligence still accumulates from auto-capture during your active chat sessions. With the hook, every Copilot Chat, @workspace, and background agent response is also captured automatically. ",
     "url": "/ContextManager/getting-started/#step-2--one-time-register-the-hook",
     
     "relUrl": "/getting-started/#step-2--one-time-register-the-hook"
-  },"82": {
+  },"83": {
     "doc": "Getting Started",
     "title": "Step 3 — Chat Normally",
     "content": "Just use Copilot as you normally would: . What does the AuthController class do? How is the error handling pipeline structured? Explain the retry logic in NetworkClient. ContextManager captures intelligence silently in the background: . | What’s captured | How | . | Conventions | LLM extracts coding patterns from responses | . | Tool Hints | Learned search terms that work for your codebase | . | Working Notes | Code relationships and insights discovered during exploration | . | Card Candidates | High-confidence knowledge staged in the Card Queue for review | . No commands. No setup. It just runs. ",
     "url": "/ContextManager/getting-started/#step-3--chat-normally",
     
     "relUrl": "/getting-started/#step-3--chat-normally"
-  },"83": {
+  },"84": {
     "doc": "Getting Started",
     "title": "Step 4 — Review the Queue (Once a Week)",
     "content": "AI responses accumulate in the Card Queue. When you have a few: . | Open the Dashboard → Knowledge tab → 📬 Card Queue subtab | Click 🤖 Distill into Cards — one LLM call synthesizes all queued items into card proposals | Review proposals: click ✓ Add for ones worth keeping (or Approve All) | If a similar card already exists, a merge picker appears — merge is the default action | . You don’t need to review the queue every session. Weekly or per-feature review is plenty. ",
     "url": "/ContextManager/getting-started/#step-4--review-the-queue-once-a-week",
     
     "relUrl": "/getting-started/#step-4--review-the-queue-once-a-week"
-  },"84": {
+  },"85": {
     "doc": "Getting Started",
     "title": "Step 5 — Sessions Start Informed",
     "content": "From now on, every new Copilot session automatically receives context two ways: . | copilot-instructions.md managed block: ContextManager auto-syncs a managed section into your .github/copilot-instructions.md containing #ctx tool usage instructions and pinned card titles. VS Code always includes this file, so every agent starts informed. | #ctx tool: Available to all agents for on-demand search, list, learn, and getCard across all project knowledge. | . The AI knows your architecture, conventions, and recent discoveries without you repeating yourself. ",
     "url": "/ContextManager/getting-started/#step-5--sessions-start-informed",
     
     "relUrl": "/getting-started/#step-5--sessions-start-informed"
-  },"85": {
+  },"86": {
     "doc": "Getting Started",
     "title": "The Flywheel",
     "content": "graph TD A[Work with Copilot normally] --> B[Knowledge captured in background] B --> C[Queue: review and approve cards] C --> D[Cards injected into every future session] D --> E[Copilot starts informed] E --> A style A fill:#1f6feb,stroke:#388bfd,color:#fff style B fill:#1158c7,stroke:#388bfd,color:#fff style C fill:#238636,stroke:#3fb950,color:#fff style D fill:#1158c7,stroke:#388bfd,color:#fff style E fill:#1f6feb,stroke:#388bfd,color:#fff . Each session builds on everything that came before it. ",
     "url": "/ContextManager/getting-started/#the-flywheel",
     
     "relUrl": "/getting-started/#the-flywheel"
-  },"86": {
+  },"87": {
     "doc": "Getting Started",
     "title": "LM Tools Reference",
     "content": "5 Language Model Tools available to all agents: . #ctx — unified search, list, learn, getCard across all knowledge #getCard — read a specific knowledge card by ID #saveCard — save a new knowledge card #editCard — edit an existing card #organizeCards — organize cards into folders . ",
     "url": "/ContextManager/getting-started/#lm-tools-reference",
     
     "relUrl": "/getting-started/#lm-tools-reference"
-  },"87": {
+  },"88": {
+    "doc": "Getting Started",
+    "title": "Optional: Custom AI Workflows",
+    "content": "Once you have knowledge accumulating, you can automate recurring AI tasks: . | Open the Dashboard → Intelligence tab → Custom AI Workflows | Click + New Workflow and define a prompt template using `` placeholders | Choose a trigger — manual, auto-queue, or event-based (convention-learned, card-created, etc.) | Set the output action — create card, update card, or append to a collector card | . Workflows run against your project data and produce structured output automatically. See Custom AI Workflows for details. ",
+    "url": "/ContextManager/getting-started/#optional-custom-ai-workflows",
+    
+    "relUrl": "/getting-started/#optional-custom-ai-workflows"
+  },"89": {
     "doc": "Getting Started",
     "title": "Next Steps",
     "content": "Features → . ",
     "url": "/ContextManager/getting-started/#next-steps",
     
     "relUrl": "/getting-started/#next-steps"
-  },"88": {
+  },"90": {
     "doc": "Hook System",
     "title": "Hook System",
     "content": "How ContextManager captures AI interactions from VS Code Copilot’s native transcript pipeline. ",
     "url": "/ContextManager/architecture/hook-system/",
     
     "relUrl": "/architecture/hook-system/"
-  },"89": {
+  },"91": {
     "doc": "Hook System",
     "title": "Overview",
     "content": "VS Code provides an Agent Hooks API (Preview) that fires lifecycle events during AI interactions. ContextManager uses these hooks to capture interactions from VS Code Copilot’s native transcript pipeline — primarily interactions that wouldn’t otherwise be visible to the extension. The hook system consists of two halves: . | capture.ps1 - PowerShell script that runs as a hook handler, writes to a queue file | HookWatcher - TypeScript service in the extension that watches the queue file and processes entries | . ",
     "url": "/ContextManager/architecture/hook-system/#overview",
     
     "relUrl": "/architecture/hook-system/#overview"
-  },"90": {
+  },"92": {
     "doc": "Hook System",
     "title": "Hook Script (capture.ps1)",
     "content": "Located at ~/.contextmanager/scripts/capture.ps1 (also bundled at resources/hooks/capture.ps1). Hook Events Handled . | Event | When | What capture.ps1 Does | . | UserPromptSubmit | Before every prompt | Reads session-context.txt, outputs as system message | . | SubagentStart | When a sub-agent spawns | Reads session-context.txt, injects as additional context | . | PostToolUse | After each tool call | Records tool use; also harvests completed turns from transcript | . | PreCompact | Before context summarization | Extracts all turns since last offset for multi-turn processing | . | Stop | Session ends | Records final exchange from transcript | . Data Flow . graph TD A[VS Code Hook Event] --> B[capture.ps1 receives JSON via stdin] B --> C[Process based on hookEventName] C --> D[Append entry to hook-queue.jsonl] C --> E[UserPromptSubmit: output JSON to stdout] style A fill:#1f6feb,stroke:#388bfd,color:#fff style D fill:#1158c7,stroke:#388bfd,color:#fff style E fill:#238636,stroke:#3fb950,color:#fff . PostToolUse - Transcript Harvesting . Since the Stop hook doesn’t reliably fire for VS Code Copilot, PostToolUse does double duty: . | Records the tool execution itself | Scans the Copilot transcript for completed user+assistant turns | If a new completed turn is found (ID-based dedup), writes a synthetic Stop entry | . # Transcript location %APPDATA%\\Code\\User\\workspaceStorage\\&lt;wsId&gt;\\GitHub.copilot-chat\\transcripts\\&lt;sessionId&gt;.jsonl # Transcript format (VS Code Copilot) {\"type\":\"user.message\",\"data\":{\"content\":\"...\"},\"id\":\"uuid\"} {\"type\":\"tool.execution_start\",\"data\":{\"toolCallId\":\"...\",\"toolName\":\"read_file\",\"arguments\":{...}}} {\"type\":\"tool.execution_complete\",\"data\":{\"toolCallId\":\"...\",\"success\":true}} {\"type\":\"assistant.message\",\"data\":{\"content\":\"final response text\",\"toolRequests\":[...]}} . Tool Call Capture . Get-LastCompletedTurn collects tool.execution_start entries between user and assistant messages: . | Capped at 10 tool calls per turn (token budget control) | Input truncated to 200 chars per call | Tool output is not available in the transcript (empty string) | . The result structure: . { \"userId\": \"uuid\", \"user\": \"user prompt text\", \"assistant\": \"assistant response text\", \"toolCalls\": [ { \"toolName\": \"read_file\", \"input\": \"{\\\"filePath\\\":\\\"src/auth.ts\\\",\\\"startLine\\\":1,...}\", \"output\": \"\" }, { \"toolName\": \"grep_search\", \"input\": \"{\\\"query\\\":\\\"handleAuth\\\",...}\", \"output\": \"\" } ] } . ",
     "url": "/ContextManager/architecture/hook-system/#hook-script-captureps1",
     
     "relUrl": "/architecture/hook-system/#hook-script-captureps1"
-  },"91": {
+  },"93": {
     "doc": "Hook System",
     "title": "HookWatcher (TypeScript)",
     "content": "Located at src/hooks/HookWatcher.ts. File Watching . // Watch the queue file for changes fs.watch(QUEUE_FILE, () =&gt; { // 400ms debounce setTimeout(() =&gt; this._processQueue(), 400); }); . Entry Processing . interface HookEntry { hookType: string; // \"Stop\" | \"PostToolUse\" | \"PreCompact\" | \"SessionStart\" timestamp: number; sessionId?: string; participant?: string; prompt?: string; response?: string; toolName?: string; toolInput?: unknown; toolResponse?: string; toolCalls?: Array&lt;{ toolName: string; input: string; output: string }&gt;; turns?: Array&lt;{ user: string; assistant: string }&gt;; } . Routing . | hookType | Action | . | Stop | autoCapture.onModelResponse() + _queueCardCandidate() | . | PostToolUse | Observation recording with tool detail extraction | . | PreCompact | Multi-turn extraction via extractMultiTurnLearnings() + auto-distill | . Offset Management . The watcher tracks its position in the queue file by byte offset: . graph TD A[Read queue file] --> B[Slice from lastOffset to end] B --> C[Parse new lines] C --> D[Process entries] D --> E[Advance offset by byte length] E --> F[Persist offset to .queue-offset file] style A fill:#1f6feb,stroke:#388bfd,color:#fff style D fill:#1158c7,stroke:#388bfd,color:#fff style F fill:#238636,stroke:#3fb950,color:#fff . This ensures crash-safe resumption - entries are never processed twice or lost. ",
     "url": "/ContextManager/architecture/hook-system/#hookwatcher-typescript",
     
     "relUrl": "/architecture/hook-system/#hookwatcher-typescript"
-  },"92": {
+  },"94": {
     "doc": "Hook System",
     "title": "Session Context",
     "content": "The HookWatcher writes ~/.contextmanager/session-context.txt whenever the active project changes or the prompt injection settings are updated. The UserPromptSubmit hook reads this file and injects it as a system message into every prompt. Contents include: . | Project name and root path | Selected knowledge cards — cards checked in the Knowledge tab (selectedCardIds), with titles and optionally full content | Custom instruction — free-form text from the dashboard injection section | . Card selection for hook injection is driven by the same checkboxes used in the Knowledge tab — there is a single, unified selection system. Archived cards are automatically excluded. ",
     "url": "/ContextManager/architecture/hook-system/#session-context",
     
     "relUrl": "/architecture/hook-system/#session-context"
-  },"93": {
+  },"95": {
     "doc": "Hook System",
     "title": "Dual-Format Support",
     "content": "The transcript parser handles two formats: . | Format | Source | User Type | Assistant Type | Content Path | . | Claude Code | Claude Code sessions | user | assistant | message.content | . | VS Code Copilot | Copilot Chat | user.message | assistant.message | data.content | . Both formats are handled in Get-LastExchange, Get-LastCompletedTurn, and Get-AllTurnsSinceOffset. ",
     "url": "/ContextManager/architecture/hook-system/#dual-format-support",
     
     "relUrl": "/architecture/hook-system/#dual-format-support"
-  },"94": {
+  },"96": {
     "doc": "Hook System",
     "title": "Versioning",
     "content": "The capture script includes a cm-version header: . | Version | Changes | . | 1 | Initial: basic Stop/PostToolUse handling | . | 2 | Added PreCompact multi-turn, dual-format support | . | 3 | Added PostToolUse transcript harvesting, ID-based dedup | . | 4 | Added tool call capture (tool.execution_start) | . | 5 | SessionStart → UserPromptSubmit, hookSpecificOutput wrapper | . | 6 | Added SubagentStart hook for sub-agent context injection | . | 7 | Input truncation raised to 2000 chars, reasoningText fallback for assistant messages | . The extension checks the installed version and updates the script if a newer version is bundled. ",
     "url": "/ContextManager/architecture/hook-system/#versioning",
     
     "relUrl": "/architecture/hook-system/#versioning"
-  },"95": {
+  },"97": {
     "doc": "Hook System",
     "title": "Debugging",
     "content": "Stop Debug Log . ~/.contextmanager/stop-debug.log . Contains timestamped entries for every Stop hook invocation: . | Keys received in the event data | Transcript path (provided or auto-discovered) | Exchange content (truncated to 80 chars) | . HookWatcher Debug Logging . Console output with [HookWatcher:DEBUG] and [HookWatcher/CardQueue:DEBUG] prefixes: . | Queue processing: line count, offset | Entry processing: hookType, participant, prompt/response length, tool call count | Card queue decisions: enabled, participant filter, response length threshold | . ",
     "url": "/ContextManager/architecture/hook-system/#debugging",
     
     "relUrl": "/architecture/hook-system/#debugging"
-  },"96": {
+  },"98": {
     "doc": "Hook System",
     "title": "Next Steps",
     "content": "Configuration → . ",
     "url": "/ContextManager/architecture/hook-system/#next-steps",
     
     "relUrl": "/architecture/hook-system/#next-steps"
-  },"97": {
-    "doc": "Introduction",
-    "title": "ContextManager - AI Project Memory",
-    "content": "Give Copilot persistent, structured memory for your codebase. Curate knowledge cards, capture project intelligence automatically, search everything with BM25, and share context across every Copilot interaction. Get Started View on GitHub . ",
-    "url": "/ContextManager/#contextmanager---ai-project-memory",
-    
-    "relUrl": "/#contextmanager---ai-project-memory"
-  },"98": {
-    "doc": "Introduction",
-    "title": "The Problem",
-    "content": "Every developer using AI assistants on real codebases hits the same wall: . You spend an hour exploring a large codebase with Copilot - mapping the authentication flow, tracing event propagation, discovering the undocumented service layer. You and the agent build up a rich, shared model of the project. Then the context window fills. Summarization kicks in. The agent forgets everything. Next session, you explain the authentication flow again. And the session after that. ContextManager was built specifically for this gap - persistent project memory that survives context window resets, session boundaries, and model switches. ",
-    "url": "/ContextManager/#the-problem",
-    
-    "relUrl": "/#the-problem"
   },"99": {
-    "doc": "Introduction",
-    "title": "Key Features",
-    "content": "🧠 Knowledge Cards . Create, curate, and inject structured knowledge into every AI interaction. Architecture decisions, patterns, conventions - all searchable and auto-injected. 🔬 Project Intelligence . Automatically captures conventions, tool hints, and working notes from all chat interactions. Learns continuously as you work. 💬 Language Model Tools . 6 tools available to every Copilot agent — search knowledge, save cards, organize, and more via #ctx. 🔍 BM25 Search . Fast, ranked search across your entire project memory using SQLite FTS4 via WebAssembly. No native binaries needed. 📬 Card Queue . Automatic staging buffer that captures AI responses and synthesizes high-quality knowledge card proposals. 📊 Dashboard . Centralized management with 4 tabs: Intelligence, Knowledge, Context, and Settings. 🔗 Works Everywhere . 7 Language Model Tools available to Copilot Chat, background agents, cloud agents, and Codex. Type #ctx in any chat. ",
-    "url": "/ContextManager/#key-features",
-    
-    "relUrl": "/#key-features"
-  },"100": {
-    "doc": "Introduction",
-    "title": "How It Works",
-    "content": "graph TD A[You work with Copilot normally] --> B[Auto-Capture and Intelligence Layer] B --> C[Knowledge Cards grow as you work] C --> D[Every new session starts informed] style A fill:#1f6feb,stroke:#388bfd,color:#fff style B fill:#1158c7,stroke:#388bfd,color:#fff style C fill:#1f6feb,stroke:#388bfd,color:#fff style D fill:#238636,stroke:#3fb950,color:#fff . The AI never starts from scratch again. Each session builds on everything that came before it. ",
-    "url": "/ContextManager/#how-it-works",
-    
-    "relUrl": "/#how-it-works"
-  },"101": {
-    "doc": "Introduction",
-    "title": "Where ContextManager Fits",
-    "content": "There are four layers of AI guidance in VS Code. Each solves a different problem: . | Layer | Tool | Character | . | Global Behavior | .github/copilot-instructions.md | Static, global, human-authored | . | Task Workflows | *.prompt.md files | Static, task-scoped, human-authored | . | Agent Capabilities | SKILL.md files | Static, capability-scoped, human-authored | . | Project Knowledge | ContextManager ← | Dynamic, per-project, AI-generated + human-curated | . Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover-first: knowledge accumulates dynamically as you and the AI work on the project. ",
-    "url": "/ContextManager/#where-contextmanager-fits",
-    
-    "relUrl": "/#where-contextmanager-fits"
-  },"102": {
-    "doc": "Introduction",
-    "title": "Quick Start",
-    "content": "1. Install the extension from VS Code Marketplace . 2. Click 📖 in the Activity Bar → Create a project . 3. Chat with Copilot normally — ContextManager runs silently in the background . 4. Once a week: open the Dashboard → Knowledge tab → Card Queue section → click Distill into Cards to review captured knowledge . 5. Every new session starts informed automatically — no special commands needed . Installation → . ",
-    "url": "/ContextManager/#quick-start",
-    
-    "relUrl": "/#quick-start"
-  },"103": {
-    "doc": "Introduction",
-    "title": "System Requirements",
-    "content": ". | VS Code 1.100.0 or higher | GitHub Copilot - required for AI features (language model API) | Any programming language - optimized for TypeScript/JavaScript, C/C++, Python, C# | . ",
-    "url": "/ContextManager/#system-requirements",
-    
-    "relUrl": "/#system-requirements"
-  },"104": {
-    "doc": "Introduction",
-    "title": "What’s New in v2.1",
-    "content": ". | Zero-command workflow — Everything works without typing a single command. Install, create a project, chat normally. | Smart-merge on queue approval — When approving a queued card, similar existing cards surface for merging (Jaccard ≥ 30%). Merge is the default action. | Unified #ctx tool — Single entry point for search, list, learn, and getCard across all knowledge types | copilot-instructions.md managed block — Auto-synced tool discovery instructions and pinned card titles | Auto-captured cards staged in queue — Auto-Learn never silently creates cards; everything goes through review | . See the full changelog for complete version history. ",
-    "url": "/ContextManager/#whats-new-in-v21",
-    
-    "relUrl": "/#whats-new-in-v21"
-  },"105": {
-    "doc": "Introduction",
-    "title": "Introduction",
-    "content": " ",
-    "url": "/ContextManager/",
-    
-    "relUrl": "/"
-  },"106": {
-    "doc": "Features",
-    "title": "Features",
-    "content": "ContextManager works in the background automatically. These pages document what it does and the optional manual controls available to you. ",
-    "url": "/ContextManager/features/",
-    
-    "relUrl": "/features/"
-  },"107": {
     "doc": "Architecture",
     "title": "Architecture",
     "content": "System components, data flow, and technical design of ContextManager. ",
     "url": "/ContextManager/architecture/",
     
     "relUrl": "/architecture/"
+  },"100": {
+    "doc": "Introduction",
+    "title": "ContextManager - AI Project Memory",
+    "content": "Give Copilot persistent, structured memory for your codebase. Curate knowledge cards, capture project intelligence automatically, search everything with BM25, and share context across every Copilot interaction. Get Started View on GitHub . ",
+    "url": "/ContextManager/#contextmanager---ai-project-memory",
+    
+    "relUrl": "/#contextmanager---ai-project-memory"
+  },"101": {
+    "doc": "Introduction",
+    "title": "The Problem",
+    "content": "Every developer using AI assistants on real codebases hits the same wall: . You spend an hour exploring a large codebase with Copilot - mapping the authentication flow, tracing event propagation, discovering the undocumented service layer. You and the agent build up a rich, shared model of the project. Then the context window fills. Summarization kicks in. The agent forgets everything. Next session, you explain the authentication flow again. And the session after that. ContextManager was built specifically for this gap - persistent project memory that survives context window resets, session boundaries, and model switches. ",
+    "url": "/ContextManager/#the-problem",
+    
+    "relUrl": "/#the-problem"
+  },"102": {
+    "doc": "Introduction",
+    "title": "Key Features",
+    "content": "🧠 Knowledge Cards . Create, curate, and inject structured knowledge into every AI interaction. Architecture decisions, patterns, conventions - all searchable and auto-injected. 🔬 Project Intelligence . Automatically captures conventions, tool hints, and working notes from all chat interactions. Learns continuously as you work. 💬 Language Model Tools . 6 tools available to every Copilot agent — search knowledge, save cards, organize, and more via #ctx. 🔍 BM25 Search . Fast, ranked search across your entire project memory using SQLite FTS4 via WebAssembly. No native binaries needed. 📬 Card Queue . Automatic staging buffer that captures AI responses and synthesizes high-quality knowledge card proposals. ⚡ Custom AI Workflows . Define reusable AI pipelines with template variables, event triggers, and automatic output actions. Summarize, classify, audit — on autopilot. 📊 Dashboard . Centralized management with 4 tabs: Intelligence, Knowledge, Context, and Settings. 🔗 Works Everywhere . 7 Language Model Tools available to Copilot Chat, background agents, cloud agents, and Codex. Type #ctx in any chat. ",
+    "url": "/ContextManager/#key-features",
+    
+    "relUrl": "/#key-features"
+  },"103": {
+    "doc": "Introduction",
+    "title": "How It Works",
+    "content": "graph TD A[You work with Copilot normally] --> B[Auto-Capture and Intelligence Layer] B --> C[Knowledge Cards grow as you work] C --> D[Every new session starts informed] style A fill:#1f6feb,stroke:#388bfd,color:#fff style B fill:#1158c7,stroke:#388bfd,color:#fff style C fill:#1f6feb,stroke:#388bfd,color:#fff style D fill:#238636,stroke:#3fb950,color:#fff . The AI never starts from scratch again. Each session builds on everything that came before it. ",
+    "url": "/ContextManager/#how-it-works",
+    
+    "relUrl": "/#how-it-works"
+  },"104": {
+    "doc": "Introduction",
+    "title": "Where ContextManager Fits",
+    "content": "There are four layers of AI guidance in VS Code. Each solves a different problem: . | Layer | Tool | Character | . | Global Behavior | .github/copilot-instructions.md | Static, global, human-authored | . | Task Workflows | *.prompt.md files | Static, task-scoped, human-authored | . | Agent Capabilities | SKILL.md files | Static, capability-scoped, human-authored | . | Project Knowledge | ContextManager ← | Dynamic, per-project, AI-generated + human-curated | . Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover-first: knowledge accumulates dynamically as you and the AI work on the project. ",
+    "url": "/ContextManager/#where-contextmanager-fits",
+    
+    "relUrl": "/#where-contextmanager-fits"
+  },"105": {
+    "doc": "Introduction",
+    "title": "Quick Start",
+    "content": "1. Install the extension from VS Code Marketplace . 2. Click 📖 in the Activity Bar → Create a project . 3. Chat with Copilot normally — ContextManager runs silently in the background . 4. Once a week: open the Dashboard → Knowledge tab → Card Queue section → click Distill into Cards to review captured knowledge . 5. Every new session starts informed automatically — no special commands needed . Installation → . ",
+    "url": "/ContextManager/#quick-start",
+    
+    "relUrl": "/#quick-start"
+  },"106": {
+    "doc": "Introduction",
+    "title": "System Requirements",
+    "content": ". | VS Code 1.100.0 or higher | GitHub Copilot - required for AI features (language model API) | Any programming language - optimized for TypeScript/JavaScript, C/C++, Python, C# | . ",
+    "url": "/ContextManager/#system-requirements",
+    
+    "relUrl": "/#system-requirements"
+  },"107": {
+    "doc": "Introduction",
+    "title": "What’s New in v2.3",
+    "content": ". | Custom AI Workflows — Define reusable AI pipelines with `` variables, 7 trigger types (manual, auto-queue, convention-learned, card-created, card-updated, observation-created), and 3 output actions (create card, update card, append to collector) | Entity data sources — Workflow prompts can reference collection variables: ,, ,, ``, each capped by a per-workflow Max Items setting | Event triggers — Workflows can fire automatically when conventions are learned, cards are created/updated, or observations are captured | Re-entrancy protection — Prevents infinite loops when workflow output actions create or update entities that would re-trigger other workflows | . See the full changelog for complete version history. ",
+    "url": "/ContextManager/#whats-new-in-v23",
+    
+    "relUrl": "/#whats-new-in-v23"
   },"108": {
+    "doc": "Introduction",
+    "title": "Introduction",
+    "content": " ",
+    "url": "/ContextManager/",
+    
+    "relUrl": "/"
+  },"109": {
+    "doc": "Features",
+    "title": "Features",
+    "content": "ContextManager works in the background automatically. These pages document what it does and the optional manual controls available to you. ",
+    "url": "/ContextManager/features/",
+    
+    "relUrl": "/features/"
+  },"110": {
     "doc": "Installation",
     "title": "Installation",
     "content": "Install ContextManager and set up your first project in under a minute. ",
     "url": "/ContextManager/installation/",
     
     "relUrl": "/installation/"
-  },"109": {
+  },"111": {
     "doc": "Installation",
     "title": "From VS Code Marketplace",
     "content": ". | Open VS Code | Go to Extensions (Ctrl+Shift+X) | Search for “ContextManager” | Click Install | Reload VS Code when prompted | . ContextManager requires VS Code 1.100.0+ and GitHub Copilot to be installed and active. ",
     "url": "/ContextManager/installation/#from-vs-code-marketplace",
     
     "relUrl": "/installation/#from-vs-code-marketplace"
-  },"110": {
+  },"112": {
     "doc": "Installation",
     "title": "From VSIX (Manual)",
     "content": "If you’re building from source or using a pre-release version: . # Clone the repository git clone https://github.com/GittyHarsha/ContextManager.git cd ContextManager # Install dependencies npm install # Build and install .\\install.ps1 build-and-install . Or install a .vsix file directly: . code --install-extension context-manager.vsix . ",
     "url": "/ContextManager/installation/#from-vsix-manual",
     
     "relUrl": "/installation/#from-vsix-manual"
-  },"111": {
+  },"113": {
     "doc": "Installation",
     "title": "Post-Installation",
     "content": "After installation, you’ll see: . | 📖 Book icon in the Activity Bar (sidebar) | Status bar item showing the active project name | 7 Language Model Tools available in Copilot Chat (type #ctx to access) | . Verify Installation . Open the Dashboard (click the status bar item or run ContextManager: Open Dashboard). You should see the four tabs: Intelligence, Knowledge, Context, and Settings. If no project exists yet, you’ll be prompted to create one. ",
     "url": "/ContextManager/installation/#post-installation",
     
     "relUrl": "/installation/#post-installation"
-  },"112": {
+  },"114": {
     "doc": "Installation",
     "title": "System Requirements",
     "content": "| Requirement | Minimum | . | VS Code | 1.100.0+ | . | GitHub Copilot | Latest version | . | OS | Windows, macOS, or Linux | . | Node.js | Not required (bundled via VS Code) | . ",
     "url": "/ContextManager/installation/#system-requirements",
     
     "relUrl": "/installation/#system-requirements"
-  },"113": {
+  },"115": {
     "doc": "Installation",
     "title": "Data Storage",
     "content": "ContextManager stores data in two locations: . | Data | Location | Scope | . | Projects, cards, intelligence | globalStorageUri (VS Code managed) | Global | . | FTS search index | globalStorageUri/search-fts4.db | Global | . | Hook queue, scripts | ~/.contextmanager/ | User-wide | . | Session context | ~/.contextmanager/session-context.txt | User-wide | . All data is stored locally. Nothing is sent to external servers beyond the standard VS Code language model API calls. ",
     "url": "/ContextManager/installation/#data-storage",
     
     "relUrl": "/installation/#data-storage"
-  },"114": {
+  },"116": {
     "doc": "Installation",
     "title": "Agent Hooks (Optional)",
     "content": "ContextManager includes an optional hook system that captures AI interactions from VS Code Copilot’s transcript pipeline. This enables automatic card queue population without manual intervention. The hook script (capture.ps1) is automatically installed to ~/.contextmanager/scripts/ on first activation. It watches for: . | UserPromptSubmit - Injects selected knowledge cards and custom instruction into every prompt | PostToolUse - Captures tool executions and harvests completed turns | PreCompact - Extracts multi-turn context before summarization | Stop - Records final exchange for card queue processing | . Hooks are optional. All core features (knowledge cards, search, dashboard, LM tools) work without hooks enabled. ",
     "url": "/ContextManager/installation/#agent-hooks-optional",
     
     "relUrl": "/installation/#agent-hooks-optional"
-  },"115": {
+  },"117": {
     "doc": "Installation",
     "title": "Upgrading",
     "content": "When updating to a new version: . | VS Code handles the extension update automatically | On first activation, any data migrations run transparently | The hook script is updated if a newer version is bundled | . Migration Notes . | Version | Migration | . | 1.8.0+ | Storage migrated from globalState to disk-backed JSON files | . | 1.8.0+ | FTS migrated from FTS5 to FTS4 (sql.js compatibility) | . | 2.0.0+ | Card queue moved from standalone tab to Intelligence tab | . ",
     "url": "/ContextManager/installation/#upgrading",
     
     "relUrl": "/installation/#upgrading"
-  },"116": {
+  },"118": {
     "doc": "Installation",
     "title": "Next Steps",
     "content": "Getting Started → . ",
     "url": "/ContextManager/installation/#next-steps",
     
     "relUrl": "/installation/#next-steps"
-  },"117": {
+  },"119": {
     "doc": "Knowledge Cards",
     "title": "Knowledge Cards",
     "content": "Persistent, structured AI memory that survives context window resets, session boundaries, and model switches. ",
     "url": "/ContextManager/features/knowledge-cards/",
     
     "relUrl": "/features/knowledge-cards/"
-  },"118": {
+  },"120": {
     "doc": "Knowledge Cards",
     "title": "What Are Knowledge Cards?",
     "content": "Knowledge cards are structured notes - architecture decisions, coding conventions, discovered patterns, deep explanations - that you curate and select to automatically enhance all Copilot responses. Unlike conversation history that disappears when the context window fills, knowledge cards live in your project database. Cards checked (selected) in the Knowledge tab are automatically injected into every Copilot prompt via the agent hook system. ",
     "url": "/ContextManager/features/knowledge-cards/#what-are-knowledge-cards",
     
     "relUrl": "/features/knowledge-cards/#what-are-knowledge-cards"
-  },"119": {
+  },"121": {
     "doc": "Knowledge Cards",
     "title": "Creating Cards",
     "content": "Automatically via the Card Queue (Recommended) . The lowest-friction path. ContextManager monitors all Copilot interactions and stages high-confidence knowledge in the Card Queue automatically. When you’re ready: . | Open the Dashboard → Knowledge tab → Card Queue section | Click Distill into Cards — one LLM call synthesizes all queued items | Review proposals and click + Add Card for ones worth keeping | . See Card Queue for details on the capture pipeline, smart-merge, and distillation. From the Dashboard . Open the Dashboard → Knowledge tab → + New Card. Select a template: . | Template | Best For | . | General | Quick notes and insights | . | Architecture Decision Record | Design decisions with context and consequences | . | API Reference | Endpoints, parameters, return types | . | Debugging Guide | Common issues and their solutions | . | Code Pattern | Reusable patterns found in the codebase | . | Onboarding Note | Things a new developer needs to know | . Generate with AI . Click Generate with AI in the Knowledge tab to create a card from a topic prompt. This uses the VS Code Language Model API directly (vscode.lm.selectChatModels()): . | Enter a topic (e.g., “authentication flow”, “error handling patterns”) | The LLM researches your existing cards to avoid duplication | A cancellable progress notification tracks generation | The resulting card is saved directly to your knowledge base | . Uses the same model configured in Extraction Model (intelligence.autoLearn.modelFamily). AI Synthesis with Custom Prompt . Select one or more items in the card queue and click ✨ AI Synthesize. The editor panel opens with: . | A custom prompt textarea where you can provide specific instructions (e.g., “Focus on security implications”, “Write as an onboarding guide”) | Click ✨ AI Draft to generate the card | . If no custom prompt is provided, the default synthesis prompt is used. Custom prompts are injected as a ## User's Custom Instructions section in the LLM prompt, between the system instructions and the source material. From Copilot Chat with Tools . Use Language Model Tools when you want to create a card immediately from a chat session: . Save a new card — #saveCard . #saveCard title:\"Authentication Flow\" content:\"The auth system uses JWT...\" category:\"architecture\" . Edit an existing card — #editCard . #editCard id:\"card-id\" content:\"Updated content...\" . Organize cards into folders — #organizeCards . #organizeCards . ",
     "url": "/ContextManager/features/knowledge-cards/#creating-cards",
     
     "relUrl": "/features/knowledge-cards/#creating-cards"
-  },"120": {
+  },"122": {
     "doc": "Knowledge Cards",
     "title": "Refining Cards",
     "content": "Cards improve over time. Use the dashboard to refine them: . | Open the Dashboard → Knowledge tab | Click Edit on any card to modify content directly | Right-click a card → Refine with AI for AI-assisted updates | . You can also select text on a card in the Dashboard, right-click → “Refine Selection with AI” for targeted updates. ",
     "url": "/ContextManager/features/knowledge-cards/#refining-cards",
     
     "relUrl": "/features/knowledge-cards/#refining-cards"
-  },"121": {
+  },"123": {
     "doc": "Knowledge Cards",
     "title": "Card Categories",
     "content": "Each card is categorized for organization and filtering: . | Category | Icon | Purpose | . | architecture | 🏗️ | System design, component relationships | . | pattern | 🔄 | Reusable code patterns | . | convention | 📐 | Team coding standards | . | explanation | 📖 | Deep-dive explanations | . | note | 📝 | General working notes | . | other | 🔖 | Uncategorized or miscellaneous | . Tags . Cards can have tags — 2–5 lowercase keywords for filtering and search. Tags are: . | Auto-generated by the LLM when cards are created via the distill pipeline or AI synthesis | Editable in the card editor | Propagated through the full distill → approve chain (individual and batch approval) | . ",
     "url": "/ContextManager/features/knowledge-cards/#card-categories",
     
     "relUrl": "/features/knowledge-cards/#card-categories"
-  },"122": {
+  },"124": {
     "doc": "Knowledge Cards",
     "title": "Progressive Disclosure",
     "content": "Not all cards are injected equally. ContextManager uses a 3-tier system to optimize token usage: . | Tier | Cards | What’s Injected | Tokens | . | Full | Top 3 selected | Complete card content | up to ~2000 each | . | Summary | Cards 4–7 | 125-token summary + search pointer | ~125 each | . | Metadata | Cards 8+ | Title + category only | ~20 each | . This keeps prompt tokens under control while preserving access to all knowledge. The AI can always ask for the full content of any card via #getCard or #searchCards. copilot-instructions.md Managed Block . Cards marked Pinned have their titles listed in the auto-managed block inside copilot-instructions.md. This block also includes #ctx tool usage instructions, so agents know how to search for more: . | Pinned cards — titles listed in the managed block (always visible to all agents) | On demand — any card is accessible via #getCard or #searchCards — agents can request full content when needed | Search — #ctx query:\"topic\" searches across all cards, conventions, notes, and more | . Hook Injection via Knowledge Tab Selection . Cards checked in the Knowledge tab are included in the session-context.txt file that the UserPromptSubmit hook reads. This means selected cards are injected as a system message into every Copilot prompt. The dashboard’s “Inject into Every Prompt” section lets you optionally add a custom instruction and toggle full card content inclusion. Archived cards are automatically excluded. ",
     "url": "/ContextManager/features/knowledge-cards/#progressive-disclosure",
     
     "relUrl": "/features/knowledge-cards/#progressive-disclosure"
-  },"123": {
+  },"125": {
     "doc": "Knowledge Cards",
     "title": "Folders &amp; Organization",
     "content": "Cards can be organized into a hierarchical folder structure: . | Create folders from the Dashboard Knowledge tab | Drag-and-drop cards between folders | Nested folders - folders can contain subfolders | Collapsible sections - each folder collapses independently | . New cards auto-assign to the best-matching folder based on content similarity. ",
     "url": "/ContextManager/features/knowledge-cards/#folders--organization",
     
     "relUrl": "/features/knowledge-cards/#folders--organization"
-  },"124": {
+  },"126": {
     "doc": "Knowledge Cards",
     "title": "Card Flags",
     "content": "Three boolean flags control card behavior: . | Flag | Icon | Effect | . | Pinned | 📌 | Card appears at the top of the Knowledge tab | . | Include in Context | 👁 | Card is always included in AI prompts (bypasses selection) | . | Archived | 🗃 | Card is hidden from the main view | . ",
     "url": "/ContextManager/features/knowledge-cards/#card-flags",
     
     "relUrl": "/features/knowledge-cards/#card-flags"
-  },"125": {
+  },"127": {
     "doc": "Knowledge Cards",
     "title": "Staleness Detection",
     "content": "Cards not updated in 30+ days are flagged with ⚠️ in both the dashboard and during prompt injection. This signals to the AI that the information may be outdated and should be verified. ",
     "url": "/ContextManager/features/knowledge-cards/#staleness-detection",
     
     "relUrl": "/features/knowledge-cards/#staleness-detection"
-  },"126": {
+  },"128": {
     "doc": "Knowledge Cards",
     "title": "Card Health Dashboard",
     "content": "A collapsible analytics section in the Knowledge tab shows: . | Total / Selected / Stale / Never-used card counts | Top 5 most-used cards by injection count | Duplicate detection - Jaccard similarity ≥40% flags near-duplicate cards | Usage tracking - selection count, injection count, last-selected timestamp | . ",
     "url": "/ContextManager/features/knowledge-cards/#card-health-dashboard",
     
     "relUrl": "/features/knowledge-cards/#card-health-dashboard"
-  },"127": {
+  },"129": {
     "doc": "Knowledge Cards",
     "title": "Sharing &amp; Export",
     "content": "Git-Tracked Markdown . Export cards as .md files with YAML frontmatter to .contextmanager/cards/: . --- title: Authentication Flow category: architecture createdAt: 2026-02-15 --- The authentication system uses JWT tokens with... A new team member clones the repo, imports the folder, and immediately has the team’s accumulated knowledge. Import from Markdown . Recursively import .md files from any directory as knowledge cards with auto-folder assignment. Staleness Indicators . Cards in the dashboard show staleness at a glance: . | ⚠️ File-stale — Anchor files or reference files have been modified since the card was last updated. The card content may no longer be accurate. | ⏳ Age-stale — The card hasn’t been updated in N days (configurable via stalenessAgeDays, default 30). Consider reviewing. | . Staleness checks run automatically when the dashboard opens and on every file save. ",
     "url": "/ContextManager/features/knowledge-cards/#sharing--export",
     
     "relUrl": "/features/knowledge-cards/#sharing--export"
-  },"128": {
+  },"130": {
     "doc": "Knowledge Cards",
     "title": "Next Steps",
     "content": "Search → . ",
     "url": "/ContextManager/features/knowledge-cards/#next-steps",
     
     "relUrl": "/features/knowledge-cards/#next-steps"
-  },"129": {
+  },"131": {
     "doc": "Architecture Overview",
     "title": "Architecture Overview",
     "content": "System components, data flow, and how everything connects. ",
     "url": "/ContextManager/architecture/overview/",
     
     "relUrl": "/architecture/overview/"
-  },"130": {
+  },"132": {
     "doc": "Architecture Overview",
     "title": "System Components",
     "content": "ContextManager is a VS Code extension with the following core subsystems: . graph TB LMT[Language Model Tools - 5 tools] --> PM[Project Manager] DASH[Dashboard - 4 tabs] --> PM PM --> AC[Auto-Capture Service] AC --> AL[Auto-Learn Pipeline] AC --> SI[Search Index - SQLite FTS4] HW[Hook Watcher] --> AC GI[GitHub Instructions Manager] --> PM HW -.-> HQ subgraph FS[File System] HQ[hook-queue.jsonl] SC[capture.ps1 / capture.sh] CTX[session-context.txt] end style LMT fill:#1f6feb,stroke:#388bfd,color:#fff style DASH fill:#1f6feb,stroke:#388bfd,color:#fff style PM fill:#1158c7,stroke:#388bfd,color:#fff style AC fill:#1158c7,stroke:#388bfd,color:#fff style AL fill:#1158c7,stroke:#388bfd,color:#fff style SI fill:#238636,stroke:#3fb950,color:#fff style HW fill:#9e6a03,stroke:#d29922,color:#fff style GI fill:#238636,stroke:#3fb950,color:#fff . ",
     "url": "/ContextManager/architecture/overview/#system-components",
     
     "relUrl": "/architecture/overview/#system-components"
-  },"131": {
+  },"133": {
     "doc": "Architecture Overview",
     "title": "Technology Stack",
     "content": "| Component | Technology | . | Language | TypeScript (ES2022) | . | Runtime | VS Code Extension Host (Node.js) | . | Database | SQLite via sql.js (WebAssembly) — FTS4 with BM25 | . | Storage | JSON files on disk (globalStorageUri) | . | Dashboard | WebView (HTML/CSS/JS, Content Security Policy) | . | Rendering | Markdown + KaTeX (LaTeX) + Mermaid (styled blocks) | . | Search | BM25 from matchinfo('pcnalx') with per-column weights | . | Agent Hooks | PowerShell/Bash scripts via VS Code chat hooks API | . | AI | VS Code Language Model API (vscode.lm) | . | Testing | Vitest | . ",
     "url": "/ContextManager/architecture/overview/#technology-stack",
     
     "relUrl": "/architecture/overview/#technology-stack"
-  },"132": {
+  },"134": {
     "doc": "Architecture Overview",
     "title": "Component Details",
     "content": "1. Language Model Tools (5 tools) . Registered via vscode.lm.registerTool(). Available to all agents: . // Registration pattern (src/tools/index.ts → registerTools()) vscode.lm.registerTool('contextManager_ctx', handler); // #ctx — unified search/list/learn/getCard/fetch/retrospect vscode.lm.registerTool('contextManager_getCard', handler); // #getCard — read full card by ID vscode.lm.registerTool('contextManager_saveKnowledgeCard', handler); // #saveCard vscode.lm.registerTool('contextManager_editKnowledgeCard', handler); // #editCard vscode.lm.registerTool('contextManager_organizeKnowledgeCards', handler); // #organizeCards — folder management . Each tool includes disambiguation entries that help Copilot decide when to auto-invoke. Conditional registration: ctx requires SearchIndex. If the dependency isn’t available at activation, the tool won’t be registered at runtime. Dead/orphaned tool files: projectContextTool.ts (deprecated), projectIntelligenceTool.ts (orphaned — functionality merged into CtxTool), todoManagerTool.ts (imported but never registered). 2. Project Manager . Central data store (src/projects/ProjectManager.ts, ~2000 lines) managing: . | Projects — metadata, root paths, goals, conventions | Knowledge Cards — CRUD, folders, flags, progressive disclosure | Project Intelligence — conventions, tool hints, working notes | Todos — user-managed task items | Events — onDidChangeActiveProject, onDidChangeProjects, onDidChangeCache | . Data persists to JSON files in globalStorageUri with in-memory caching for zero-overhead reads. Storage layer (storage.ts) handles disk I/O and globalState for metadata. 3. Auto-Capture Service . Listens to all chat interactions from all participants (src/autoCapture.ts, ~1050 lines): . graph LR A[Model Response] --> B[Strip Private Tags] B --> C[DJB2 Content Hash] C --> D[Dedup Check - 30s window] D --> E[Typed Observation Buffer] E --> F[FTS4 Indexing] E --> G[Intelligence Extraction] G --> H[Conventions] G --> I[Working Notes] style A fill:#1f6feb,stroke:#388bfd,color:#fff style E fill:#1158c7,stroke:#388bfd,color:#fff style G fill:#1158c7,stroke:#388bfd,color:#fff style H fill:#238636,stroke:#3fb950,color:#fff style I fill:#238636,stroke:#3fb950,color:#fff . Key features: . | Content-hash deduplication — dual DJB2 hash with 30-second window (DEDUP_WINDOW_MS) | Typed observations — 6 types: bugfix, feature, discovery, decision, refactor, change (classified via keyword scoring) | Privacy tag stripping — &lt;private&gt;...&lt;/private&gt; replaced with [REDACTED] | Multi-turn extraction — iterative convention extraction for PreCompact events | Auto-distill — periodic background distillation to knowledge card candidates (rate-limited, min 4 observations) | Anchor extraction — identifies load-bearing tool results for knowledge cards | Tool call capture — separate path (captureToolCalls()) creating per-tool-call observations | Configurable buffer — default MAX_OBSERVATIONS = 50, overridable via settings | . 4. Auto-Learn Pipeline . Intelligence extraction via LLM (src/autoLearn.ts, ~790 lines): . | LLM extraction — lightweight calls (~200 input tokens) for conventions and working notes | Regex fallback — if no LM available, regex-based extraction for tool hints (always regex, high precision) | Hard caps with decay — 30 working notes, 20 tool hints, 15 conventions; oldest-inferred eviction | Feedback loop — discard counters suppress over-discarded categories; confirming resets | All intelligence saved as confidence: 'inferred' — nothing auto-confirmed | . 5. Search Index . SQLite FTS4 via sql.js WebAssembly with 8 virtual tables (src/search/SearchIndex.ts, ~1450 lines): . | Table | FTS-Indexed Columns | Weights (title/primary=10, content=5) | . | cards_fts | title, content, category, tags, source | 10, 5, 2, 1, 1 | . | cache_fts | symbol_name, content, file_path | 5, 5, 2 | . | learnings_fts | subject, content, related_files, related_symbols | 10, 5, 2, 2 | . | observations_fts | prompt, response_summary, files_referenced, tool_calls | 10, 5, 3, 2 | . | agent_messages_fts | content | 5 | . | todos_fts | title, description, notes | 10, 5, 3 | . | projects_fts | name, description, goals, conventions | 5, 3, 3, 2 | . | sessions_fts | branch_name, task, goal, current_state, approaches, decisions, next_steps, blockers | 5, 10, 5, 3, 2, 2, 2, 2 | . BM25 ranking uses JavaScript-computed scores from matchinfo('pcnalx') with standard parameters (k1=1.2, b=0.75). Over-fetches 3× the limit from SQLite, ranks in JS, then trims. Automatic OR fallback if AND query returns 0 results. 6. Hook Watcher . File system watcher on ~/.contextmanager/hook-queue.jsonl (src/hooks/HookWatcher.ts, ~400 lines): . | Uses native fs.watch() with 400ms debounce | Reads queue file as raw Buffer for accurate byte offsets with multi-byte UTF-8 | Parses new JSONL lines into typed HookEntry objects | Routes to handler by hookType — 3 active handlers: . | Stop → autoCapture.onModelResponse() + card queue candidate (gated by hooks.stop setting) | PostToolUse → tool-call observation with parsed input summary (gated by hooks.postToolUse setting) | PreCompact → multi-turn extraction via extractMultiTurnLearnings() + distillAndSaveBackground() (gated by hooks.preCompact setting) | . | Advances byte offset and persists to ~/.contextmanager/.queue-offset | On startup, processes any backlog before starting the watcher; snaps to end if offset exceeds file size | . Configured but unhandled hooks: SessionStart and SubagentStart (context injection handled at shell-script level via session-context.txt), UserPromptSubmit — all declared in hooks.json but silently ignored by the TypeScript watcher. 7. Supporting Services . | Service | File | Role | . | GitHubInstructionsManager | githubInstructions.ts | Syncs .github/copilot-instructions.md with pinned cards and tool discovery hints | . | ConfigurationManager | config.ts | Centralized, type-safe access to all extension settings | . | ExplanationCache | cache.ts | Internal cache of explanations — used by dashboard and commands (not exposed as LM tools) | . | BackgroundTasks | backgroundTasks.ts | Background task queue running LLM agent loops with live dashboard progress | . | FileSync | fileSync.ts | File-based sync for knowledge cards via git-tracked .contextmanager/ directory | . | Sidebar | sidebar/ProjectsTreeProvider.ts | Tree view provider for the Projects sidebar panel | . ",
     "url": "/ContextManager/architecture/overview/#component-details",
     
     "relUrl": "/architecture/overview/#component-details"
-  },"133": {
+  },"135": {
     "doc": "Architecture Overview",
     "title": "Data Flow",
     "content": "Knowledge Card Lifecycle . graph LR subgraph Discovery A1[\"saveAsCard command\"] A2[\"save tool\"] A3[Card Queue Distill] A4[Auto-Distill] end subgraph Curation B1[Dashboard Edit] B2[\"edit tool\"] B3[\"organize tool\"] B4[Smart Merge via LLM] end subgraph Injection C1[copilot-instructions.md] C2[\"#ctx tool - search/list\"] C3[\"#getCard - full content\"] end A1 --> B1 --> C1 A2 --> B2 --> C2 A3 --> B3 --> C3 A4 --> B4 --> C3 . Intelligence Pipeline . graph TD A[Any Chat Response] --> B[Auto-Capture] B --> C[\"Observation Buffer (default 50)\"] C --> D[\"Auto-Learn (LLM or regex fallback)\"] D --> E[Conventions + Tool Hints + Working Notes] E --> F1[\"GitHubInstructionsManager → copilot-instructions.md\"] F1 --> F1a[Pinned cards + tool discovery] E --> F2[\"#ctx tool — on-demand search/list/learn/retrospect\"] C --> G[\"Auto-Distill → Card Queue candidates\"] style A fill:#1f6feb,stroke:#388bfd,color:#fff style C fill:#1158c7,stroke:#388bfd,color:#fff style D fill:#1158c7,stroke:#388bfd,color:#fff style E fill:#238636,stroke:#3fb950,color:#fff style F1 fill:#238636,stroke:#3fb950,color:#fff style F2 fill:#238636,stroke:#3fb950,color:#fff style G fill:#238636,stroke:#3fb950,color:#fff . Hook Pipeline (VS Code Copilot) . graph TD A[VS Code Copilot Chat] --> B[PostToolUse hook fires] B --> C[capture.ps1 / capture.sh] C --> D[Find Copilot transcript] D --> E[Get-LastCompletedTurn] E --> F[Write Stop entry to queue] F --> G[\"HookWatcher detects change (fs.watch + 400ms debounce)\"] G --> H[Card Queue Candidate] G --> I[Typed Observation Buffer] I --> J[FTS4 Index] style A fill:#1f6feb,stroke:#388bfd,color:#fff style C fill:#9e6a03,stroke:#d29922,color:#fff style G fill:#1158c7,stroke:#388bfd,color:#fff style H fill:#238636,stroke:#3fb950,color:#fff style I fill:#238636,stroke:#3fb950,color:#fff style J fill:#238636,stroke:#3fb950,color:#fff . ",
     "url": "/ContextManager/architecture/overview/#data-flow",
     
     "relUrl": "/architecture/overview/#data-flow"
-  },"134": {
+  },"136": {
     "doc": "Architecture Overview",
     "title": "Dashboard",
     "content": "The WebView dashboard has 4 tabs: . | Tab | ID | Contents | . | 🧠 Intelligence | intelligence | Auto-Learn &amp; Auto-Capture controls, observation stats (24h/90d), toggle switches | . | Knowledge | knowledge | 3 sub-tabs: Workbench (conventions, notes, hints), Knowledge Cards (full card list + editor), Card Queue (AI candidates) | . | Context | context | Project context editor (goals, conventions, tech stack) included in AI prompts | . | ⚙ Settings | settings | Extension settings UI with grouped sections | . ",
     "url": "/ContextManager/architecture/overview/#dashboard",
     
     "relUrl": "/architecture/overview/#dashboard"
-  },"135": {
+  },"137": {
     "doc": "Architecture Overview",
     "title": "Directory Structure",
     "content": "ContextManager/ ├── src/ │ ├── extension.ts # Activation — wires all subsystems │ ├── autoCapture.ts # Auto-capture service (~1050 lines) │ ├── autoLearn.ts # Intelligence extraction via LLM (~790 lines) │ ├── backgroundTasks.ts # Background task queue with LLM agent loops │ ├── cache.ts # ExplanationCache — internal data layer │ ├── commands.ts # VS Code command registrations │ ├── config.ts # ConfigurationManager — type-safe settings │ ├── fileSync.ts # Git-tracked .contextmanager/ sync + markdown import │ ├── githubInstructions.ts # copilot-instructions.md managed block │ ├── prompts.ts # System prompt templates for explanation commands │ │ │ ├── dashboard/ │ │ ├── DashboardPanel.ts # WebView dashboard (4 tabs, ~1500 lines) │ │ ├── cardCanvas.ts # Card tile rendering &amp; tool-call viewer │ │ ├── index.ts # Barrel export │ │ ├── htmlHelpers.ts # HTML generation (escapeHtml, renderMarkdown, KaTeX) │ │ ├── messageHandler.ts # WebView ↔ extension message handler (~1800 lines) │ │ ├── styles.ts # Dashboard CSS (~1570 lines) │ │ ├── webviewScript.ts # Client-side JS (~2700 lines) │ │ └── __tests__/ │ │ └── htmlHelpers.test.ts │ │ │ ├── hooks/ │ │ └── HookWatcher.ts # File watcher for hook-queue.jsonl │ │ │ ├── projects/ │ │ ├── ProjectManager.ts # Central data store (~2000 lines) │ │ ├── storage.ts # Persistence: globalStorageUri + globalState │ │ └── types.ts # Interfaces &amp; factory functions (~440 lines) │ │ │ ├── search/ │ │ ├── SearchIndex.ts # SQLite FTS4 via sql.js (~1450 lines) │ │ └── types.ts # Search entity types, result interfaces │ │ │ ├── sidebar/ │ │ └── ProjectsTreeProvider.ts # Tree view provider for Projects panel │ │ │ ├── tools/ │ │ ├── index.ts # Barrel + registerTools() │ │ ├── searchTools.ts # CtxTool (~450 lines) │ │ ├── knowledgeCardTools.ts # Save/Edit/Organize/GetCard tools (~450 lines) │ │ ├── projectContextTool.ts # DEPRECATED — not registered │ │ ├── projectIntelligenceTool.ts # ORPHANED — merged into CtxTool │ │ └── todoManagerTool.ts # DEAD — imported but never registered │ │ │ └── utils/ │ ├── gitUtils.ts # Git helpers (branch, diff, log) │ ├── symbolUtils.ts # VS Code symbol/selection helpers │ ├── toolFilter.ts # Tool filtering &amp; name normalization │ └── toolUsageExtractor.ts # Tool-call pattern extraction for cards │ ├── resources/ │ └── hooks/ │ ├── capture.ps1 # Agent hook script (Windows) │ ├── capture.sh # Agent hook script (macOS/Linux) │ └── hooks.json # Hook type declarations │ ├── media/ │ └── mermaid.min.js # Bundled Mermaid for dashboard rendering │ ├── out/ # Compiled JavaScript ├── docs/ # Documentation site (Jekyll) └── package.json # Extension manifest . ",
     "url": "/ContextManager/architecture/overview/#directory-structure",
     
     "relUrl": "/architecture/overview/#directory-structure"
-  },"136": {
+  },"138": {
     "doc": "Architecture Overview",
     "title": "Next Steps",
     "content": "Data Flow → . ",
     "url": "/ContextManager/architecture/overview/#next-steps",
     
     "relUrl": "/architecture/overview/#next-steps"
-  },"137": {
+  },"139": {
     "doc": "Positioning",
     "title": "Positioning &amp; Differentiation",
     "content": "How ContextManager fits into the VS Code / Copilot ecosystem alongside instruction files, prompt files, and skill files. ",
     "url": "/ContextManager/positioning/#positioning--differentiation",
     
     "relUrl": "/positioning/#positioning--differentiation"
-  },"138": {
+  },"140": {
     "doc": "Positioning",
     "title": "The Four-Layer Ecosystem",
     "content": "There are four distinct categories of AI guidance in VS Code today. They are not competing - each one solves a different problem. graph TB subgraph L1[Layer 1: Global Behavior] L1D[copilot-instructions.md] end subgraph L2[Layer 2: Task Workflows] L2D[prompt.md files] end subgraph L3[Layer 3: Agent Capabilities] L3D[SKILL.md files] end subgraph L4[Layer 4: Project Knowledge] L4D[ContextManager] end style L4 fill:#1f6feb,stroke:#388bfd,color:#fff style L4D fill:#1f6feb,stroke:#388bfd,color:#fff . Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover-first: knowledge accumulates dynamically as you work. ",
     "url": "/ContextManager/positioning/#the-four-layer-ecosystem",
     
     "relUrl": "/positioning/#the-four-layer-ecosystem"
-  },"139": {
+  },"141": {
     "doc": "Positioning",
     "title": "What Makes ContextManager Different",
     "content": "Static files describe the rules. ContextManager records the reasoning. A copilot-instructions.md might say “use the repository pattern.” ContextManager captures why your specific project uses it, which classes implement it, which ones deviate for a reason, and what the team debated before landing there. Knowledge is generated by AI, not just consumed by it. Every other tool is author-first: you write the file, the AI reads it. ContextManager inverts this: . | Auto-capture and card queue — AI responses are captured and distilled into cards | #saveCard — save a new knowledge card on demand | #editCard — improve an existing card | . Three kinds of persistent memory, not one. | Store | What It Holds | . | Knowledge Cards | Architecture decisions, patterns, deep explanations | . | Project Intelligence | Conventions, tool hints, working notes | . Smart injection, not “dump everything.” . | Progressive disclosure - 3-tier card injection | Tiered intelligence - confirmed always, relevant matched, rest on demand | Staleness signals - 30+ day cards flagged for the AI | Usage tracking - surfaces dead cards and duplicates | . Per-project scope, not global scope. Switching projects means the AI’s entire knowledge base switches instantly. Searchable, not just readable. BM25 full-text search across cards, cache, sessions, conventions, hints, and notes - with camelCase tokenization, quoted phrases, prefix matching, and OR fallback. Team knowledge, not personal notes. Export to git-tracked Markdown for team onboarding. ",
     "url": "/ContextManager/positioning/#what-makes-contextmanager-different",
     
     "relUrl": "/positioning/#what-makes-contextmanager-different"
-  },"140": {
+  },"142": {
     "doc": "Positioning",
     "title": "Decision Guide",
     "content": "| Scenario | Right Tool | . | “Always use strict null checks” | copilot-instructions.md | . | “When I ask for a test, use this structure” | *.prompt.md | . | “Here’s how to publish this extension, step by step” | SKILL.md | . | “Here’s what the auth flow actually does in our app” | ContextManager knowledge card | . | “We tried EventBus and abandoned it” | ContextManager convention | . | “Search TabStripController not tab strip” | ContextManager tool hint | . | “Onboard a new dev without writing a doc” | Export cards as git-tracked Markdown | . ",
     "url": "/ContextManager/positioning/#decision-guide",
     
     "relUrl": "/positioning/#decision-guide"
-  },"141": {
+  },"143": {
     "doc": "Positioning",
     "title": "The Progression of a Real Project",
     "content": "Phase 1 - Discovery. You explore with the agent. Card queue captures insights automatically. Use #saveCard or the dashboard to create cards on demand. Intelligence learns which patterns hold in practice. Phase 2 - Building. Work proceeds normally. Auto-capture records context. Intelligence accumulates. Phase 3 - Cumulative leverage. The AI knows the codebase - not because the model improved, but because accumulated knowledge is there from session start. The next developer lands in the same place in an hour instead of a week. ",
     "url": "/ContextManager/positioning/#the-progression-of-a-real-project",
     
     "relUrl": "/positioning/#the-progression-of-a-real-project"
-  },"142": {
+  },"144": {
     "doc": "Positioning",
     "title": "Three Personas",
     "content": "The Explorer . Every key discovery becomes a knowledge card automatically. No separate documentation step. The Builder . Autonomous AI agents with accumulated intelligence. Context window resets don’t reset progress. The Tech Lead . Accumulated knowledge is git-tracked Markdown. New hires get it on day one. Export cards as Markdown files for any newcomer. ",
     "url": "/ContextManager/positioning/#three-personas",
     
     "relUrl": "/positioning/#three-personas"
-  },"143": {
+  },"145": {
     "doc": "Positioning",
     "title": "What ContextManager Is Not",
     "content": ". | Not a replacement for copilot-instructions.md - global standards belong there | Not a prompt library - task templates belong in .prompt.md files | Not an agent framework - works with Copilot’s native agent mode | Not a documentation generator - cards are working memory for AI, with export as a bridge | Not a generic memory MCP server - per-project, git-integrated, dashboard-driven | . ",
     "url": "/ContextManager/positioning/#what-contextmanager-is-not",
     
     "relUrl": "/positioning/#what-contextmanager-is-not"
-  },"144": {
+  },"146": {
     "doc": "Positioning",
     "title": "Positioning",
     "content": " ",
     "url": "/ContextManager/positioning/",
     
     "relUrl": "/positioning/"
-  },"145": {
+  },"147": {
     "doc": "Project Intelligence",
     "title": "Project Intelligence",
     "content": "Automatically learns conventions, tool hints, and working notes from every AI interaction. ",
     "url": "/ContextManager/features/project-intelligence/",
     
     "relUrl": "/features/project-intelligence/"
-  },"146": {
+  },"148": {
     "doc": "Project Intelligence",
     "title": "Overview",
     "content": "The Project Intelligence layer is a three-part learning system that captures institutional knowledge as a side effect of normal work. Unlike knowledge cards (which are explicit), intelligence accumulates automatically from all chat participants. Prerequisite for full auto-capture: Register the VS Code agent hook once (Dashboard → Settings → 🪝 Agent Hooks → Install Hooks). Without it, only interactions during your active chat sessions are captured. With it, every Copilot Chat, @workspace, and background agent response feeds the intelligence pipeline. ",
     "url": "/ContextManager/features/project-intelligence/#overview",
     
     "relUrl": "/features/project-intelligence/#overview"
-  },"147": {
+  },"149": {
     "doc": "Project Intelligence",
     "title": "Three Stores of Intelligence",
     "content": "1. Conventions . Structured codebase conventions with confidence tracking: . | Field | Description | . | Subject | What the convention covers (e.g., “error handling”) | . | Category | architecture, naming, patterns, testing, tooling, pitfalls | . | Content | The convention itself | . | Confidence | confirmed ✅, observed ⏳, or inferred 🔮 | . Conventions start as observed when the LLM first extracts them. You can confirm or discard them from the Intelligence tab. Example: . Naming → confirmed: All React components use PascalCase with a .tsx extension. Utility functions use camelCase in .ts files. 2. Tool Hints . Learned search patterns that help the AI navigate your specific codebase: . ✅ Pattern: Search \"TabStripController\" not \"tab strip controller\" ❌ Anti-pattern: \"tab strip\" returns noise from CSS files . Tool hints track use count - frequently used hints are prioritized in injection. 3. Working Notes . Free-form agent exploration memory for relationships and insights: . | Field | Description | . | Title | What the note covers | . | Content | Markdown content | . | Related Files | Files associated with this note | . | Related Symbols | Code symbols referenced | . | Staleness | fresh, possibly-stale, stale (file-based tracking) | . Working notes now have file-based staleness detection, displayed as 🟢 fresh → ⚠️ possibly-stale → 🔴 stale. Staleness is detected by comparing relatedFiles modification times against the note’s last update timestamp. Checks run on dashboard open and on file save (debounced 2 s). Controlled by the enableStalenessTracking setting. Working notes are matched by file path and keyword when queried via #ctx - only task-relevant notes are returned. ",
     "url": "/ContextManager/features/project-intelligence/#three-stores-of-intelligence",
     
     "relUrl": "/features/project-intelligence/#three-stores-of-intelligence"
-  },"148": {
+  },"150": {
     "doc": "Project Intelligence",
     "title": "Intelligence Delivery",
     "content": "Intelligence is delivered through two complementary mechanisms — no per-prompt injection budgets to tune. Managed Block in copilot-instructions.md . ContextManager maintains an auto-synced managed block at the bottom of your .github/copilot-instructions.md file. This block contains: . | #ctx tool usage instructions — so every agent knows how to invoke the tool | Pinned knowledge card titles — cards flagged Pinned appear as summary lines with their IDs, prompting agents to call #getCard when relevant | . The managed block is regenerated whenever pinned cards change. You never edit it by hand. #ctx Tool (On-Demand) . All intelligence is queryable via the #ctx tool. Agents invoke it when they need conventions, notes, or hints. Available modes: . | Mode | Purpose | . | #ctx query:\"error handling\" | Full-text search across cards, conventions, notes | . | #ctx mode:\"list\" type:\"conventions\" | List all items of a type (conventions, workingNotes, toolHints, cards) | . | #ctx mode:\"learn\" learnType:\"convention\" ... | Store a new convention, tool hint, or working note | . | #ctx mode:\"getCard\" id:\"&lt;cardId&gt;\" | Read the full content of a knowledge card | . | #ctx mode:\"fetch\" observationIds:[\"&lt;id&gt;\"] | Fetch full observation details by IDs | . | #ctx mode:\"retrospect\" | End-of-task reflection and capture | . Because delivery is on-demand, there are no token budgets to configure. Agents pull exactly the intelligence they need, when they need it. ",
     "url": "/ContextManager/features/project-intelligence/#intelligence-delivery",
     
     "relUrl": "/features/project-intelligence/#intelligence-delivery"
-  },"149": {
+  },"151": {
     "doc": "Project Intelligence",
     "title": "Auto-Capture",
     "content": "The Auto-Capture service records every AI response as a lightweight observation: . | Source tracking - which participant generated the response (Copilot, @workspace, hook, etc.) | Content-hash deduplication - identical interactions are never recorded twice (30-second window) | Privacy tags - &lt;private&gt;content&lt;/private&gt; tags are stripped before storage | Type badges - observations are classified internally (bugfix, feature, discovery, etc.) and shown as summary counts in the observations header | . ",
     "url": "/ContextManager/features/project-intelligence/#auto-capture",
     
     "relUrl": "/features/project-intelligence/#auto-capture"
-  },"150": {
+  },"152": {
     "doc": "Project Intelligence",
     "title": "Auto-Learn",
     "content": "When enabled, a lightweight LLM extraction runs on chat interactions to learn: . | Conventions - coding patterns the AI observes in your codebase | Working notes - relationships and insights discovered during exploration | Tool hints - which search terms work and which don’t | Knowledge cards - high-confidence cards extracted from conversation context | . This means even regular Copilot Chat conversations contribute to your project intelligence. Auto-Learn fires one LLM call per captured response (a small number of tokens per call). This is inexpensive but not free. Disable via intelligence.autoLearn in Settings or the Intelligence tab toggle — Auto-Capture (observation recording) continues without it. Knowledge cards and architecture notes detected by Auto-Capture / Auto-Learn are staged in the Card Queue for user review — they are never silently persisted. You remain in full control of what enters your knowledge base. ",
     "url": "/ContextManager/features/project-intelligence/#auto-learn",
     
     "relUrl": "/features/project-intelligence/#auto-learn"
-  },"151": {
+  },"153": {
     "doc": "Project Intelligence",
     "title": "Dashboard: Intelligence Tab",
     "content": "The Intelligence tab provides a unified view: . | Auto-Capture / Auto-Learn toggles with live stats | Observation feed with per-source filter pills (Copilot, @workspace, hook) | Convention list with confidence badges and confirm/edit/discard actions | Tool hints with anti-patterns and delete actions | Working notes with staleness badges, related files, and promote-to-card actions | AI Distill - run LLM extraction on selected observations | . ",
     "url": "/ContextManager/features/project-intelligence/#dashboard-intelligence-tab",
     
     "relUrl": "/features/project-intelligence/#dashboard-intelligence-tab"
-  },"152": {
+  },"154": {
     "doc": "Project Intelligence",
     "title": "Next Steps",
     "content": "Knowledge Cards → . ",
     "url": "/ContextManager/features/project-intelligence/#next-steps",
     
     "relUrl": "/features/project-intelligence/#next-steps"
-  },"153": {
+  },"155": {
     "doc": "Search",
     "title": "BM25 Full-Text Search",
     "content": "Fast, ranked search across your entire project memory using SQLite FTS4 via WebAssembly. ",
     "url": "/ContextManager/features/search/#bm25-full-text-search",
     
     "relUrl": "/features/search/#bm25-full-text-search"
-  },"154": {
+  },"156": {
     "doc": "Search",
     "title": "Overview",
     "content": "ContextManager provides search via #ctx (mode: search) — a unified tool that ranks results using the BM25 algorithm, the same ranking function used by modern search engines. #searchCards remains as a convenience for card-specific search. All search is local, running via sql.js (WebAssembly) with zero native binary dependencies. ",
     "url": "/ContextManager/features/search/#overview",
     
     "relUrl": "/features/search/#overview"
-  },"155": {
+  },"157": {
     "doc": "Search",
     "title": "Search Tools",
     "content": "#ctx - Cross-Entity Search (mode: search) . Unified search across all entity types simultaneously. Replaces the old #search tool. | Entity | What’s Indexed | . | Knowledge Cards | Title, content, category, tags, source | . | Cached Explanations | Symbol name, content, file path, type | . | Observations | Auto-captured interactions (prompt, response summary, participant) | . | Projects | Project metadata (name, description, goals, conventions) | . | Learnings | Conventions, tool hints, and working notes (subject, content, category) | . convention, workingNote, and toolHint are searchable as separate fine-grained entity types within the learnings table, allowing targeted filtering. #ctx query:\"error handling\" maxResults:10 . Card-specific search is available via #ctx with entityTypes: ['card']: . #ctx query:\"authentication flow\" entityTypes:[\"card\"] . ",
     "url": "/ContextManager/features/search/#search-tools",
     
     "relUrl": "/features/search/#search-tools"
-  },"156": {
+  },"158": {
     "doc": "Search",
     "title": "Query Syntax",
     "content": "Basic Search . authentication → matches any document containing \"authentication\" auth* → prefix matching: auth, authentication, authorize, etc. \"error handler\" → exact phrase match . Boolean Operators (FTS4) . authentication JWT → AND (both terms must appear) authentication OR OAuth → OR (either term) . CamelCase Expansion . Queries automatically expand camelCase, PascalCase, and snake_case terms: . TabStripController → also searches: tab, strip, controller user_auth_service → also searches: user, auth, service . ",
     "url": "/ContextManager/features/search/#query-syntax",
     
     "relUrl": "/features/search/#query-syntax"
-  },"157": {
+  },"159": {
     "doc": "Search",
     "title": "Search Strategy",
     "content": "ContextManager uses a 2-tier search strategy for maximum recall: . | BM25 FTS4 — Primary search with per-column weights, IDF, and document-length normalization | OR Fallback — If AND search returns zero results, automatically retries with OR for partial matches | . ",
     "url": "/ContextManager/features/search/#search-strategy",
     
     "relUrl": "/features/search/#search-strategy"
-  },"158": {
+  },"160": {
     "doc": "Search",
     "title": "BM25 Ranking",
     "content": "The ranking function computes relevance using: . | Term Frequency (TF) - how often the term appears in the document | Inverse Document Frequency (IDF) - rarer terms get higher weight | Document Length - shorter documents are boosted (more focused content) | Per-column weights - title matches rank higher than body matches | . This is the same algorithm quality as FTS5’s built-in bm25(), implemented in JavaScript from matchinfo('pcnalx'). ",
     "url": "/ContextManager/features/search/#bm25-ranking",
     
     "relUrl": "/features/search/#bm25-ranking"
-  },"159": {
+  },"161": {
     "doc": "Search",
     "title": "Index Management",
     "content": "Persistence . The search index is stored at globalStorageUri/search-fts4.db and persists between sessions. Sync . | Full rebuild on activation (loads from project database) | Incremental sync on every mutation (add, edit, delete card/convention/etc.) | Auto-save timer (30s) for crash-safe updates | Rebuild lock prevents race conditions during full rebuilds | . Performance . All file I/O is async (fs/promises) - search never blocks the extension host. ",
     "url": "/ContextManager/features/search/#index-management",
     
     "relUrl": "/features/search/#index-management"
-  },"160": {
+  },"162": {
     "doc": "Search",
     "title": "Settings",
     "content": "| Setting | Default | Description | . | search.enableFTS | true | Enable BM25 full-text search | . | search.maxCardResults | 5 | Max results for card search | . | search.maxSearchResults | 10 | Max results for cross-entity search | . | search.snippetTokens | 16 | Snippet preview size in tokens | . ",
     "url": "/ContextManager/features/search/#settings",
     
     "relUrl": "/features/search/#settings"
-  },"161": {
+  },"163": {
     "doc": "Search",
     "title": "Next Steps",
     "content": "Knowledge Cards → . ",
     "url": "/ContextManager/features/search/#next-steps",
     
     "relUrl": "/features/search/#next-steps"
-  },"162": {
+  },"164": {
     "doc": "Search",
     "title": "Search",
     "content": " ",
     "url": "/ContextManager/features/search/",
     
     "relUrl": "/features/search/"
-  },"163": {
+  },"165": {
     "doc": "Language Model Tools",
     "title": "Language Model Tools",
     "content": "5 tools registered via vscode.lm.registerTool — available to all agents. ",
     "url": "/ContextManager/features/tools/",
     
     "relUrl": "/features/tools/"
-  },"164": {
+  },"166": {
     "doc": "Language Model Tools",
     "title": "Overview",
     "content": "ContextManager’s tools are available in any Copilot Chat, to background agents, cloud agents, and Codex. Type the #reference in chat or the agent can auto-invoke them based on your question. Project intelligence is delivered via two channels: . | copilot-instructions.md managed block — minimal #ctx usage instructions plus pinned card titles, injected automatically. | #ctx tool — agents invoke it on demand for search, learning, and observation context. | . ",
     "url": "/ContextManager/features/tools/#overview",
     
     "relUrl": "/features/tools/#overview"
-  },"165": {
+  },"167": {
     "doc": "Language Model Tools",
     "title": "Tool Reference",
     "content": "#ctx — Unified Project Memory . Tool ID: contextManager_ctx . The primary tool for all project knowledge operations. Replaces the former #search, #projectContext, #projectIntelligence, and #branchContext tools with a single multi-mode interface. #ctx query:\"error handling\" . Modes: . | Mode | Description | . | search | BM25 search across all entity types: cards, conventions, workingNotes, toolHints, cache, observations, sessions, agentMessages, projects. Default mode. | . | list | List all items of a type: conventions, toolHints, workingNotes, or cards. | . | learn | Create new intelligence: convention, toolHint, or workingNote. | . | getCard | Read a knowledge card by ID. | . | retrospect | End-of-task structured learning capture. Accepts arrays of newConventions, newToolHints, and knowledgeCards extracted from the task, plus optional taskSummary / whatWorked / whatDidntWork notes. Persists all items to the active project in one call. | . | fetch | Fetch full observation details by ID. | . Examples: . #ctx mode:search query:\"auth\" entityTypes:[\"convention\",\"workingNote\"] #ctx mode:list type:conventions #ctx mode:learn learnType:convention category:patterns title:\"Error handling\" content:\"Always use Result&lt;T&gt;\" #ctx mode:retrospect taskSummary:\"Refactored auth module\" . #getCard — Read a Specific Card . Tool ID: contextManager_getCard . Read a knowledge card by ID with full content, anchors, and staleness warnings. Runs immediately without confirmation (read-only). #saveCard — Save a Knowledge Card . Tool ID: contextManager_saveKnowledgeCard . Silently saves a knowledge card to the active project. Accepts title, content (markdown), optional category, tags, source, and folder name. #editCard — Edit a Knowledge Card . Tool ID: contextManager_editKnowledgeCard . Updates fields on an existing knowledge card. Only supplied fields are changed — omitted fields are left as-is. #organizeCards — Organize Knowledge Cards . Tool ID: contextManager_organizeKnowledgeCards . Organizes cards into folders. Actions: listFolders, createFolder, moveCard, autoOrganize. ",
     "url": "/ContextManager/features/tools/#tool-reference",
     
     "relUrl": "/features/tools/#tool-reference"
-  },"166": {
+  },"168": {
     "doc": "Language Model Tools",
     "title": "Auto-Invocation",
     "content": "Copilot can auto-invoke tools based on your question context. For example: . \"How does the auth module work?\" → Copilot may auto-invoke #ctx to search your conventions and knowledge cards about auth . This works because tools are registered with disambiguation entries that describe when they’re relevant. The #ctx tool is the primary entry point — its broad tag set (search, conventions, notes, hints, knowledge, intelligence, memory, learn) makes it the most likely auto-invocation target. ",
     "url": "/ContextManager/features/tools/#auto-invocation",
     
     "relUrl": "/features/tools/#auto-invocation"
-  },"167": {
+  },"169": {
     "doc": "Language Model Tools",
     "title": "Next Steps",
     "content": "Architecture → . ",
     "url": "/ContextManager/features/tools/#next-steps",
     
     "relUrl": "/features/tools/#next-steps"
+  },"170": {
+    "doc": "Custom AI Workflows",
+    "title": "Custom AI Workflows",
+    "content": "User-defined AI pipelines that execute custom prompts against your project knowledge and take action on the results. ",
+    "url": "/ContextManager/features/workflows/",
+    
+    "relUrl": "/features/workflows/"
+  },"171": {
+    "doc": "Custom AI Workflows",
+    "title": "Overview",
+    "content": "Workflows let you define reusable AI operations that combine your project data with a custom prompt template, send it to the LLM, and automatically create or update knowledge cards with the result. Use cases: . | Summarize recent observations into a daily digest card | Generate onboarding guides from your conventions and working notes | Auto-classify queue items into themed knowledge cards | Audit selected cards for staleness or gaps | Extract action items from new queue captures | . ",
+    "url": "/ContextManager/features/workflows/#overview",
+    
+    "relUrl": "/features/workflows/#overview"
+  },"172": {
+    "doc": "Custom AI Workflows",
+    "title": "Creating a Workflow",
+    "content": "Open the Dashboard → Intelligence tab → scroll to the Custom AI Workflows section → click + New Workflow. Workflow Fields . | Field | Description | . | Name | Display name for the workflow | . | Trigger | When the workflow runs automatically (see Triggers) | . | Prompt Template | The prompt sent to the LLM, using {{variable}} placeholders | . | Output Action | What to do with the LLM response | . | Target Card | Which card to update (for update/append actions) | . | Max Items | Maximum number of items when rendering collection variables (default: 20) | . ",
+    "url": "/ContextManager/features/workflows/#creating-a-workflow",
+    
+    "relUrl": "/features/workflows/#creating-a-workflow"
+  },"173": {
+    "doc": "Custom AI Workflows",
+    "title": "Template Variables",
+    "content": "Prompt templates use {{namespace.field}} syntax to inject data from your project. Click the variable buttons in the form to insert them. Queue Variables . | Variable | Description | . | {{queue.prompt}} | The user’s prompt from a queued item | . | {{queue.response}} | The AI response from a queued item | . | {{queue.participant}} | Which chat participant produced It | . | {{queue.toolCalls}} | Tool calls made during the interaction | . Card Variables . | Variable | Description | . | {{card.title}} | Title of the target card | . | {{card.content}} | Content of the target card | . | {{card.tags}} | Comma-separated tags of the target card | . Project Variables . | Variable | Description | . | {{project.name}} | Active project name | . | {{project.description}} | Project description | . | {{project.conventions}} | All enabled conventions (formatted list) | . Collection Variables . These expand to multiple items, capped by the Max Items setting: . | Variable | Description | . | {{cards.all}} | All knowledge cards (title + content + tags) | . | {{cards.selected}} | Only selected/checked cards | . | {{conventions.all}} | All enabled conventions | . | {{toolHints.all}} | All tool hints | . | {{workingNotes.all}} | All enabled working notes | . | {{observations.recent}} | Observations from the last 24 hours | . Event Variables . Available when a workflow is triggered by an entity event: . | Variable | Description | . | {{convention.title}} | Title of the convention that triggered the workflow | . | {{convention.content}} | Content of the triggering convention | . | {{observation.summary}} | Summary of the observation that triggered the workflow | . | {{observation.files}} | Files referenced in the triggering observation | . ",
+    "url": "/ContextManager/features/workflows/#template-variables",
+    
+    "relUrl": "/features/workflows/#template-variables"
+  },"174": {
+    "doc": "Custom AI Workflows",
+    "title": "Triggers",
+    "content": "Triggers control when a workflow runs automatically: . | Trigger | Description | . | Manual | Only runs when you click the ▶ Run button | . | Auto-Queue | Fires when a new item is added to the card queue | . | Both | Fires on queue item and available for manual run | . | Convention Learned | Fires when a new convention is discovered | . | Card Created | Fires when a knowledge card is created | . | Card Updated | Fires when a knowledge card is updated | . | Observation Created | Fires when an observation is captured | . Event triggers (convention-learned, card-created, card-updated, observation-created) fire automatically in the background. The triggering entity’s data is available via the corresponding event variables. ",
+    "url": "/ContextManager/features/workflows/#triggers",
+    
+    "relUrl": "/features/workflows/#triggers"
+  },"175": {
+    "doc": "Custom AI Workflows",
+    "title": "Output Actions",
+    "content": "| Action | Behavior | . | Create Card | Creates a new knowledge card from the LLM output. Title is extracted from the first heading or generated from the workflow name. Tags workflow and the workflow name are auto-added. | . | Update Card | Replaces the content of the target card with the LLM output. Requires a target card to be selected. | . | Append to Collector | Appends the LLM output (with a dated separator) to the target card. Useful for running logs, digests, and accumulators. | . ",
+    "url": "/ContextManager/features/workflows/#output-actions",
+    
+    "relUrl": "/features/workflows/#output-actions"
+  },"176": {
+    "doc": "Custom AI Workflows",
+    "title": "Re-Entrancy Protection",
+    "content": "Workflows that output to cards (create or update) could theoretically trigger other workflows listening for card-created or card-updated events, creating an infinite loop. ContextManager prevents this with a re-entrancy guard: while a workflow’s output action is executing, all other workflow triggers are suppressed. ",
+    "url": "/ContextManager/features/workflows/#re-entrancy-protection",
+    
+    "relUrl": "/features/workflows/#re-entrancy-protection"
+  },"177": {
+    "doc": "Custom AI Workflows",
+    "title": "Dashboard UI",
+    "content": "The workflows section appears in the Intelligence tab of the Dashboard: . | Workflow list — Each workflow shows its name, trigger badge, output action, and run status | Trigger badges — Color-coded: blue for auto-queue, gray for manual, purple for event triggers | Run button (▶) — Manually execute any workflow | Edit/Delete — Modify or remove workflows | Enable/Disable toggle — Pause a workflow without deleting it | Add form — Clickable variable insertion buttons grouped by category (Queue, Card, Project, Collections, Event) | . ",
+    "url": "/ContextManager/features/workflows/#dashboard-ui",
+    
+    "relUrl": "/features/workflows/#dashboard-ui"
+  },"178": {
+    "doc": "Custom AI Workflows",
+    "title": "Example Workflows",
+    "content": "Daily Observation Digest . | Setting | Value | . | Name | Daily Observation Digest | . | Trigger | Manual | . | Prompt | Summarize these recent observations into a concise daily digest with key themes and action items: {{observations.recent}} | . | Output | Create Card | . | Max Items | 50 | . Auto-Classify Queue Items . | Setting | Value | . | Name | Auto-Classify | . | Trigger | Auto-Queue | . | Prompt | Given this AI interaction: {{queue.prompt}} / {{queue.response}} — Classify it and write a concise knowledge card. Consider existing conventions: {{conventions.all}} | . | Output | Create Card | . Convention Change Log . | Setting | Value | . | Name | Convention Change Log | . | Trigger | Convention Learned | . | Prompt | A new convention was learned: \"{{convention.title}}\": {{convention.content}}. Write a brief changelog entry explaining what changed and why. | . | Output | Append to Collector | . | Target Card | (select your changelog card) | . ",
+    "url": "/ContextManager/features/workflows/#example-workflows",
+    
+    "relUrl": "/features/workflows/#example-workflows"
+  },"179": {
+    "doc": "Custom AI Workflows",
+    "title": "Settings",
+    "content": "| Setting | Default | Description | . | Max Items | 20 | Per-workflow cap on collection variable expansion | . Workflows are stored per-project and persist across sessions. ",
+    "url": "/ContextManager/features/workflows/#settings",
+    
+    "relUrl": "/features/workflows/#settings"
+  },"180": {
+    "doc": "Custom AI Workflows",
+    "title": "Next Steps",
+    "content": "Distill Pipeline → . ",
+    "url": "/ContextManager/features/workflows/#next-steps",
+    
+    "relUrl": "/features/workflows/#next-steps"
   }
 }
