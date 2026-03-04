@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId, PromptInjection } from './types';
+import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId, PromptInjection, CustomWorkflow } from './types';
 import { Storage } from './storage';
 import { ExplanationCache } from '../cache';
 import { ConfigurationManager } from '../config';
@@ -1997,6 +1997,46 @@ export class ProjectManager extends vscode.Disposable {
 			}
 		}
 		return best;
+	}
+
+	// ============ Custom Workflows ============
+
+	getWorkflows(projectId: string): import('./types').CustomWorkflow[] {
+		return this.getProject(projectId)?.workflows || [];
+	}
+
+	async addWorkflow(
+		projectId: string,
+		workflow: import('./types').CustomWorkflow
+	): Promise<import('./types').CustomWorkflow | undefined> {
+		const project = this.getProject(projectId);
+		if (!project) { return undefined; }
+		const workflows = [...(project.workflows || []), workflow];
+		await this.updateProject(projectId, { workflows });
+		return workflow;
+	}
+
+	async updateWorkflow(
+		projectId: string,
+		workflowId: string,
+		updates: Partial<import('./types').CustomWorkflow>
+	): Promise<import('./types').CustomWorkflow | undefined> {
+		const project = this.getProject(projectId);
+		if (!project) { return undefined; }
+		const workflows = [...(project.workflows || [])];
+		const idx = workflows.findIndex(w => w.id === workflowId);
+		if (idx < 0) { return undefined; }
+		workflows[idx] = { ...workflows[idx], ...updates };
+		await this.updateProject(projectId, { workflows });
+		return workflows[idx];
+	}
+
+	async removeWorkflow(projectId: string, workflowId: string): Promise<boolean> {
+		const project = this.getProject(projectId);
+		if (!project) { return false; }
+		const workflows = (project.workflows || []).filter(w => w.id !== workflowId);
+		await this.updateProject(projectId, { workflows });
+		return true;
 	}
 
 }

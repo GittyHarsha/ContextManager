@@ -422,6 +422,114 @@ export class DashboardPanel {
 		`;
 		})()}
 		${(() => {
+			// ─── Custom Workflows Section ─────────────────────────────────
+			const activeProject = this.projectManager.getActiveProject();
+			if (!activeProject) { return ''; }
+			const workflows = activeProject.workflows || [];
+			const cards = activeProject.knowledgeCards || [];
+
+			// Card options for target selector
+			const cardOptions = cards.map(c =>
+				`<option value="${escapeHtml(c.id)}">${escapeHtml(c.title)}</option>`
+			).join('');
+
+			return `
+		<div class="card" style="margin-top: 0;">
+			<details${workflows.length > 0 ? ' open' : ''}>
+			<summary style="cursor: pointer; user-select: none;">
+				<h3 style="display: inline; margin: 0;">⚡ Custom Workflows (${workflows.length})</h3>
+				<span style="opacity: 0.6; font-size: 0.82em; margin-left: 8px;">User-defined AI pipelines</span>
+			</summary>
+			<p style="opacity: 0.6; font-size: 0.85em; margin: 8px 0 12px 0;">
+				Create AI workflows that fire automatically on new queue items or run manually. Use <code>{{queue.response}}</code>, <code>{{card.content}}</code>, <code>{{project.name}}</code> and more in your prompt template.
+			</p>
+
+			<!-- Existing workflows list -->
+			${workflows.length > 0 ? `
+			<div class="workflow-list" style="margin-bottom: 12px;">
+				${workflows.map(wf => {
+					const triggerBadge = wf.trigger === 'auto-queue' ? '<span class="wf-badge wf-badge-auto">auto</span>'
+						: wf.trigger === 'both' ? '<span class="wf-badge wf-badge-both">auto+manual</span>'
+						: '<span class="wf-badge wf-badge-manual">manual</span>';
+					const outputBadge = wf.outputAction === 'create-card' ? '📄 create'
+						: wf.outputAction === 'update-card' ? '✏️ update'
+						: '📎 append';
+					const statusIcon = !wf.lastRun ? '' : wf.lastRunStatus === 'success' ? '✅' : '❌';
+					const lastRunInfo = wf.lastRun ? `Last: ${formatAge(wf.lastRun)} ${statusIcon}` : 'Never run';
+					const targetName = wf.targetCardId ? (cards.find(c => c.id === wf.targetCardId)?.title || 'Unknown card') : '';
+					return `
+				<div class="workflow-item${!wf.enabled ? ' workflow-disabled' : ''}" data-workflow-id="${wf.id}" data-wf-name="${escapeHtml(wf.name)}" data-wf-prompt="${escapeHtml(wf.promptTemplate)}" data-wf-trigger="${wf.trigger}" data-wf-output="${wf.outputAction}" data-wf-target="${wf.targetCardId || ''}">
+					<div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+						<label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+							<input type="checkbox" ${wf.enabled ? 'checked' : ''} onchange="toggleWorkflow('${wf.id}', this.checked)">
+						</label>
+						<strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(wf.name)}</strong>
+						${triggerBadge}
+						<span style="opacity:0.6;font-size:0.82em;flex-shrink:0;">${outputBadge}${targetName ? ` → ${escapeHtml(targetName)}` : ''}</span>
+					</div>
+					<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+						<span style="opacity:0.5;font-size:0.78em;">${lastRunInfo} · ${wf.runCount || 0} runs</span>
+						<button onclick="runWorkflow('${wf.id}')" title="Run now" style="font-size:0.8em;padding:2px 8px;">▶</button>
+						<button onclick="editWorkflow('${wf.id}')" title="Edit" style="font-size:0.8em;padding:2px 8px;">✏️</button>
+						<button onclick="deleteWorkflow('${wf.id}')" title="Delete" style="font-size:0.8em;padding:2px 8px;opacity:0.6;">🗑</button>
+					</div>
+				</div>`;
+				}).join('')}
+			</div>` : ''}
+
+			<button onclick="showAddWorkflowForm()" id="btn-add-workflow" style="font-size:0.85em; padding:4px 14px;">+ New Workflow</button>
+
+			<!-- Add/Edit Workflow Form (hidden by default) -->
+			<div id="workflow-form" style="display:none; margin-top:12px; padding:12px; background:var(--vscode-editor-background); border:1px solid var(--vscode-widget-border); border-radius:6px;">
+				<input type="hidden" id="wf-edit-id" value="">
+				<div class="form-group" style="margin-bottom:8px;">
+					<label style="font-weight:600;font-size:0.85em;">Name</label>
+					<input type="text" id="wf-name" placeholder="e.g. Track Files Touched" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
+				</div>
+				<div class="form-group" style="margin-bottom:8px;">
+					<label style="font-weight:600;font-size:0.85em;">Prompt Template</label>
+					<textarea id="wf-prompt" rows="5" placeholder="Extract all file paths from this response:\\n{{queue.response}}" style="width:100%;padding:6px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;resize:vertical;font-family:var(--vscode-editor-font-family);font-size:0.9em;"></textarea>
+					<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+						<span style="opacity:0.5;font-size:0.75em;">Insert:</span>
+						${['queue.prompt','queue.response','queue.participant','queue.toolCalls','card.title','card.content','card.tags','project.name','project.conventions','project.description'].map(v =>
+							`<button type="button" class="wf-var-btn" onclick="insertWfVar('${v}')" style="font-size:0.72em;padding:1px 6px;border-radius:3px;opacity:0.8;cursor:pointer;">{{${v}}}</button>`
+						).join('')}
+					</div>
+				</div>
+				<div style="display:flex;gap:12px;margin-bottom:8px;">
+					<div class="form-group" style="flex:1;">
+						<label style="font-weight:600;font-size:0.85em;">Trigger</label>
+						<select id="wf-trigger" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
+							<option value="manual">Manual only</option>
+							<option value="auto-queue">Auto (on queue add)</option>
+							<option value="both">Both</option>
+						</select>
+					</div>
+					<div class="form-group" style="flex:1;">
+						<label style="font-weight:600;font-size:0.85em;">Output Action</label>
+						<select id="wf-output" onchange="wfOutputChanged()" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
+							<option value="create-card">Create new card</option>
+							<option value="update-card">Update existing card</option>
+							<option value="append-collector">Append to collector card</option>
+						</select>
+					</div>
+				</div>
+				<div id="wf-target-row" class="form-group" style="margin-bottom:10px;display:none;">
+					<label style="font-weight:600;font-size:0.85em;">Target Card</label>
+					<select id="wf-target-card" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
+						<option value="">(select a card)</option>
+						${cardOptions}
+					</select>
+				</div>
+				<div style="display:flex;gap:8px;justify-content:flex-end;">
+					<button class="secondary" onclick="hideWorkflowForm()">Cancel</button>
+					<button onclick="saveWorkflow()">💾 Save Workflow</button>
+				</div>
+			</div>
+			</details>
+		</div>`;
+		})()}
+		${(() => {
 			// Observation Feed
 			if (!this.autoCapture) { return ''; }
 			const activeProject = this.projectManager.getActiveProject();

@@ -19,6 +19,7 @@ import type { AutoCaptureService } from '../autoCapture';
 import type { ProjectManager } from '../projects/ProjectManager';
 import type { KnowledgeCard } from '../projects/types';
 import { ConfigurationManager } from '../config';
+import { WorkflowEngine } from '../workflows/WorkflowEngine';
 
 // ── Paths ──────────────────────────────────────────────────────
 export const CM_DIR         = path.join(os.homedir(), '.contextmanager');
@@ -49,11 +50,13 @@ export class HookWatcher implements vscode.Disposable {
 	private lastOffset = 0;
 	private readonly _statusEmitter = new vscode.EventEmitter<string>();
 	readonly onStatusChange = this._statusEmitter.event;
+	private _workflowEngine: WorkflowEngine;
 
 	constructor(
 		private autoCapture: AutoCaptureService,
 		private projectManager: ProjectManager,
 	) {
+		this._workflowEngine = new WorkflowEngine(projectManager);
 		this._ensureDir();
 		this._loadOffset();
 		this._startWatching();
@@ -327,6 +330,11 @@ export class HookWatcher implements vscode.Disposable {
 
 			await this.projectManager.addToCardQueue(project.id, candidate);
 			console.log(`[HookWatcher/CardQueue] Queued: "${suggestedTitle}" (${response.length} chars, ${filtered.length} tool calls)`);
+
+			// Fire auto-queue workflows (fire-and-forget)
+			this._workflowEngine.fireAutoQueue(project.id, candidate).catch(err =>
+				console.warn('[HookWatcher/Workflow] Auto-queue workflow error:', err)
+			);
 		} catch (err) {
 			console.warn('[HookWatcher/CardQueue] Error queuing candidate:', err);
 		}

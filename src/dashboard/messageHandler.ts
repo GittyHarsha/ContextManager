@@ -42,6 +42,7 @@ const ALLOWED_COMMANDS = new Set([
 	'runVscodeCommand',
 	'mergeWorkbenchItems', 'mergeHealthDuplicates',
 	'setPromptInjection', 'clearPromptInjection',
+	'addWorkflow', 'updateWorkflow', 'deleteWorkflow', 'toggleWorkflow', 'runWorkflow',
 ]);
 
 /**
@@ -1791,6 +1792,116 @@ Return ONLY valid JSON:
 				const activeProject = projectManager.getActiveProject();
 				if (!activeProject) { break; }
 				await projectManager.clearPromptInjection(activeProject.id);
+				ctx.update();
+				break;
+			}
+
+			// ─── Custom Workflows ─────────────────────────────────────
+
+			case 'addWorkflow': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject) { break; }
+				const { createWorkflow } = await import('../projects/types.js');
+				const wf = createWorkflow(
+					message.name || 'Untitled Workflow',
+					message.promptTemplate || '',
+					message.trigger || 'manual',
+					message.outputAction || 'create-card',
+					message.targetCardId || undefined,
+				);
+				await projectManager.addWorkflow(activeProject.id, wf);
+				ctx.update();
+				break;
+			}
+
+			case 'updateWorkflow': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject || !message.workflowId) { break; }
+				const updates: Record<string, any> = {};
+				if (message.name !== undefined) { updates.name = message.name; }
+				if (message.promptTemplate !== undefined) { updates.promptTemplate = message.promptTemplate; }
+				if (message.trigger !== undefined) { updates.trigger = message.trigger; }
+				if (message.outputAction !== undefined) { updates.outputAction = message.outputAction; }
+				if (message.targetCardId !== undefined) { updates.targetCardId = message.targetCardId || undefined; }
+				await projectManager.updateWorkflow(activeProject.id, message.workflowId, updates);
+				ctx.update();
+				break;
+			}
+
+			case 'deleteWorkflow': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject || !message.workflowId) { break; }
+				await projectManager.removeWorkflow(activeProject.id, message.workflowId);
+				ctx.update();
+				break;
+			}
+
+			case 'toggleWorkflow': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject || !message.workflowId) { break; }
+				await projectManager.updateWorkflow(activeProject.id, message.workflowId, {
+					enabled: !!message.enabled,
+				});
+				ctx.update();
+				break;
+			}
+
+			case 'runWorkflow': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject || !message.workflowId) { break; }
+				const workflow = (activeProject.workflows || []).find(w => w.id === message.workflowId);
+				if (!workflow) {
+					vscode.window.showErrorMessage('Workflow not found.');
+					break;
+				}
+
+				// Build context based on what input is available
+				const { WorkflowEngine } = await import('../workflows/WorkflowEngine.js');
+				const engine = new WorkflowEngine(projectManager);
+				const wfCtx: import('../workflows/WorkflowEngine').WorkflowContext = {
+					projectId: activeProject.id,
+				};
+
+				// If a source queue item or card was specified
+				if (message.sourceType === 'queue-item' && message.sourceId) {
+					wfCtx.queueItem = (activeProject.cardQueue || []).find(q => q.id === message.sourceId);
+				} else if (message.sourceType === 'card' && message.sourceId) {
+					wfCtx.card = (activeProject.knowledgeCards || []).find(c => c.id === message.sourceId);
+				} else {
+					// No specific source — pick the most recent queue item if the prompt references queue vars
+					if (workflow.promptTemplate.includes('{{queue.') && (activeProject.cardQueue || []).length > 0) {
+						wfCtx.queueItem = activeProject.cardQueue![activeProject.cardQueue!.length - 1];
+					}
+					// Pick target card if prompt references card vars
+					if (workflow.promptTemplate.includes('{{card.') && workflow.targetCardId) {
+						wfCtx.card = (activeProject.knowledgeCards || []).find(c => c.id === workflow.targetCardId);
+					}
+				}
+
+				ctx.postMessage({ command: 'workflowRunning', workflowId: workflow.id });
+				try {
+					const result = await engine.execute(workflow, wfCtx);
+					ctx.postMessage({
+						command: 'workflowResult',
+						workflowId: workflow.id,
+						success: result.success,
+						cardId: result.cardId,
+						error: result.error,
+					});
+					if (result.success) {
+						vscode.window.showInformationMessage(`Workflow "${workflow.name}" completed.`);
+					} else {
+						vscode.window.showWarningMessage(`Workflow "${workflow.name}": ${result.error}`);
+					}
+				} catch (err: any) {
+					ctx.postMessage({
+						command: 'workflowResult',
+						workflowId: workflow.id,
+						success: false,
+						error: err?.message || String(err),
+					});
+					vscode.window.showErrorMessage(`Workflow "${workflow.name}" failed: ${err?.message}`);
+				}
 				ctx.update();
 				break;
 			}

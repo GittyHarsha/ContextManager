@@ -2589,6 +2589,140 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			}
 		});
 
+		// ─── Custom Workflow Functions ──────────────────────────────
+		function showAddWorkflowForm() {
+			var form = document.getElementById('workflow-form');
+			if (!form) return;
+			// Reset form
+			document.getElementById('wf-edit-id').value = '';
+			document.getElementById('wf-name').value = '';
+			document.getElementById('wf-prompt').value = '';
+			document.getElementById('wf-trigger').value = 'manual';
+			document.getElementById('wf-output').value = 'create-card';
+			document.getElementById('wf-target-card').value = '';
+			document.getElementById('wf-target-row').style.display = 'none';
+			form.style.display = 'block';
+			document.getElementById('btn-add-workflow').style.display = 'none';
+			setInteracting(true);
+			document.getElementById('wf-name').focus();
+		}
+
+		function hideWorkflowForm() {
+			var form = document.getElementById('workflow-form');
+			if (form) form.style.display = 'none';
+			var btn = document.getElementById('btn-add-workflow');
+			if (btn) btn.style.display = '';
+			setInteracting(false);
+		}
+
+		function wfOutputChanged() {
+			var output = document.getElementById('wf-output').value;
+			var targetRow = document.getElementById('wf-target-row');
+			if (targetRow) {
+				targetRow.style.display = (output === 'update-card' || output === 'append-collector') ? 'block' : 'none';
+			}
+		}
+
+		function insertWfVar(varName) {
+			var textarea = document.getElementById('wf-prompt');
+			if (!textarea) return;
+			var start = textarea.selectionStart;
+			var end = textarea.selectionEnd;
+			var text = textarea.value;
+			var insertion = '{{' + varName + '}}';
+			textarea.value = text.substring(0, start) + insertion + text.substring(end);
+			textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+			textarea.focus();
+		}
+
+		function saveWorkflow() {
+			var name = (document.getElementById('wf-name').value || '').trim();
+			var promptTemplate = (document.getElementById('wf-prompt').value || '').trim();
+			var trigger = document.getElementById('wf-trigger').value;
+			var outputAction = document.getElementById('wf-output').value;
+			var targetCardId = document.getElementById('wf-target-card').value || '';
+			var editId = document.getElementById('wf-edit-id').value;
+
+			if (!name) { alert('Please enter a workflow name.'); return; }
+			if (!promptTemplate) { alert('Please enter a prompt template.'); return; }
+			if ((outputAction === 'update-card' || outputAction === 'append-collector') && !targetCardId) {
+				alert('Please select a target card for this output action.'); return;
+			}
+
+			if (editId) {
+				vscode.postMessage({
+					command: 'updateWorkflow',
+					workflowId: editId,
+					name: name,
+					promptTemplate: promptTemplate,
+					trigger: trigger,
+					outputAction: outputAction,
+					targetCardId: targetCardId
+				});
+			} else {
+				vscode.postMessage({
+					command: 'addWorkflow',
+					name: name,
+					promptTemplate: promptTemplate,
+					trigger: trigger,
+					outputAction: outputAction,
+					targetCardId: targetCardId
+				});
+			}
+			hideWorkflowForm();
+		}
+
+		function editWorkflow(workflowId) {
+			var item = document.querySelector('.workflow-item[data-workflow-id="' + workflowId + '"]');
+			if (!item) return;
+			showAddWorkflowForm();
+			document.getElementById('wf-edit-id').value = workflowId;
+			// Read from data attributes
+			document.getElementById('wf-name').value = item.getAttribute('data-wf-name') || '';
+			document.getElementById('wf-prompt').value = item.getAttribute('data-wf-prompt') || '';
+			document.getElementById('wf-trigger').value = item.getAttribute('data-wf-trigger') || 'manual';
+			document.getElementById('wf-output').value = item.getAttribute('data-wf-output') || 'create-card';
+			wfOutputChanged();
+			document.getElementById('wf-target-card').value = item.getAttribute('data-wf-target') || '';
+		}
+
+		function deleteWorkflow(workflowId) {
+			if (confirm('Delete this workflow?')) {
+				vscode.postMessage({ command: 'deleteWorkflow', workflowId: workflowId });
+			}
+		}
+
+		function toggleWorkflow(workflowId, enabled) {
+			vscode.postMessage({ command: 'toggleWorkflow', workflowId: workflowId, enabled: enabled });
+		}
+
+		function runWorkflow(workflowId) {
+			vscode.postMessage({ command: 'runWorkflow', workflowId: workflowId });
+		}
+
+		// Handle workflow messages from host
+		window.addEventListener('message', function(event) {
+			var msg = event.data;
+			if (msg.command === 'workflowRunning') {
+				var btn = document.querySelector('.workflow-item[data-workflow-id="' + msg.workflowId + '"] button[onclick*="runWorkflow"]');
+				if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+			}
+			if (msg.command === 'workflowResult') {
+				var btn = document.querySelector('.workflow-item[data-workflow-id="' + msg.workflowId + '"] button[onclick*="runWorkflow"]');
+				if (btn) { btn.textContent = '▶'; btn.disabled = false; }
+			}
+			if (msg.command === 'populateWorkflowForm' && msg.workflow) {
+				var wf = msg.workflow;
+				document.getElementById('wf-edit-id').value = wf.id || '';
+				document.getElementById('wf-name').value = wf.name || '';
+				document.getElementById('wf-prompt').value = wf.promptTemplate || '';
+				document.getElementById('wf-trigger').value = wf.trigger || 'manual';
+				document.getElementById('wf-output').value = wf.outputAction || 'create-card';
+				wfOutputChanged();
+				document.getElementById('wf-target-card').value = wf.targetCardId || '';
+			}
+		});
+
 		// ─── Context menu on knowledge card text selection ──────────
 		(function setupCardContextMenu() {
 			// Create hidden context menu element

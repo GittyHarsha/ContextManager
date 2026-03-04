@@ -1576,5 +1576,63 @@ export function getDashboardStyles(): string {
 			margin-top: 10px;
 			flex-wrap: wrap;
 		}
+
+		/* ─── Custom Workflows ──────────────────────────────────── */
+		.workflow-list {
+			display: flex;
+			flex-direction: column;
+			gap: 4px;
+		}
+		.workflow-item {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			padding: 6px 10px;
+			border-radius: 6px;
+			background: var(--vscode-editor-background);
+			border: 1px solid var(--vscode-widget-border);
+			transition: opacity 0.15s;
+		}
+		.workflow-item.workflow-disabled {
+			opacity: 0.5;
+		}
+		.workflow-item:hover {
+			border-color: var(--vscode-focusBorder);
+		}
+		.wf-badge {
+			display: inline-block;
+			padding: 1px 7px;
+			font-size: 0.7em;
+			border-radius: 10px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.3px;
+		}
+		.wf-badge-auto {
+			background: var(--vscode-testing-iconPassed)20;
+			color: var(--vscode-testing-iconPassed);
+			border: 1px solid var(--vscode-testing-iconPassed)40;
+		}
+		.wf-badge-manual {
+			background: var(--vscode-editorInfo-foreground)20;
+			color: var(--vscode-editorInfo-foreground);
+			border: 1px solid var(--vscode-editorInfo-foreground)40;
+		}
+		.wf-badge-both {
+			background: var(--vscode-editorWarning-foreground)20;
+			color: var(--vscode-editorWarning-foreground);
+			border: 1px solid var(--vscode-editorWarning-foreground)40;
+		}
+		.wf-var-btn {
+			background: var(--vscode-editor-background);
+			border: 1px solid var(--vscode-widget-border);
+			color: var(--vscode-editorInfo-foreground);
+			font-family: var(--vscode-editor-font-family);
+		}
+		.wf-var-btn:hover {
+			background: var(--vscode-list-hoverBackground);
+			border-color: var(--vscode-focusBorder);
+		}
 	</style>`;
 }

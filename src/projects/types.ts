@@ -46,6 +46,47 @@ export interface Project {
 	workingNotes?: WorkingNote[];         // Agent exploration memory (insights, relationships)
 	autoLearnDiscardCounts?: Record<string, number>; // Tracks discard counts per signal category for feedback loop
 	cardQueue?: QueuedCardCandidate[];    // Pending card candidates awaiting user review/approval
+	workflows?: CustomWorkflow[];         // User-defined AI workflows
+}
+
+// ─── Custom Workflow Types ─────────────────────────────────────
+
+export type WorkflowTrigger = 'auto-queue' | 'manual' | 'both';
+export type WorkflowOutputAction = 'update-card' | 'create-card' | 'append-collector';
+
+export interface CustomWorkflow {
+	id: string;
+	name: string;
+	promptTemplate: string;               // Supports {{variable}} placeholders
+	trigger: WorkflowTrigger;             // When the workflow fires
+	outputAction: WorkflowOutputAction;   // What to do with AI result
+	targetCardId?: string;                // For 'update-card' & 'append-collector'
+	enabled: boolean;
+	created: number;
+	lastRun?: number;
+	lastRunStatus?: 'success' | 'error';
+	lastRunError?: string;
+	runCount: number;
+}
+
+export function createWorkflow(
+	name: string,
+	promptTemplate: string,
+	trigger: WorkflowTrigger,
+	outputAction: WorkflowOutputAction,
+	targetCardId?: string,
+): CustomWorkflow {
+	return {
+		id: generateId(),
+		name,
+		promptTemplate,
+		trigger,
+		outputAction,
+		targetCardId,
+		enabled: true,
+		created: Date.now(),
+		runCount: 0,
+	};
 }
 
 export interface AnchorStub {
@@ -383,6 +424,11 @@ export function generateId(): string {
 }
 
 
+
+// ─── Workflow Template Variables ───────────────────────────────
+// Available: {{queue.prompt}}, {{queue.response}}, {{queue.participant}},
+// {{queue.toolCalls}}, {{card.title}}, {{card.content}}, {{card.tags}},
+// {{project.name}}, {{project.conventions}}, {{project.description}}
 
 export type BackgroundTaskType =
 	| 'auto-learn'     // Auto-learning pipeline
