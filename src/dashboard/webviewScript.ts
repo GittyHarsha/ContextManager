@@ -1367,6 +1367,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		// title edits, notes), tell the extension to suppress full re-renders
 		// so the form state isn't destroyed by background TODO progress updates.
 		let _interacting = false;
+		var _aiDraftPending = false; // True while waiting for AI draft response — prevents focusout from releasing suppression
 		function setInteracting(state) {
 			if (state === _interacting) return;
 			_interacting = state;
@@ -1409,14 +1410,15 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			if (_isTrackedInput(e.target)) {
 				// Small delay to allow focus to move to another tracked element
 				setTimeout(() => {
+					// Don't release suppression while waiting for AI draft response
+					if (_aiDraftPending) { return; }
 					const active = document.activeElement;
 					const todoFormVisible = document.getElementById('addTodoForm')?.style.display !== 'none';
 					const cardFormVisible = document.getElementById('addCardForm')?.style.display !== 'none';
 					const cacheEditVisible = document.querySelector('.inline-edit[id^="cache-edit-"][style*="block"]');
 					const cardEditVisible = document.querySelector('.inline-edit[id^="card-edit-"][style*="block"]');
-					const editorPanelVisible = document.getElementById('card-editor-panel')?.classList.contains('visible');
 					const stillEditing = _isTrackedInput(active);
-					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible && !editorPanelVisible) {
+					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible) {
 						setInteracting(false);
 					}
 				}, 100);
@@ -2217,6 +2219,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var globalToggle = document.getElementById('editor-global-toggle');
 			if (globalToggle) { globalToggle.style.display = 'none'; }
 			_editorState = { open: false, tileId: null, tileType: null, mode: null };
+			_aiDraftPending = false;
+			setInteracting(false);
 		}
 
 		function updateEditorPreview() {
@@ -2321,6 +2325,10 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			if (!activeProjectId) { return; }
 			var statusEl = document.getElementById('editor-status');
 			if (statusEl) { statusEl.textContent = '✨ Generating AI draft…'; }
+
+			// Suppress dashboard re-renders while waiting for AI response
+			_aiDraftPending = true;
+			setInteracting(true);
 
 			// Show custom prompt field if not already visible
 			var promptContainer = document.getElementById('editor-custom-prompt-container');
@@ -2446,6 +2454,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		window.addEventListener('message', function(event) {
 			var msg = event.data;
 			if (msg.command === 'populateEditor') {
+				_aiDraftPending = false; // AI draft response arrived — release the guard
 				populateEditor(msg.data);
 			}
 			if (msg.command === 'switchToSubtab' && msg.subtab) {
