@@ -25,6 +25,8 @@ export class DashboardPanel {
 	private _suppressUpdate = false;
 	private _pendingUpdate = false;
 	private _updateTimer: ReturnType<typeof setTimeout> | undefined;
+	private _suppressTimer: ReturnType<typeof setTimeout> | undefined;
+	private static readonly MAX_SUPPRESS_MS = 5000;
 
 	// Host-side active tab — survives full HTML re-renders; updated via webview message
 	private _currentTab: string = 'intelligence';
@@ -108,7 +110,7 @@ export class DashboardPanel {
 			hookWatcher: this.hookWatcher,
 			postMessage: (msg: any) => this._panel.webview.postMessage(msg),
 			update: () => this._update(),
-			setSuppressUpdate: (v: boolean) => { this._suppressUpdate = v; },
+			setSuppressUpdate: (v: boolean) => { this._setSuppressUpdate(v); },
 			endSuppression: () => this._endSuppression(),
 		};
 		this._panel.webview.onDidReceiveMessage(
@@ -177,6 +179,9 @@ export class DashboardPanel {
 		if (this._updateTimer) {
 			clearTimeout(this._updateTimer);
 		}
+		if (this._suppressTimer) {
+			clearTimeout(this._suppressTimer);
+		}
 
 		this._panel.dispose();
 
@@ -201,10 +206,30 @@ export class DashboardPanel {
 	}
 
 	/**
+	 * Set or clear suppression. When suppressing, start a safety timer that
+	 * auto-releases after MAX_SUPPRESS_MS to avoid permanently stuck state.
+	 */
+	private _setSuppressUpdate(value: boolean) {
+		this._suppressUpdate = value;
+		if (value) {
+			if (this._suppressTimer) { clearTimeout(this._suppressTimer); }
+			this._suppressTimer = setTimeout(() => {
+				if (this._suppressUpdate) {
+					console.log('[DashboardPanel] Auto-releasing stale suppression after timeout');
+					this._endSuppression();
+				}
+			}, DashboardPanel.MAX_SUPPRESS_MS);
+		} else {
+			if (this._suppressTimer) { clearTimeout(this._suppressTimer); this._suppressTimer = undefined; }
+		}
+	}
+
+	/**
 	 * End suppression and flush any queued update.
 	 */
 	private _endSuppression() {
 		this._suppressUpdate = false;
+		if (this._suppressTimer) { clearTimeout(this._suppressTimer); this._suppressTimer = undefined; }
 		if (this._pendingUpdate) {
 			this._pendingUpdate = false;
 			this._update();
@@ -229,12 +254,8 @@ export class DashboardPanel {
 		}, 120);
 	}
 
-	/** Immediate (non-debounced) render — used for initial paint only. */
+	/** Immediate (non-debounced) render. */
 	private _flushUpdate() {
-		if (this._suppressUpdate) {
-			this._pendingUpdate = true;
-			return;
-		}
 		const webview = this._panel.webview;
 		this._panel.title = 'ContextManager Dashboard';
 		this._panel.webview.html = this._getHtmlForWebview(webview);
