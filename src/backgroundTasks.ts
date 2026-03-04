@@ -42,8 +42,7 @@ let _lastChatExchange = '';
 
 /**
  * Store the last chat exchange so background tasks can reference it.
- * Called from chatParticipant after every @ctx response,
- * and from chatHooks ModelResponse for normal Copilot sessions.
+ * Called from chatHooks ModelResponse for Copilot sessions.
  */
 export function setLastChatExchange(exchange: string): void {
 	_lastChatExchange = exchange;
@@ -453,7 +452,6 @@ function _getBackgroundTools(): vscode.LanguageModelChatTool[] {
 	return vscode.lm.tools
 		.filter(tool => {
 			const name = tool.name.toLowerCase();
-			if (name === 'contextmanager_runsubagent') { return false; }
 			return (
 				name.startsWith('contextmanager_') ||
 				name.includes('haystack') ||

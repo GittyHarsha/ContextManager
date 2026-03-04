@@ -9,9 +9,9 @@
  *     dedup window. Replaces naive throttle timer.
  *  3. **Privacy tags** — `<private>content</private>` stripped before storage
  *  4. **Token economics** — tracks estimated discovery cost vs read cost
- *  5. **Tool call capture** — @ctx interactions pipe tool call metadata into
+ *  5. **Tool call capture** — interactions pipe tool call metadata into
  *     observations for per-tool-call granularity
- *  6. **FTS5 indexing** — observations indexed in SearchIndex for timeline navigation
+ *  6. **FTS4 indexing** — observations indexed in SearchIndex for timeline navigation
  */
 
 import * as vscode from 'vscode';
@@ -55,7 +55,7 @@ export interface Observation {
 	contentHash: string;
 	/** Files mentioned in the interaction. */
 	filesReferenced: string[];
-	/** Tool calls captured from @ctx interactions. */
+	/** Tool calls captured from chat interactions. */
 	toolCalls?: Array<{ name: string; input?: string }>;
 	/** Estimated token cost of the original interaction. */
 	discoveryTokens: number;
@@ -228,7 +228,7 @@ export class AutoCaptureService {
 		}
 	}
 
-	/** Wire up the FTS5 search index for observation indexing. */
+	/** Wire up the FTS4 search index for observation indexing. */
 	setSearchIndex(index: import('./search/SearchIndex').SearchIndex): void {
 		this._searchIndex = index;
 	}
@@ -304,7 +304,7 @@ export class AutoCaptureService {
 	}
 
 	/**
-	 * Capture tool call metadata from @ctx interactions.
+	 * Capture tool call metadata from chat interactions.
 	 * Creates per-tool-call observations with granular metadata.
 	 */
 	async captureToolCalls(
@@ -392,17 +392,6 @@ export class AutoCaptureService {
 		return this._observations.find(o => o.id === id);
 	}
 
-	/**
-	 * Timeline navigation: get observations around a specific anchor.
-	 */
-	getTimeline(anchorId: string, depthBefore: number = 5, depthAfter: number = 5): Observation[] {
-		const idx = this._observations.findIndex(o => o.id === anchorId);
-		if (idx === -1) { return []; }
-		const start = Math.max(0, idx - depthBefore);
-		const end = Math.min(this._observations.length, idx + depthAfter + 1);
-		return this._observations.slice(start, end);
-	}
-
 	getSessionSummary(maxItems: number = 10, maxAgeMs?: number, projectId?: string): string {
 		const recent = this.getRecentObservations(maxAgeMs, projectId);
 		if (recent.length === 0) { return ''; }
@@ -431,14 +420,6 @@ export class AutoCaptureService {
 		});
 
 		return `**Previous Session Context:**\n${entries.join('\n\n')}`;
-	}
-
-	getTokenEconomics(): { totalDiscovery: number; totalRead: number; savings: number; savingsPercent: number; count: number } {
-		const totalDiscovery = this._observations.reduce((s, o) => s + (o.discoveryTokens || 0), 0);
-		const totalRead = this._observations.reduce((s, o) => s + (o.readTokens || 0), 0);
-		const savings = totalDiscovery - totalRead;
-		const savingsPercent = totalDiscovery > 0 ? Math.round((savings / totalDiscovery) * 100) : 0;
-		return { totalDiscovery, totalRead, savings, savingsPercent, count: this._observations.length };
 	}
 
 	get observationCount(): number {
@@ -488,13 +469,13 @@ export class AutoCaptureService {
 		if (projectId) {
 			recent = recent.filter(o => o.projectId === projectId);
 		}
-		if (recent.length === 0) { return null; }
+		if (recent.length === 0) { throw new Error('No unprocessed observations to distill. Chat with Copilot first to build up observations.'); }
 
 		try {
 			const modelFamily = ConfigurationManager.autoLearnModelFamily;
 			const selector: vscode.LanguageModelChatSelector = modelFamily ? { family: modelFamily } : {};
 			const models = await vscode.lm.selectChatModels(selector);
-			if (!models.length) { return null; }
+			if (!models.length) { throw new Error(`No language model available${modelFamily ? ` (requested family: "${modelFamily}")` : ''}. Ensure Copilot Chat is active.`); }
 
 			const obsText = recent.map((o, i) => {
 				const lines = [`[${i + 1}] from:${o.participant} type:${o.type}`];
@@ -536,7 +517,7 @@ Guidelines:
 				models[0].sendRequest(messages, {}, new vscode.CancellationTokenSource().token),
 				new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 30_000)),
 			]);
-			if (!response) { return null; }
+			if (!response) { throw new Error('Language model returned no response. Try again.'); }
 
 			let text = '';
 			for await (const part of (response as any).stream ?? (response as any).text ?? []) {
@@ -679,6 +660,10 @@ Guidelines:
 	): Promise<void> {
 		if (!turns.length) { return; }
 
+		const shouldExtractConvs = ConfigurationManager.autoLearnExtractConventions;
+		const shouldExtractNotes = ConfigurationManager.autoLearnExtractWorkingNotes;
+		if (!shouldExtractConvs && !shouldExtractNotes) { return; }
+
 		try {
 			const model = await this._getModel();
 			if (!model) { return; }
@@ -718,30 +703,34 @@ Guidelines:
 
 			const validCategories = new Set(['architecture', 'naming', 'patterns', 'testing', 'tooling', 'pitfalls']);
 
-			// Save conventions
-			for (const conv of convAcc.conventions.slice(0, 5)) {
-				if (!conv?.title || !conv?.content || !validCategories.has(conv.category)) { continue; }
-				if (conv.title.length < 5 || conv.content.length < 10) { continue; }
-				const existing = this._projectManager.getConventions(projectId);
-				if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addConvention(
-					projectId, conv.category, conv.title, conv.content, 'inferred',
-					'auto-captured from multi-turn PreCompact'
-				);
-				if (saved) { conventionsCreated++; }
+			// Save conventions (only if setting enabled)
+			if (shouldExtractConvs) {
+				for (const conv of convAcc.conventions.slice(0, 5)) {
+					if (!conv?.title || !conv?.content || !validCategories.has(conv.category)) { continue; }
+					if (conv.title.length < 5 || conv.content.length < 10) { continue; }
+					const existing = this._projectManager.getConventions(projectId);
+					if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addConvention(
+						projectId, conv.category, conv.title, conv.content, 'inferred',
+						'auto-captured from multi-turn PreCompact'
+					);
+					if (saved) { conventionsCreated++; }
+				}
 			}
 
-			// Save relationships as working notes
-			for (const rel of convAcc.relationships.slice(0, 3)) {
-				if (!rel?.subject || !rel?.insight) { continue; }
-				const existing = this._projectManager.getWorkingNotes(projectId);
-				if (existing.some(n => n.subject.toLowerCase() === rel.subject.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addWorkingNote(
-					projectId, rel.subject, rel.insight,
-					rel.relatedFiles || [], rel.relatedSymbols || [],
-					'auto-captured from multi-turn PreCompact'
-				);
-				if (saved) { notesCreated++; }
+			// Save relationships as working notes (only if setting enabled)
+			if (shouldExtractNotes) {
+				for (const rel of convAcc.relationships.slice(0, 3)) {
+					if (!rel?.subject || !rel?.insight) { continue; }
+					const existing = this._projectManager.getWorkingNotes(projectId);
+					if (existing.some(n => n.subject.toLowerCase() === rel.subject.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addWorkingNote(
+						projectId, rel.subject, rel.insight,
+						rel.relatedFiles || [], rel.relatedSymbols || [],
+						'auto-captured from multi-turn PreCompact'
+					);
+					if (saved) { notesCreated++; }
+				}
 			}
 
 			// Report
@@ -782,6 +771,10 @@ Guidelines:
 		if (now - this._lastAutoDistillAt < intervalMs) { return; }
 		this._lastAutoDistillAt = now;
 
+		const shouldExtractConvs = ConfigurationManager.autoLearnExtractConventions;
+		const shouldExtractNotes = ConfigurationManager.autoLearnExtractWorkingNotes;
+		if (!shouldExtractConvs && !shouldExtractNotes) { return; }
+
 		try {
 			const result = await this.distillObservations(40, projectId);
 			if (!result) { return; }
@@ -789,31 +782,35 @@ Guidelines:
 			let conventionsCreated = 0;
 			let notesCreated = 0;
 
-			// Auto-save conventions (confidence is implicit — all distilled results are high quality)
-			for (const conv of result.conventions.slice(0, 3)) {
-				if (!conv?.title || !conv?.content) { continue; }
-				const existing = this._projectManager.getConventions(projectId);
-				if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addConvention(
-					projectId,
-					(conv.category || 'patterns') as any,
-					conv.title, conv.content, 'inferred',
-					'auto-distilled at compaction checkpoint'
-				);
-				if (saved) { conventionsCreated++; }
+			// Auto-save conventions (only if setting enabled)
+			if (shouldExtractConvs) {
+				for (const conv of result.conventions.slice(0, 3)) {
+					if (!conv?.title || !conv?.content) { continue; }
+					const existing = this._projectManager.getConventions(projectId);
+					if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addConvention(
+						projectId,
+						(conv.category || 'patterns') as any,
+						conv.title, conv.content, 'inferred',
+						'auto-distilled at compaction checkpoint'
+					);
+					if (saved) { conventionsCreated++; }
+				}
 			}
 
-			// Auto-save working notes
-			for (const note of result.workingNotes.slice(0, 3)) {
-				if (!note?.subject || !note?.insight) { continue; }
-				const existing = this._projectManager.getWorkingNotes(projectId);
-				if (existing.some(n => n.subject.toLowerCase() === note.subject.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addWorkingNote(
-					projectId, note.subject, note.insight,
-					note.relatedFiles || [], [],
-					'auto-distilled at compaction checkpoint'
-				);
-				if (saved) { notesCreated++; }
+			// Auto-save working notes (only if setting enabled)
+			if (shouldExtractNotes) {
+				for (const note of result.workingNotes.slice(0, 3)) {
+					if (!note?.subject || !note?.insight) { continue; }
+					const existing = this._projectManager.getWorkingNotes(projectId);
+					if (existing.some(n => n.subject.toLowerCase() === note.subject.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addWorkingNote(
+						projectId, note.subject, note.insight,
+						note.relatedFiles || [], [],
+						'auto-distilled at compaction checkpoint'
+					);
+					if (saved) { notesCreated++; }
+				}
 			}
 
 			if (conventionsCreated > 0 || notesCreated > 0) {
@@ -953,6 +950,10 @@ Guidelines:
 			].join('\n');
 
 			// Run convention extraction (single LLM call, no card extraction)
+			const shouldExtractConvs = ConfigurationManager.autoLearnExtractConventions;
+			const shouldExtractNotes = ConfigurationManager.autoLearnExtractWorkingNotes;
+			if (!shouldExtractConvs && !shouldExtractNotes) { return; }
+
 			const parsed = await this._llmExtract(model, CAPTURE_EXTRACTION_PROMPT, userMessage);
 			if (!parsed || typeof parsed !== 'object') { return; }
 
@@ -960,29 +961,33 @@ Guidelines:
 			let conventionsCreated = 0;
 			let notesCreated = 0;
 
-			for (const conv of (parsed.conventions || []).slice(0, 2)) {
-				if (!conv?.title || !conv?.content || !validCategories.has(conv.category)) { continue; }
-				if (conv.title.length < 5 || conv.content.length < 10) { continue; }
-				const existing = this._projectManager.getConventions(projectId);
-				if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addConvention(
-					projectId, conv.category, conv.title, conv.content, 'inferred',
-					'auto-captured from chat interaction'
-				);
-				if (saved) { conventionsCreated++; }
+			if (shouldExtractConvs) {
+				for (const conv of (parsed.conventions || []).slice(0, 2)) {
+					if (!conv?.title || !conv?.content || !validCategories.has(conv.category)) { continue; }
+					if (conv.title.length < 5 || conv.content.length < 10) { continue; }
+					const existing = this._projectManager.getConventions(projectId);
+					if (existing.some(c => c.title.toLowerCase() === conv.title.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addConvention(
+						projectId, conv.category, conv.title, conv.content, 'inferred',
+						'auto-captured from chat interaction'
+					);
+					if (saved) { conventionsCreated++; }
+				}
 			}
 
-			for (const rel of (parsed.relationships || []).slice(0, 1)) {
-				if (!rel?.subject || !rel?.insight) { continue; }
-				if (rel.subject.length < 3 || rel.insight.length < 15) { continue; }
-				const existing = this._projectManager.getWorkingNotes(projectId);
-				if (existing.some(n => n.subject.toLowerCase() === rel.subject.toLowerCase())) { continue; }
-				const saved = await this._projectManager.addWorkingNote(
-					projectId, rel.subject, rel.insight,
-					rel.relatedFiles || [], rel.relatedSymbols || [],
-					'auto-captured from chat interaction'
-				);
-				if (saved) { notesCreated++; }
+			if (shouldExtractNotes) {
+				for (const rel of (parsed.relationships || []).slice(0, 1)) {
+					if (!rel?.subject || !rel?.insight) { continue; }
+					if (rel.subject.length < 3 || rel.insight.length < 15) { continue; }
+					const existing = this._projectManager.getWorkingNotes(projectId);
+					if (existing.some(n => n.subject.toLowerCase() === rel.subject.toLowerCase())) { continue; }
+					const saved = await this._projectManager.addWorkingNote(
+						projectId, rel.subject, rel.insight,
+						rel.relatedFiles || [], rel.relatedSymbols || [],
+						'auto-captured from chat interaction'
+					);
+					if (saved) { notesCreated++; }
+				}
 			}
 
 			if (conventionsCreated > 0 || notesCreated > 0) {
@@ -992,7 +997,7 @@ Guidelines:
 				bgTasks.logCompletedTask(
 					'auto-capture',
 					`Auto-captured: ${parts.join(', ')}`,
-					`Extracted from non-@ctx chat: ${parts.join(', ')}`,
+					`Extracted from chat: ${parts.join(', ')}`,
 					[{ timestamp: Date.now(), type: 'text' as const, content: `Auto-capture learned: ${parts.join(', ')}` }],
 				);
 				console.log(`[ContextManager] Auto-capture learned: ${parts.join(', ')}`);

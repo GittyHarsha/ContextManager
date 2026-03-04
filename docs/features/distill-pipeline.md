@@ -2,7 +2,7 @@
 layout: default
 title: Distill Pipeline
 parent: Features
-nav_order: 7
+nav_order: 6
 ---
 
 # Distill Pipeline
@@ -75,10 +75,10 @@ Behavior:
 
 ## Pipeline 2: Card Queue Distillation
 
-**Trigger:** Manual ("Distill into Cards" button in Intelligence tab)  
+**Trigger:** Manual ("Distill into Cards" button in Knowledge tab)  
 **Input:** All queued card candidates (up to `cardQueue.maxSize`, default 30)  
 **Output:** Knowledge card proposals with confidence scores  
-**LLM calls:** ceil(candidates / batchSize) — typically 2–5 calls  
+**LLM calls:** ceil(candidates / batchSize) — up to 15 with a full queue (default batch size 2, max 30 candidates)  
 **Timeout:** 60 seconds per batch
 
 ### Algorithm
@@ -89,11 +89,11 @@ Behavior:
 3. For each batch:
    a. Format full prompt + response text (NO truncation — full content preserved)
    b. Send to LLM with synthesis prompt (customizable via prompts.distillQueue setting)
-   c. Parse JSON response → { cards[] }
+   c. Parse JSON response → { cards[] } (each card includes tags)
    d. Accumulate cards, stopping at maxCardsPerDistill (default 12)
 4. Return all accumulated card proposals to the UI
-5. User reviews each proposal: title, category, content, confidence %, reasoning, source indices
-6. User clicks "Add Card" per proposal or "Approve All" to batch-create
+5. User reviews each proposal: title, category, content, tags, confidence %, reasoning, source indices
+6. User clicks "Add Card" per proposal or "Approve All" to batch-create — tags are propagated through the entire approve chain
 ```
 
 ### Why batching matters
@@ -112,6 +112,7 @@ Each candidate can be thousands of tokens (full AI response). Sending all 30 can
 | `title` | Descriptive title (5–10 words) |
 | `category` | architecture, pattern, convention, explanation, or note |
 | `content` | **Full technical content** — code snippets, commands, file paths, config values, edge cases preserved verbatim |
+| `tags` | 2–5 lowercase keywords for filtering and search (e.g., `["auth", "jwt", "middleware"]`) |
 | `reasoning` | Which source response(s) this came from and why it's worth keeping |
 | `confidence` | 0.0–1.0 score reflecting how reusable and project-specific this knowledge is |
 | `sourceIndices` | Array of 1-based indices into the candidate list |
@@ -199,44 +200,36 @@ Customization replaces only the **instruction** part of the prompt. The data (ob
 
 ## Data Flow Summary
 
-```
-User chats with Copilot
-        │
-        ▼
-┌─────────────────────┐
-│  Hook Scripts        │  capture.ps1 / capture.sh
-│  (all participants)  │  append to hook-queue.jsonl
-└────────┬────────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  HookWatcher         │  byte-offset tracking, dedup
-│                      │  routes by hookType
-└────────┬────────────┘
-         │
-    ┌────┴────┬──────────┐
-    ▼         ▼          ▼
-  Stop     PostToolUse  PreCompact
-    │         │          │
-    ▼         ▼          ▼
-┌────────┐ ┌────────┐ ┌──────────────┐
-│Observe │ │Observe │ │Multi-Turn    │
-│+ Queue │ │        │ │Extraction    │
-└───┬────┘ └────────┘ │(iterative)   │
-    │                  └──────┬───────┘
-    │                         │
-    ▼                         ▼
-┌────────────────┐    ┌──────────────┐
-│ Card Queue     │    │ Auto-save    │
-│ (staging)      │    │ conventions  │
-│                │    │ + notes      │
-│ User: Distill  │    └──────────────┘
-│       ↓        │
-│ Batch synthesis│
-│       ↓        │
-│ Review + Add   │
-└────────────────┘
-```
+{::nomarkdown}
+<pre class="mermaid">
+graph TD
+    A[User chats with Copilot] --> B["Hook Scripts (all participants)"]
+    B -- "capture.ps1 / capture.sh" --> C[append to hook-queue.jsonl]
+    C --> D[HookWatcher]
+    D -- "byte-offset tracking, dedup" --> E{Route by hookType}
+    E --> F[Stop]
+    E --> G[PostToolUse]
+    E --> H[PreCompact]
+    F --> I["Observe + Queue"]
+    G --> J[Observe]
+    H --> K["Multi-Turn Extraction (iterative)"]
+    I --> L["Card Queue (staging)"]
+    K --> M["Auto-save conventions + notes"]
+    L --> N["User: Distill"]
+    N --> O[Batch synthesis]
+    O --> P[Review + Add]
+
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style B fill:#9e6a03,stroke:#d29922,color:#fff
+    style D fill:#1158c7,stroke:#388bfd,color:#fff
+    style F fill:#238636,stroke:#3fb950,color:#fff
+    style G fill:#238636,stroke:#3fb950,color:#fff
+    style H fill:#238636,stroke:#3fb950,color:#fff
+    style L fill:#1f6feb,stroke:#388bfd,color:#fff
+    style M fill:#238636,stroke:#3fb950,color:#fff
+    style P fill:#238636,stroke:#3fb950,color:#fff
+</pre>
+{:/nomarkdown}
 
 ---
 

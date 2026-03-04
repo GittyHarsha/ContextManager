@@ -32,8 +32,8 @@ graph TB
         L4D[ContextManager]
     end
 
-    style L4 fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style L4D fill:#7c3aed,stroke:#a78bfa,color:#fff
+    style L4 fill:#1f6feb,stroke:#388bfd,color:#fff
+    style L4D fill:#1f6feb,stroke:#388bfd,color:#fff
 </pre>
 {:/nomarkdown}
 Layers 1–3 are **author-first**: you write them at setup time. Layer 4 is **discover-first**: knowledge accumulates dynamically as you work.
@@ -50,10 +50,9 @@ A `copilot-instructions.md` might say "use the repository pattern." ContextManag
 
 Every other tool is author-first: you write the file, the AI reads it. ContextManager inverts this:
 
-- `@ctx /knowledge` - AI researches your codebase, creates a card
-- `@ctx /refine` - AI improves an existing card with fresh research
-- `@ctx /done` - end-of-task retrospective captures what worked automatically
-- Subagent tasks auto-create cards as a side effect of work
+- Auto-capture and card queue — AI responses are captured and distilled into cards
+- `#saveCard` — save a new knowledge card on demand
+- `#editCard` — improve an existing card
 
 ### Three kinds of persistent memory, not one.
 
@@ -79,7 +78,7 @@ BM25 full-text search across cards, cache, sessions, conventions, hints, and not
 
 ### Team knowledge, not personal notes.
 
-Export to git-tracked Markdown. `@ctx /handoff` packages the project for incoming contributors.
+Export to git-tracked Markdown for team onboarding.
 
 ---
 
@@ -93,15 +92,15 @@ Export to git-tracked Markdown. `@ctx /handoff` packages the project for incomin
 | "Here's what the auth flow actually does in our app" | ContextManager knowledge card |
 | "We tried EventBus and abandoned it" | ContextManager convention |
 | "Search `TabStripController` not `tab strip`" | ContextManager tool hint |
-| "Onboard a new dev without writing a doc" | `@ctx /handoff` |
+| "Onboard a new dev without writing a doc" | Export cards as git-tracked Markdown |
 
 ---
 
 ## The Progression of a Real Project
 
-**Phase 1 - Discovery.** You explore with the agent. `@ctx /knowledge` generates cards. `@ctx /save` captures insights. Intelligence learns which patterns hold in practice.
+**Phase 1 - Discovery.** You explore with the agent. Card queue captures insights automatically. Use `#saveCard` or the dashboard to create cards on demand. Intelligence learns which patterns hold in practice.
 
-**Phase 2 - Building.** TODOs drive the work. `@ctx /done` runs retrospectives. Intelligence accumulates.
+**Phase 2 - Building.** Work proceeds normally. Auto-capture records context. Intelligence accumulates.
 
 **Phase 3 - Cumulative leverage.** The AI knows the codebase - not because the model improved, but because accumulated knowledge is there from session start. The next developer lands in the same place in an hour instead of a week.
 
@@ -113,10 +112,10 @@ Export to git-tracked Markdown. `@ctx /handoff` packages the project for incomin
 Every key discovery becomes a knowledge card automatically. No separate documentation step.
 
 ### The Builder
-TODOs with autonomous AI agents, conversation history, accumulated intelligence. Context window resets don't reset progress.
+Autonomous AI agents with accumulated intelligence. Context window resets don't reset progress.
 
 ### The Tech Lead
-Accumulated knowledge is git-tracked Markdown. New hires get it on day one. `@ctx /handoff` packages the entire project context for any newcomer.
+Accumulated knowledge is git-tracked Markdown. New hires get it on day one. Export cards as Markdown files for any newcomer.
 
 ---
 

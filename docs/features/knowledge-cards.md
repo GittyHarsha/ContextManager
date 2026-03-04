@@ -17,7 +17,7 @@ Persistent, structured AI memory that survives context window resets, session bo
 
 Knowledge cards are structured notes - architecture decisions, coding conventions, discovered patterns, deep explanations - that you curate and select to automatically enhance all Copilot responses.
 
-Unlike conversation history that disappears when the context window fills, knowledge cards live in your project database. They are injected at the start of every AI interaction.
+Unlike conversation history that disappears when the context window fills, knowledge cards live in your project database. Cards checked (selected) in the Knowledge tab are automatically injected into every Copilot prompt via the agent hook system.
 
 ---
 
@@ -46,41 +46,55 @@ Open the Dashboard → Knowledge tab → **+ New Card**. Select a template:
 | Code Pattern | Reusable patterns found in the codebase |
 | Onboarding Note | Things a new developer needs to know |
 
-### Manual Creation with `@ctx` Commands
+### Generate with AI
 
-Use these when you want to create a card immediately, on demand:
+Click **Generate with AI** in the Knowledge tab to create a card from a topic prompt. This uses the VS Code Language Model API directly (`vscode.lm.selectChatModels()`):
 
-**Research & generate — `/knowledge`**
-```
-@ctx /knowledge Research the observer pattern in this codebase
-```
-The AI searches your codebase, reads relevant files, synthesizes findings, and creates a structured card.
+1. Enter a topic (e.g., "authentication flow", "error handling patterns")
+2. The LLM researches your existing cards to avoid duplication
+3. A cancellable progress notification tracks generation
+4. The resulting card is saved directly to your knowledge base
 
-**Answer + save — `/save`**
-```
-@ctx /save How does authentication work in this project?
-```
-This answers your question AND saves the response as a card. One command, two outcomes.
+Uses the same model configured in **Extraction Model** (`intelligence.autoLearn.modelFamily`).
 
-**Save last response — `/add`**
+### AI Synthesis with Custom Prompt
+
+Select one or more items in the card queue and click **✨ AI Synthesize**. The editor panel opens with:
+
+- A **custom prompt** textarea where you can provide specific instructions (e.g., "Focus on security implications", "Write as an onboarding guide")
+- Click **✨ AI Draft** to generate the card
+
+If no custom prompt is provided, the default synthesis prompt is used. Custom prompts are injected as a `## User's Custom Instructions` section in the LLM prompt, between the system instructions and the source material.
+
+### From Copilot Chat with Tools
+
+Use Language Model Tools when you want to create a card immediately from a chat session:
+
+**Save a new card — `#saveCard`**
 ```
-@ctx /add
+#saveCard title:"Authentication Flow" content:"The auth system uses JWT..." category:"architecture"
 ```
-Saves the most recent AI response in the current chat as a knowledge card.
+
+**Edit an existing card — `#editCard`**
+```
+#editCard id:"card-id" content:"Updated content..."
+```
+
+**Organize cards into folders — `#organizeCards`**
+```
+#organizeCards
+```
 
 ---
 
 ## Refining Cards
 
-Cards improve over time. Use AI to update them with fresh research:
+Cards improve over time. Use the dashboard to refine them:
 
-```
-@ctx /refine
-```
+1. Open the Dashboard → **Knowledge** tab
+2. Click **Edit** on any card to modify content directly
+3. Right-click a card → **Refine with AI** for AI-assisted updates
 
-The AI picks a card, researches your codebase for new information, and updates the card content - using workspace file access, tool-calling loops, and full project context.
-
-{: .tip }
 You can also select text on a card in the Dashboard, right-click → "Refine Selection with AI" for targeted updates.
 
 ---
@@ -98,6 +112,14 @@ Each card is categorized for organization and filtering:
 | `note` | 📝 | General working notes |
 | `other` | 🔖 | Uncategorized or miscellaneous |
 
+### Tags
+
+Cards can have **tags** — 2–5 lowercase keywords for filtering and search. Tags are:
+
+- **Auto-generated** by the LLM when cards are created via the distill pipeline or AI synthesis
+- **Editable** in the card editor
+- **Propagated** through the full distill → approve chain (individual and batch approval)
+
 ---
 
 ## Progressive Disclosure
@@ -114,11 +136,15 @@ This keeps prompt tokens under control while preserving access to all knowledge.
 
 ### copilot-instructions.md Managed Block
 
-Cards marked **Pinned** or **Include in Context** have their titles listed in the auto-managed block inside `copilot-instructions.md`. This block also includes `#ctx` tool usage instructions, so agents know how to search for more:
+Cards marked **Pinned** have their titles listed in the auto-managed block inside `copilot-instructions.md`. This block also includes `#ctx` tool usage instructions, so agents know how to search for more:
 
 - **Pinned cards** — titles listed in the managed block (always visible to all agents)
 - **On demand** — any card is accessible via `#getCard` or `#searchCards` — agents can request full content when needed
 - **Search** — `#ctx query:"topic"` searches across all cards, conventions, notes, and more
+
+### Hook Injection via Knowledge Tab Selection
+
+Cards checked in the Knowledge tab are included in the `session-context.txt` file that the `UserPromptSubmit` hook reads. This means selected cards are injected as a system message into **every** Copilot prompt. The dashboard's "Inject into Every Prompt" section lets you optionally add a custom instruction and toggle full card content inclusion. Archived cards are automatically excluded.
 
 ---
 
@@ -151,8 +177,6 @@ Three boolean flags control card behavior:
 ## Staleness Detection
 
 Cards not updated in 30+ days are flagged with ⚠️ in both the dashboard and during prompt injection. This signals to the AI that the information may be outdated and should be verified.
-
-Use `@ctx /audit` to scan all cards for staleness - checking if referenced files still exist and flagging content that may be outdated.
 
 ---
 
@@ -202,5 +226,5 @@ Staleness checks run automatically when the dashboard opens and on every file sa
 
 ## Next Steps
 
-[Project Intelligence →]({% link features/project-intelligence.md %})
+[Search →]({% link features/search.md %})
 {: .fs-5 }

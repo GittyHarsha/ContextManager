@@ -39,8 +39,8 @@ ContextManager was built specifically for this gap - persistent project memory t
     <p>Automatically captures conventions, tool hints, and working notes from all chat interactions. Learns continuously as you work.</p>
   </div>
   <div class="feature-card">
-    <h4>💬 Chat Participant</h4>
-    <p>15 specialized <code>@ctx</code> commands for deep code exploration, knowledge generation, task delegation, and retrospectives.</p>
+    <h4>💬 Language Model Tools</h4>
+    <p>6 tools available to every Copilot agent — search knowledge, save cards, organize, and more via <code>#ctx</code>.</p>
   </div>
   <div class="feature-card">
     <h4>🔍 BM25 Search</h4>
@@ -51,16 +51,12 @@ ContextManager was built specifically for this gap - persistent project memory t
     <p>Automatic staging buffer that captures AI responses and synthesizes high-quality knowledge card proposals.</p>
   </div>
   <div class="feature-card">
-    <h4>🤖 Subagent Tool</h4>
-    <p>Delegate complex multi-step tasks to an autonomous agent with full codebase access and pre-filled project context.</p>
-  </div>
-  <div class="feature-card">
     <h4>📊 Dashboard</h4>
-    <p>Centralized management with 6 tabs: Overview, Intelligence, Knowledge, Cache, Context, and Settings.</p>
+    <p>Centralized management with 4 tabs: Intelligence, Knowledge, Context, and Settings.</p>
   </div>
   <div class="feature-card">
     <h4>🔗 Works Everywhere</h4>
-    <p>11 Language Model Tools available to Copilot Chat, background agents, cloud agents, and Codex. Type <code>#ctx</code> in any chat.</p>
+    <p>7 Language Model Tools available to Copilot Chat, background agents, cloud agents, and Codex. Type <code>#ctx</code> in any chat.</p>
   </div>
 </div>
 ---
@@ -74,10 +70,10 @@ graph TD
     B --> C[Knowledge Cards grow as you work]
     C --> D[Every new session starts informed]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style B fill:#2563eb,stroke:#58a6ff,color:#fff
-    style C fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style D fill:#059669,stroke:#3fb950,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style B fill:#1158c7,stroke:#388bfd,color:#fff
+    style C fill:#1f6feb,stroke:#388bfd,color:#fff
+    style D fill:#238636,stroke:#3fb950,color:#fff
 </pre>
 {:/nomarkdown}
 The AI never starts from scratch again. Each session builds on everything that came before it.
@@ -109,10 +105,7 @@ Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover
 >
 > **4.** Once a week: open the Dashboard → Knowledge tab → Card Queue section → click **Distill into Cards** to review captured knowledge
 >
-> **5.** Every new session starts informed automatically — no `@ctx` commands needed
-
-{: .tip }
-You can use `@ctx` commands for explicit control, but the extension delivers value from day one without them.
+> **5.** Every new session starts informed automatically — no special commands needed
 
 [Installation →]({% link installation.md %})
 {: .fs-5 }
@@ -129,7 +122,7 @@ You can use `@ctx` commands for explicit control, but the extension delivers val
 
 ## What's New in v2.1
 
-- **Zero-`@ctx` workflow** — Everything works without typing a single command. Install, create a project, chat normally.
+- **Zero-command workflow** — Everything works without typing a single command. Install, create a project, chat normally.
 - **Smart-merge on queue approval** — When approving a queued card, similar existing cards surface for merging (Jaccard ≥ 30%). Merge is the default action.
 - **Unified `#ctx` tool** — Single entry point for search, list, learn, and getCard across all knowledge types
 - **copilot-instructions.md managed block** — Auto-synced tool discovery instructions and pinned card titles

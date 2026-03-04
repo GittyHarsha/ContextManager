@@ -18,19 +18,7 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 |:--------|:--------|:------------|
 | `contextManager.showStatusBar` | `true` | Show active project in the status bar |
 | `contextManager.confirmDelete` | `true` | Confirmation dialog before deleting items |
-| `contextManager.autoSelectKnowledgeCards` | `false` | Auto-select relevant cards based on context |
-| `contextManager.maxKnowledgeCardsInContext` | `5` | Maximum cards to include in AI prompts (1–20) |
-| `contextManager.cacheExpiration` | `30` | Days to keep cached explanations (0 = never) |
-| `contextManager.enableContextByDefault` | `true` | Auto-enable context for new projects |
-
----
-
-## Chat
-
-| Setting | Default | Description |
-|:--------|:--------|:------------|
-| `contextManager.chat.includeCopilotInstructions` | `true` | Include `.github/copilot-instructions.md` |
-| `contextManager.chat.includeReadme` | `true` | Include README.md in project context |
+| `contextManager.maxKnowledgeCardsInContext` | `10` | Maximum cards to include in AI prompts (1–20) |
 
 ---
 
@@ -39,7 +27,7 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 | Setting | Default | Description |
 |:--------|:--------|:------------|
 | `contextManager.autoCapture.enabled` | `true` | Enable automatic observation recording |
-| `contextManager.autoCapture.learnFromAllParticipants` | `true` | Learn from non-@ctx interactions |
+| `contextManager.autoCapture.learnFromAllParticipants` | `true` | Learn from all chat participant interactions |
 | `contextManager.autoCapture.maxObservations` | `50` | Max observations in circular buffer |
 
 ---
@@ -58,11 +46,11 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
-| `contextManager.intelligence.enableTieredInjection` | `true` | Sync intelligence to copilot-instructions.md |
+| `contextManager.intelligence.enableTieredInjection` | `true` | Auto-inject conventions and top tool hints into every chat prompt (Tier 1+2) |
 | `contextManager.intelligence.enableStalenessTracking` | `true` | File-based staleness tracking on working notes and knowledge cards |
 | `contextManager.intelligence.stalenessAgeDays` | `30` | Days before knowledge cards are flagged as age-stale (7–365) |
-| `contextManager.intelligence.tier1MaxTokens` | `400` | Token budget for Tier 1 (always-injected) learnings |
-| `contextManager.intelligence.tier2MaxTokens` | `400` | Token budget for Tier 2 (task-relevant) learnings |
+| `contextManager.intelligence.tier1MaxTokens` | `400` | Token budget for Tier 1 (always-injected) learnings (100–1000) |
+| `contextManager.intelligence.tier2MaxTokens` | `400` | Token budget for Tier 2 (task-relevant) learnings (100–1000) |
 
 ### Auto-Learn
 
@@ -88,12 +76,10 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
-| `contextManager.intelligence.injectIntoAllParticipants` | `true` | Inject intelligence into all chat participants |
 | `contextManager.intelligence.injectConventions` | `true` | Include conventions in auto-injected context |
 | `contextManager.intelligence.injectToolHints` | `true` | Include tool hints in auto-injected context |
 | `contextManager.intelligence.injectWorkingNotes` | `true` | Include working notes in auto-injected context |
 | `contextManager.intelligence.injectKnowledgeCards` | `true` | Include knowledge cards in auto-injected context |
-| `contextManager.intelligence.injectionMaxChars` | `0` | Max characters injected per prompt (0 = unlimited) |
 
 ---
 
@@ -111,10 +97,11 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 
 ## Prompt Customization
 
-Customize the system prompts used by the distiller agents. Leave empty to use defaults.
+Customize the system prompts used by the distill pipelines. Leave empty to use defaults.
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
+| `contextManager.prompts.globalInstructions` | _(empty)_ | Global custom instructions appended to all prompts |
 | `contextManager.prompts.distillObservations` | _(built-in)_ | System prompt for distilling observations into conventions, tool hints, and working notes |
 | `contextManager.prompts.distillQueue` | _(built-in)_ | System prompt for synthesizing card queue candidates into knowledge cards |
 | `contextManager.prompts.synthesizeCard` | _(built-in)_ | System prompt for the dashboard's "Synthesize Card" action |
@@ -132,22 +119,11 @@ Customize the system prompts used by the distiller agents. Leave empty to use de
 
 ---
 
-## Subagent
-
-| Setting | Default | Description |
-|:--------|:--------|:------------|
-| `contextManager.subagent.enabled` | `true` | Enable the subagent tool |
-| `contextManager.subagent.maxIterations` | `50` | Max tool-calling iterations per run (10–200) |
-| `contextManager.subagent.modelFamily` | _(auto)_ | Preferred model family |
-
----
-
 ## Explanations
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
 | `contextManager.explanation.expandContext` | `true` | Expand surrounding code when explaining |
-| `contextManager.explanation.includeReferences` | `true` | Include file references |
 
 ---
 
@@ -155,17 +131,7 @@ Customize the system prompts used by the distiller agents. Leave empty to use de
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
-| `contextManager.context.autoDeselectAfterUse` | `false` | Deselect cards/cache after use |
 | `contextManager.context.stubLines` | `5` | Lines of code captured per anchor stub for knowledge cards |
-
----
-
-## Dashboard
-
-| Setting | Default | Description |
-|:--------|:--------|:------------|
-| `contextManager.dashboard.defaultTab` | `"overview"` | Tab shown when dashboard opens |
-| `contextManager.notifications.showProgress` | `true` | Show progress notifications |
 
 ---
 
@@ -173,7 +139,6 @@ Customize the system prompts used by the distiller agents. Leave empty to use de
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
-| `contextManager.saveAsCard.showFollowups` | `true` | Show 'Save as Knowledge Card' follow-up buttons after @ctx commands |
 | `contextManager.saveAsCard.smartMerge` | `true` | Enable smart merge detection when saving knowledge cards |
 
 ---
@@ -186,18 +151,8 @@ Customize the system prompts used by the distiller agents. Leave empty to use de
 
 ---
 
-## Custom Prompts
+## Experimental
 
-Override default system prompts for any command:
-
-| Setting | Default |
-|:--------|:--------|
-| `contextManager.prompts.chat` | _(built-in)_ |
-| `contextManager.prompts.explain` | _(built-in)_ |
-| `contextManager.prompts.usage` | _(built-in)_ |
-| `contextManager.prompts.relationships` | _(built-in)_ |
-| `contextManager.prompts.research` | _(built-in)_ |
-| `contextManager.prompts.refine` | _(built-in)_ |
-| `contextManager.prompts.globalInstructions` | _(built-in)_ |
-
-Set to an empty string to use the built-in default.
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `contextManager.experimental.enableProposedApi` | `false` | Enable proposed VS Code APIs for enhanced features like Smart Select embeddings. Requires VS Code Insiders. |

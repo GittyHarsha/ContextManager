@@ -12,6 +12,29 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.2.0] - 2026-03-03
+
+### Added
+- **Tags in distill-to-approve pipeline** — Distilled cards now carry 2–5 keyword tags from the LLM, propagated through the full approve chain (individual and batch)
+- **Custom prompt for AI synthesis** — ✨ AI Synthesize opens the editor with an optional custom prompt textarea for user-directed generation
+- **Generate with AI uses LM API directly** — Knowledge tab button now calls the Language Model API directly with cancellable progress and robust JSON parsing
+- **Descriptive error messages** — All AI failure paths show specific reasons instead of generic messages
+
+### Changed
+- **Unified card selection for hook injection** — Knowledge tab checkboxes now drive the "Inject into Every Prompt" hook system directly. The duplicate card picker in the injection section has been removed.
+- **Hook renamed SessionStart → UserPromptSubmit** — Capture script now uses `UserPromptSubmit` with `hookSpecificOutput` wrapper instead of the old `SessionStart` event
+- **Injection section simplified** — Dashboard injection section shows selected card count, custom instruction, and full-content toggle only
+
+### Fixed
+- **Multi-strategy JSON parsing** — 3 fallback strategies for parsing LLM responses with preamble text
+- **Config crash on non-string values** — Safe `getString()` helper prevents `.trim()` on null/undefined
+
+### Removed
+- **Agents feature** — Entire feature removed (dashboard tab, handlers, methods, types, config, hook entries)
+- **Overview tab** — Removed from dashboard. Intelligence is now the default tab.
+
+---
+
 ## [2.1.0] - 2026-02-27
 
 ### Added
@@ -48,7 +71,7 @@ All notable changes to ContextManager.
 - **Intelligence tab** - New dashboard tab (🧠 Intelligence) for Auto-Capture, Auto-Learn, observations, conventions, tool hints, working notes, token economics, card queue
 
 ### Changed
-- **TODOs tab removed** - TODOs continue via `@ctx /todo` and `#manageTodos`
+- **TODOs tab removed** - TODOs are now user-managed only (no agent TODO tools)
 - **Observations and Token Economics** moved to Intelligence tab
 
 ---

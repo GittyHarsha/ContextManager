@@ -19,13 +19,9 @@ They complement each other. ContextManager now auto-syncs a managed block **into
 
 Yes. All data (projects, knowledge cards, intelligence, observations) is stored on disk in JSON files. Nothing is lost when VS Code restarts or the context window resets.
 
-### Can Copilot see my context without `@ctx`?
+### Can Copilot see my context without any special commands?
 
-Yes. ContextManager auto-syncs a managed block into `.github/copilot-instructions.md` with `#ctx` tool discovery instructions and pinned card titles — VS Code always includes this file, so every agent starts informed. Type `#ctx` in any Copilot Chat query for on-demand access to all project knowledge. All 11 Language Model Tools are available to background agents, cloud agents, and Codex.
-
-### What is the subagent tool?
-
-`#ctxSubagent` launches an autonomous subagent with its own tool-calling loop. It gets pre-filled project context and can search, read, and use all ContextManager tools independently. Delegate research, TODO execution, knowledge generation, or code analysis without consuming the main agent's context budget.
+Yes. ContextManager auto-syncs a managed block into `.github/copilot-instructions.md` with `#ctx` tool discovery instructions and pinned card titles — VS Code always includes this file, so every agent starts informed. Type `#ctx` in any Copilot Chat query for on-demand access to all project knowledge. All 6 Language Model Tools are available to background agents, cloud agents, and Codex.
 
 ### Is my data sent anywhere?
 
@@ -37,11 +33,11 @@ Project data (cards, intelligence, observations) is stored locally. The only ext
 
 ### How many cards can I have?
 
-There's no hard limit on the number of cards. The `maxKnowledgeCards` setting (default: 5) controls how many are injected into AI prompts, not how many you can create.
+There's no hard limit on the number of cards. The `maxKnowledgeCardsInContext` setting (default: 10) controls how many are injected into AI prompts, not how many you can create.
 
 ### Do all cards go into every prompt?
 
-No. **Pinned cards** have their titles included in the `copilot-instructions.md` managed block, which VS Code includes in every prompt. For full card content and additional cards, agents can search on demand via `#ctx` or `#searchCards`.
+No. **Selected cards** (checked in the Knowledge tab) are injected into every prompt via the agent hook system. **Pinned cards** also have their titles in the `copilot-instructions.md` managed block. For additional cards, agents can search on demand via `#ctx` or `#searchCards`. Archived cards are automatically excluded from injection.
 
 ### How do I share cards with my team?
 
@@ -59,7 +55,7 @@ Global cards are a planned feature that will allow sharing cards across all proj
 
 **Auto-Capture** records every AI response as a lightweight observation (always on, zero LLM cost).
 
-**Auto-Learn** runs an LLM extraction on non-@ctx interactions to learn conventions, tool hints, and working notes (configurable, moderate LLM cost).
+**Auto-Learn** runs an LLM extraction on chat interactions to learn conventions, tool hints, and working notes (configurable, moderate LLM cost).
 
 ### How does staleness tracking work?
 
@@ -127,19 +123,3 @@ Minimal impact. Key design choices:
 ### How much disk space does it use?
 
 Typically 1–5 MB per project. The search index is usually under 1 MB. The VSIX itself is ~9.5 MB (mostly sql.js WebAssembly + Mermaid.js).
-
----
-
-## Proposed APIs
-
-### What are the proposed API features?
-
-Features that use VS Code's proposed (unstable) APIs - they auto-activate on VS Code Insiders and gracefully degrade on stable VS Code:
-
-- Chat Status Item - project name in chat panel
-- Participant Variables - `#projectInfo`, `#knowledgeCards`
-- Tool Progress - rich indicators during tool loops
-- Chat Sessions - TODO agent runs as browsable sessions
-- Smart Select - embedding-based card selection
-
-No setting required. They just work when available.

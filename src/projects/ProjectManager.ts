@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId } from './types';
+import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId, PromptInjection } from './types';
 import { Storage } from './storage';
 import { ExplanationCache } from '../cache';
 import { ConfigurationManager } from '../config';
@@ -27,7 +27,7 @@ export class ProjectManager extends vscode.Disposable {
 		this.storage = new Storage(context);
 	}
 
-	/** Attach the FTS5 search index for incremental updates on mutations. */
+	/** Attach the FTS4 search index for incremental updates on mutations. */
 	setSearchIndex(index: SearchIndex): void {
 		this._searchIndex = index;
 	}
@@ -166,6 +166,16 @@ export class ProjectManager extends vscode.Disposable {
 		await this.updateProject(projectId, {
 			toolSharingConfig: { ...current, ...config }
 		});
+	}
+
+	// ============ Prompt Injection ============
+
+	async setPromptInjection(projectId: string, injection: PromptInjection): Promise<void> {
+		await this.updateProject(projectId, { promptInjection: injection });
+	}
+
+	async clearPromptInjection(projectId: string): Promise<void> {
+		await this.updateProject(projectId, { promptInjection: undefined });
 	}
 
 	// ============ TODOs ============
@@ -1011,7 +1021,7 @@ export class ProjectManager extends vscode.Disposable {
 	}
 
 	/**
-	 * Merge a queue candidate into an existing card: appends content, removes from queue.
+	 * Merge a queue candidate into an existing card: appends content, merges tags & tool usages, removes from queue.
 	 */
 	async mergeCardFromQueue(
 		projectId: string,
@@ -1031,8 +1041,36 @@ export class ProjectManager extends vscode.Disposable {
 		const newContent = overrides?.content || candidate.suggestedContent;
 		const mergedContent = `${targetCard.content}\n\n---\n**Merged from queue (${new Date().toLocaleDateString()}):**\n${newContent}`;
 
+		// Merge tags: union of target + candidate suggested category as tag
+		const mergedTags = [...new Set([
+			...(targetCard.tags || []),
+			...(candidate.suggestedCategory ? [candidate.suggestedCategory] : []),
+		])];
+
+		// Merge tool usages: if candidate has tool calls, add them as tool usage patterns
+		const mergedToolUsages = [...(targetCard.toolUsages || [])];
+		if (candidate.toolCalls?.length) {
+			for (const tc of candidate.toolCalls) {
+				const existing = mergedToolUsages.find(u => u.toolName === tc.toolName);
+				if (existing) {
+					existing.successCount = (existing.successCount || 0) + 1;
+					existing.lastUsed = Date.now();
+				} else {
+					mergedToolUsages.push({
+						toolName: tc.toolName,
+						pattern: tc.input?.substring(0, 200) || '',
+						example: tc.output?.substring(0, 200) || '',
+						successCount: 1,
+						lastUsed: Date.now(),
+					});
+				}
+			}
+		}
+
 		const updated = await this.updateKnowledgeCard(projectId, targetCardId, {
 			content: mergedContent,
+			tags: mergedTags,
+			toolUsages: mergedToolUsages,
 		});
 
 		// Remove candidate from queue
@@ -1928,4 +1966,5 @@ export class ProjectManager extends vscode.Disposable {
 		}
 		return best;
 	}
+
 }

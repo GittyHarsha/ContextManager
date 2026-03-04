@@ -29,14 +29,14 @@ ContextManager auto-discovers `.github/copilot-instructions.md` and `README.md` 
 
 ## Step 2 — (One-time) Register the Hook
 
-To capture responses from **all** chat participants — not just `@ctx` — register the VS Code agent hook once:
+To capture responses from **all** chat participants, register the VS Code agent hook once:
 
 1. Open the Dashboard → **Settings** tab
-2. Click **Copy hook install command**
-3. Paste and run it in your terminal — it registers `capture.ps1` as a VS Code agent `Stop` hook
+2. Expand the **🪝 Agent Hooks** section
+3. Click **Install Hooks** — this copies `capture.ps1` to `~/.contextmanager/scripts/` and writes `hooks.json` to `.github/hooks/`
 
 {: .note }
-Without the hook, intelligence still accumulates from `@ctx` interactions. With the hook, every Copilot Chat, `@workspace`, and background agent response is also captured automatically.
+Without the hook, intelligence still accumulates from auto-capture during your active chat sessions. With the hook, every Copilot Chat, `@workspace`, and background agent response is also captured automatically.
 
 ---
 
@@ -67,9 +67,9 @@ No commands. No setup. It just runs.
 
 AI responses accumulate in the **Card Queue**. When you have a few:
 
-1. Open the Dashboard → **Queue** tab
-2. Click **Distill into Cards** — one LLM call synthesizes all queued items into card proposals
-3. Review proposals: click **+ Add Card** for ones worth keeping (or **Approve All**)
+1. Open the Dashboard → **Knowledge** tab → **📬 Card Queue** subtab
+2. Click **🤖 Distill into Cards** — one LLM call synthesizes all queued items into card proposals
+3. Review proposals: click **✓ Add** for ones worth keeping (or **Approve All**)
 4. If a similar card already exists, a **merge picker** appears — merge is the default action
 
 {: .tip }
@@ -82,45 +82,9 @@ You don't need to review the queue every session. Weekly or per-feature review i
 From now on, every new Copilot session automatically receives context two ways:
 
 - **`copilot-instructions.md` managed block**: ContextManager auto-syncs a managed section into your `.github/copilot-instructions.md` containing `#ctx` tool usage instructions and pinned card titles. VS Code always includes this file, so every agent starts informed.
-- **`#ctx` tool**: Available to all agents for on-demand search, list, learn, and getCard across all project knowledge — no `@ctx` participant required.
+- **`#ctx` tool**: Available to all agents for on-demand search, list, learn, and getCard across all project knowledge.
 
 The AI knows your architecture, conventions, and recent discoveries without you repeating yourself.
-
----
-
-## Optional: `@ctx` Manual Controls
-
-Everything above happens automatically. Use `@ctx` only when you want explicit control:
-
-**Exploration**
-
-| What you want | Command |
-|:--------------|:--------|
-| Ask questions with full project context (default) | `@ctx /chat How is the auth pipeline structured?` |
-| Deep-dive explanation of a symbol/concept | `@ctx /explain AuthController` |
-| Explain why code is used at a location | `@ctx /usage Why is retry logic here?` |
-| Show class hierarchies and architecture | `@ctx /relationships NetworkClient` |
-| Show current project context | `@ctx /context` |
-
-**Knowledge creation**
-
-| What you want | Command |
-|:--------------|:--------|
-| Research a topic and create a card | `@ctx /knowledge Research the auth flow` |
-| Improve an existing card with fresh research | `@ctx /refine` |
-| Answer a question and save as a card | `@ctx /save How does error handling work?` |
-| Save the last AI response as a card | `@ctx /add` |
-| [Experimental] Generate doc comments | `@ctx /doc` |
-
-**Workflow**
-
-| What you want | Command |
-|:--------------|:--------|
-| Work on a TODO with full project context | `@ctx /todo Implement the caching layer` |
-| End-of-task retrospective | `@ctx /done` |
-| Generate handoff document | `@ctx /handoff` |
-| Scan cards for staleness | `@ctx /audit` |
-| Generate architectural overview | `@ctx /map` |
 
 ---
 
@@ -135,11 +99,11 @@ graph TD
     D --> E[Copilot starts informed]
     E --> A
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style B fill:#2563eb,stroke:#58a6ff,color:#fff
-    style C fill:#059669,stroke:#3fb950,color:#fff
-    style D fill:#2563eb,stroke:#58a6ff,color:#fff
-    style E fill:#7c3aed,stroke:#a78bfa,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style B fill:#1158c7,stroke:#388bfd,color:#fff
+    style C fill:#238636,stroke:#3fb950,color:#fff
+    style D fill:#1158c7,stroke:#388bfd,color:#fff
+    style E fill:#1f6feb,stroke:#388bfd,color:#fff
 </pre>
 {:/nomarkdown}
 
@@ -149,20 +113,14 @@ Each session builds on everything that came before it.
 
 ## LM Tools Reference
 
-11 Language Model Tools available to all agents:
+5 Language Model Tools available to all agents:
 
 ```
 #ctx                   — unified search, list, learn, getCard across all knowledge
-#searchCards           — search knowledge cards
 #getCard               — read a specific knowledge card by ID
-#ctxSubagent           — delegate complex tasks to an autonomous agent
 #saveCard              — save a new knowledge card
 #editCard              — edit an existing card
 #organizeCards         — organize cards into folders
-#searchCache           — search cached explanations
-#readCache             — read a cached explanation
-#saveCache             — save a cache entry
-#editCache             — edit a cache entry
 ```
 
 ---

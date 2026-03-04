@@ -5,7 +5,23 @@
       {
         "type": "command",
         "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
-        "windows": "powershell -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "timeout": 10
+      }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "timeout": 10
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
         "timeout": 10
       }
     ],
@@ -13,7 +29,7 @@
       {
         "type": "command",
         "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
-        "windows": "powershell -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
         "timeout": 15
       }
     ],
@@ -21,7 +37,7 @@
       {
         "type": "command",
         "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
-        "windows": "powershell -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
         "timeout": 20
       }
     ],
@@ -29,7 +45,7 @@
       {
         "type": "command",
         "command": "bash %CM_SCRIPTS_DIR_UNIX%/capture.sh",
-        "windows": "powershell -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
+        "windows": "powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"%CM_SCRIPTS_DIR_WIN%\\capture.ps1\"",
         "timeout": 20
       }
     ]

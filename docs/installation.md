@@ -55,17 +55,11 @@ After installation, you'll see:
 
 1. **📖 Book icon** in the Activity Bar (sidebar)
 2. **Status bar item** showing the active project name
-3. **`@ctx` chat participant** available in Copilot Chat
+3. **7 Language Model Tools** available in Copilot Chat (type `#ctx` to access)
 
 ### Verify Installation
 
-Open Copilot Chat and type:
-
-```
-@ctx /context
-```
-
-You should see the current project context. If no project exists yet, you'll be prompted to create one.
+Open the **Dashboard** (click the status bar item or run `ContextManager: Open Dashboard`). You should see the four tabs: Intelligence, Knowledge, Context, and Settings. If no project exists yet, you'll be prompted to create one.
 
 ---
 
@@ -102,13 +96,13 @@ ContextManager includes an optional hook system that captures AI interactions fr
 
 The hook script (`capture.ps1`) is automatically installed to `~/.contextmanager/scripts/` on first activation. It watches for:
 
-- **SessionStart** - Injects project context into new sessions
+- **UserPromptSubmit** - Injects selected knowledge cards and custom instruction into every prompt
 - **PostToolUse** - Captures tool executions and harvests completed turns
 - **PreCompact** - Extracts multi-turn context before summarization
 - **Stop** - Records final exchange for card queue processing
 
 {: .note }
-Hooks are optional. All core features (knowledge cards, search, dashboard, chat commands) work without hooks enabled.
+Hooks are optional. All core features (knowledge cards, search, dashboard, LM tools) work without hooks enabled.
 
 ---
 

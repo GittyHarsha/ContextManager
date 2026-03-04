@@ -54,7 +54,7 @@ export function registerCommands(
 
 				// Open chat with pre-filled query
 				await vscode.commands.executeCommand('workbench.action.chat.open', {
-					query: `@ctx /explain ${content.text}`,
+					query: `/explain ${content.text}`,
 					isPartialQuery: false,
 					attachFiles
 				});
@@ -102,7 +102,7 @@ export function registerCommands(
 				}
 
 				await vscode.commands.executeCommand('workbench.action.chat.open', {
-					query: `@ctx /usage ${content.text}`,
+					query: `/usage ${content.text}`,
 					isPartialQuery: false,
 					attachFiles
 				});
@@ -150,7 +150,7 @@ export function registerCommands(
 				}
 
 				await vscode.commands.executeCommand('workbench.action.chat.open', {
-					query: `@ctx /relationships ${content.text}`,
+					query: `/relationships ${content.text}`,
 					isPartialQuery: false,
 					attachFiles
 				});

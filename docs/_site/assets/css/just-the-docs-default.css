@@ -7878,47 +7878,40 @@ blockquote.important-title > p:last-child {
   margin-bottom: 0;
 }
 
-/* ContextManager Docs - Custom Theme Overrides */
-/* Color Palette */
+/* ContextManager Docs — Clean dark theme (GitHub-style) */
 :root {
-  --cm-accent: #7c3aed;
-  --cm-accent-light: #a78bfa;
-  --cm-accent-bg: rgba(124, 58, 237, 0.08);
-  --cm-gradient-start: #7c3aed;
-  --cm-gradient-end: #2563eb;
+  --cm-accent: #539bf5;
+  --cm-accent-hover: #6cb6ff;
   --cm-surface: #161b22;
-  --cm-surface-raised: #1c2333;
-  --cm-border-subtle: rgba(139, 148, 158, 0.15);
+  --cm-surface-raised: #1c2128;
+  --cm-border: #30363d;
+  --cm-text: #e6edf3;
   --cm-text-muted: #8b949e;
 }
 
-/* Hero heading gradient */
+/* Hero heading — clean, no gradient */
 .fs-9 {
-  background: linear-gradient(135deg, var(--cm-gradient-start), var(--cm-gradient-end));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 800 !important;
-  letter-spacing: -0.02em;
+  color: var(--cm-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
 }
 
 /* Primary buttons */
 .btn-primary {
-  background: linear-gradient(135deg, var(--cm-gradient-start), var(--cm-gradient-end)) !important;
+  background: var(--cm-accent) !important;
   border: none !important;
   color: #fff !important;
   font-weight: 600 !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   padding: 10px 24px !important;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.45) !important;
+  background: var(--cm-accent-hover) !important;
 }
 
 .btn:not(.btn-primary) {
-  border-radius: 8px !important;
+  border-radius: 6px !important;
 }
 
 /* Sidebar active link */
@@ -7931,7 +7924,7 @@ blockquote.important-title > p:last-child {
 table {
   border-collapse: separate !important;
   border-spacing: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   overflow: hidden;
 }
 
@@ -7949,11 +7942,11 @@ table td {
 
 /* Code blocks */
 pre, code.highlight {
-  border-radius: 8px !important;
+  border-radius: 6px !important;
 }
 
 code {
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 2px 6px;
   font-size: 0.88em;
 }
@@ -7962,14 +7955,14 @@ code {
 h2 {
   margin-top: 2.5rem !important;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid var(--cm-border-subtle);
+  border-bottom: 1px solid var(--cm-border);
 }
 
 /* Horizontal rules */
 hr {
   border: none !important;
   height: 1px !important;
-  background: linear-gradient(90deg, transparent, var(--cm-border-subtle), transparent) !important;
+  background: var(--cm-border) !important;
   margin: 2.5rem 0 !important;
 }
 
@@ -7983,15 +7976,9 @@ hr {
 
 .feature-card {
   background: var(--cm-surface-raised);
-  border: 1px solid var(--cm-border-subtle);
-  border-radius: 12px;
+  border: 1px solid var(--cm-border);
+  border-radius: 6px;
   padding: 20px 24px;
-  transition: border-color 0.2s ease, transform 0.15s ease;
-}
-
-.feature-card:hover {
-  border-color: var(--cm-accent);
-  transform: translateY(-2px);
 }
 
 .feature-card h4 {
@@ -8009,8 +7996,8 @@ hr {
 /* Mermaid diagrams */
 .mermaid {
   background: var(--cm-surface-raised) !important;
-  border: 1px solid var(--cm-border-subtle);
-  border-radius: 12px;
+  border: 1px solid var(--cm-border);
+  border-radius: 6px;
   padding: 24px;
   margin: 1.5rem 0;
   text-align: center;
@@ -8024,12 +8011,12 @@ hr {
 
 /* Search input */
 .search-input {
-  border-radius: 8px !important;
+  border-radius: 6px !important;
 }
 
 .search-input:focus {
   border-color: var(--cm-accent) !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15) !important;
+  box-shadow: 0 0 0 2px rgba(83, 155, 245, 0.2) !important;
 }
 
 /* Scrollbar */

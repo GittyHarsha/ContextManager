@@ -15,7 +15,7 @@ How ContextManager captures AI interactions from VS Code Copilot's native transc
 
 ## Overview
 
-VS Code provides a Chat Hooks API (`chatHooks` proposed API) that fires lifecycle events during AI interactions. ContextManager uses these hooks to capture interactions that don't flow through the `@ctx` chat participant - primarily VS Code Copilot's native responses.
+VS Code provides an Agent Hooks API (Preview) that fires lifecycle events during AI interactions. ContextManager uses these hooks to capture interactions from VS Code Copilot's native transcript pipeline — primarily interactions that wouldn't otherwise be visible to the extension.
 
 The hook system consists of two halves:
 
@@ -32,7 +32,8 @@ Located at `~/.contextmanager/scripts/capture.ps1` (also bundled at `resources/h
 
 | Event | When | What capture.ps1 Does |
 |:------|:-----|:----------------------|
-| `SessionStart` | New chat session begins | Reads `session-context.txt`, outputs as `additionalContext` |
+| `UserPromptSubmit` | Before every prompt | Reads `session-context.txt`, outputs as system message |
+| `SubagentStart` | When a sub-agent spawns | Reads `session-context.txt`, injects as additional context |
 | `PostToolUse` | After each tool call | Records tool use; also harvests completed turns from transcript |
 | `PreCompact` | Before context summarization | Extracts all turns since last offset for multi-turn processing |
 | `Stop` | Session ends | Records final exchange from transcript |
@@ -45,11 +46,11 @@ graph TD
     A[VS Code Hook Event] --> B[capture.ps1 receives JSON via stdin]
     B --> C[Process based on hookEventName]
     C --> D[Append entry to hook-queue.jsonl]
-    C --> E[SessionStart: output JSON to stdout]
+    C --> E[UserPromptSubmit: output JSON to stdout]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style D fill:#2563eb,stroke:#58a6ff,color:#fff
-    style E fill:#059669,stroke:#3fb950,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style D fill:#1158c7,stroke:#388bfd,color:#fff
+    style E fill:#238636,stroke:#3fb950,color:#fff
 </pre>
 {:/nomarkdown}
 
@@ -149,9 +150,9 @@ graph TD
     D --> E[Advance offset by byte length]
     E --> F[Persist offset to .queue-offset file]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style D fill:#2563eb,stroke:#58a6ff,color:#fff
-    style F fill:#059669,stroke:#3fb950,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style D fill:#1158c7,stroke:#388bfd,color:#fff
+    style F fill:#238636,stroke:#3fb950,color:#fff
 </pre>
 {:/nomarkdown}
 
@@ -161,10 +162,15 @@ This ensures crash-safe resumption - entries are never processed twice or lost.
 
 ## Session Context
 
-The `HookWatcher` writes `~/.contextmanager/session-context.txt` whenever the active project changes. The `SessionStart` hook reads this file and injects it as `additionalContext`.
+The `HookWatcher` writes `~/.contextmanager/session-context.txt` whenever the active project changes or the prompt injection settings are updated. The `UserPromptSubmit` hook reads this file and injects it as a system message into every prompt.
 
 Contents include:
 - Project name and root path
+- **Selected knowledge cards** — cards checked in the Knowledge tab (`selectedCardIds`), with titles and optionally full content
+- **Custom instruction** — free-form text from the dashboard injection section
+
+{: .note }
+Card selection for hook injection is driven by the same checkboxes used in the Knowledge tab — there is a single, unified selection system. Archived cards are automatically excluded.
 
 ---
 
@@ -191,6 +197,9 @@ The capture script includes a `cm-version` header:
 | 2 | Added PreCompact multi-turn, dual-format support |
 | 3 | Added PostToolUse transcript harvesting, ID-based dedup |
 | 4 | Added tool call capture (tool.execution_start) |
+| 5 | SessionStart → UserPromptSubmit, hookSpecificOutput wrapper |
+| 6 | Added SubagentStart hook for sub-agent context injection |
+| 7 | Input truncation raised to 2000 chars, reasoningText fallback for assistant messages |
 
 The extension checks the installed version and updates the script if a newer version is bundled.
 

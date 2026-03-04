@@ -1,12 +1,17 @@
-# cm-version: 4
+# cm-version: 7
 # ContextManager Agent Hook Script — Windows PowerShell
-# Handles: SessionStart, PostToolUse, PreCompact, Stop
+# Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.ps1
 #
 # VS Code calls this script for each hook event, passing JSON via stdin.
-# Output JSON to stdout to influence agent behavior (SessionStart only injects context).
+# Output JSON to stdout to influence agent behavior.
+# UserPromptSubmit injects session-context.txt on every prompt.
 
 $ErrorActionPreference = 'SilentlyContinue'
+
+# Force UTF-8 on stdin/stdout so VS Code can parse our JSON
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $cmDir      = "$env:USERPROFILE\.contextmanager"
 $queueFile  = "$cmDir\hook-queue.jsonl"
@@ -17,9 +22,9 @@ $null = New-Item -ItemType Directory -Force -Path $cmDir 2>$null
 
 # Read stdin
 $stdinText = [System.Console]::In.ReadToEnd()
-if (-not $stdinText) { exit 0 }
+if (-not $stdinText) { Write-Output '{}'; exit 0 }
 
-try { $data = $stdinText | ConvertFrom-Json } catch { exit 0 }
+try { $data = $stdinText | ConvertFrom-Json } catch { Write-Output '{}'; exit 0 }
 
 $hookType  = $data.hookEventName
 $sessionId = $data.sessionId
@@ -223,18 +228,51 @@ function Append-Queue($obj) {
 switch ($hookType) {
 
     "SessionStart" {
+        $ctx = ""
+        if (Test-Path $sessionCtx) {
+            $raw = (Get-Content $sessionCtx -Raw -Encoding UTF8)
+            if ($raw) { $ctx = $raw.Trim() }
+        }
+
+        @{
+            hookSpecificOutput = @{
+                hookEventName   = "SessionStart"
+                additionalContext = $ctx
+            }
+        } | ConvertTo-Json -Compress -Depth 3 | Write-Output
+        exit 0
+    }
+
+    "SubagentStart" {
+        $ctx = ""
+        if (Test-Path $sessionCtx) {
+            $raw = (Get-Content $sessionCtx -Raw -Encoding UTF8)
+            if ($raw) { $ctx = $raw.Trim() }
+        }
+
+        @{
+            hookSpecificOutput = @{
+                hookEventName   = "SubagentStart"
+                additionalContext = $ctx
+            }
+        } | ConvertTo-Json -Compress -Depth 3 | Write-Output
+        exit 0
+    }
+
+    "UserPromptSubmit" {
         $ctx = $null
         if (Test-Path $sessionCtx) {
             $ctx = (Get-Content $sessionCtx -Raw -Encoding UTF8).Trim()
         }
+
         if ($ctx) {
             @{
                 hookSpecificOutput = @{
-                    hookEventName   = "SessionStart"
-                    additionalContext = $ctx
+                    hookEventName = "UserPromptSubmit"
+                    systemMessage = $ctx
                 }
-            } | ConvertTo-Json -Compress | Write-Output
-        }
+            } | ConvertTo-Json -Compress -Depth 3 | Write-Output
+        } else { Write-Output '{}' }
         exit 0
     }
 
@@ -242,7 +280,7 @@ switch ($hookType) {
         $toolName   = $data.tool_name
         $toolInput  = $data.tool_input
         $toolResult = $data.tool_response
-        if (-not $toolName) { exit 0 }
+        if (-not $toolName) { Write-Output '{}'; exit 0 }
 
         # Truncate large inputs/outputs
         $inputStr  = ($toolInput  | ConvertTo-Json -Compress 2>$null) -replace '(.{400}).*','$1…'
@@ -290,12 +328,13 @@ switch ($hookType) {
             }
         }
 
+        Write-Output '{}'
         exit 0
     }
 
     "PreCompact" {
         $transcriptPath = $data.transcript_path
-        if (-not $transcriptPath) { exit 0 }
+        if (-not $transcriptPath) { Write-Output '{}'; exit 0 }
 
         # Get all turns since last offset
         $turns = Get-AllTurnsSinceOffset $transcriptPath $sessionId
@@ -322,12 +361,15 @@ switch ($hookType) {
             }
         }
 
-        # Print knowledge index to stdout so Claude carries it forward after compaction
+        # Print knowledge index to stdout so agent carries it forward after compaction
+        # PreCompact uses common output format only (systemMessage or {})
         $indexFile = "$cmDir\knowledge-index.txt"
         if (Test-Path $indexFile) {
             $index = (Get-Content $indexFile -Raw -Encoding UTF8).Trim()
-            if ($index) { Write-Output $index }
-        }
+            if ($index) {
+                @{ systemMessage = $index } | ConvertTo-Json -Compress -Depth 3 | Write-Output
+            } else { Write-Output '{}' }
+        } else { Write-Output '{}' }
 
         exit 0
     }
@@ -344,7 +386,7 @@ switch ($hookType) {
         }
         if (-not $transcriptPath) {
             Add-Content "$cmDir\stop-debug.log" "[$ts] No transcript found - exiting" -Encoding UTF8
-            exit 0
+            Write-Output '{}'; exit 0
         }
 
         $exchange = Get-LastExchange($transcriptPath)
@@ -372,11 +414,13 @@ switch ($hookType) {
             Remove-Item $offsetFile -Force -ErrorAction SilentlyContinue
         }
 
+        Write-Output '{}'
         exit 0
     }
 
 }
 
+Write-Output '{}'
 exit 0
 
 

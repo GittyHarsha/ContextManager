@@ -30,7 +30,7 @@ export class ExplanationCache {
 
 	constructor(private context: vscode.ExtensionContext) {}
 
-	/** Attach the FTS5 search index for incremental updates on mutations. */
+	/** Attach the FTS4 search index for incremental updates on mutations. */
 	setSearchIndex(index: SearchIndex): void {
 		this._searchIndex = index;
 	}

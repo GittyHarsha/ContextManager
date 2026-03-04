@@ -106,7 +106,7 @@ Each survives context window resets because it lives in your project database, n
 Static files give the AI everything in bulk. ContextManager is precise about what goes into each prompt.
 
 - **Progressive disclosure** — Top 3 knowledge cards injected in full; cards 4–7 as 125-token summaries with a pointer to search for more; cards 8+ as metadata only. Keeps prompt tokens under control without sacrificing relevance.
-- **Tiered intelligence injection** — Confirmed conventions always injected; task-relevant working notes matched by file/keyword; everything else queryable via `#search` or `#searchCards` on demand. Total auto-injection capped at 800 tokens.
+- **Tiered intelligence injection** — Confirmed conventions always injected; task-relevant working notes matched by file/keyword; everything else queryable via `#ctx` or `#searchCards` on demand. Total auto-injection capped at 800 tokens.
 - **Staleness signals** — Cards not updated in 30+ days are flagged with ⚠️ at injection time so the AI knows to treat them skeptically.
 - **Usage tracking** — Tracks which cards get selected, how often they're injected, which ones are never used. Card Health dashboard surfaces duplicates (Jaccard similarity ≥40%) and dead weight automatically.
 
@@ -122,7 +122,7 @@ This is the core use case the extension was built around. When the context windo
 
 ### Searchable, not just readable.
 
-A 200-line instruction file is read in bulk, with no way to ask "just show me the part about caching." ContextManager's BM25 full-text search (`#searchCards`, `#search`) lets the agent query exactly what it needs and get top-ranked results. The search spans cards, TODOs, cached explanations, branch sessions, agent history, and the intelligence layer simultaneously — with camelCase tokenization, quoted phrase support, prefix matching, and an OR fallback when the exact term returns nothing.
+A 200-line instruction file is read in bulk, with no way to ask "just show me the part about caching." ContextManager's BM25 full-text search (`#ctx`, `#searchCards`) lets the agent query exactly what it needs and get top-ranked results. The search spans cards, conventions, working notes, tool hints, cached explanations, observations, sessions, and projects simultaneously — with camelCase tokenization, quoted phrase support, prefix matching, and an OR fallback when the exact term returns nothing.
 
 ### Team knowledge, not personal notes.
 
@@ -295,7 +295,7 @@ This is the core use case. When the context window fills and summarization kicks
 
 ### It's searchable, not just readable.
 
-A 200-line `instructions.md` is read by the AI in bulk. ContextManager's BM25 full-text search (SQLite FTS5) lets the AI query exactly what it needs: `#searchCards "authentication flow"` returns the most relevant cards ranked by relevance, not positional luck. Cross-entity search spans cards, TODOs, cached explanations, branch sessions, and agent history simultaneously.
+A 200-line `instructions.md` is read by the AI in bulk. ContextManager's BM25 full-text search (SQLite FTS4) lets the AI query exactly what it needs: `#searchCards "authentication flow"` returns the most relevant cards ranked by relevance, not positional luck. Cross-entity search via `#ctx` spans cards, conventions, working notes, tool hints, cached explanations, observations, and sessions simultaneously.
 
 ### Team knowledge, not personal notes.
 

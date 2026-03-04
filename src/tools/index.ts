@@ -1,65 +1,26 @@
 /**
  * Tools barrel — re-exports all tool classes and the registerTools() function.
- *
- * Also owns the module-level _toolStream registry so file tools can emit
- * stream.textEdit() calls for the VS Code diff UI.
  */
 
 import * as vscode from 'vscode';
-import { ExplanationCache } from '../cache';
-import { ConfigurationManager } from '../config';
-import { EmbeddingManager } from '../embeddings';
 import { ProjectManager } from '../projects/ProjectManager';
 import { SearchIndex } from '../search/SearchIndex';
 
 // Tool classes
 import { ProjectContextTool } from './projectContextTool';
 import { TodoManagerTool } from './todoManagerTool';
-import { SubagentTool } from './subagentTool';
-import {
-	WriteFileTool,
-	ReplaceStringInFileTool,
-	FileStatTool,
-	RenameFileTool,
-	DeleteFileTool,
-	CopyFileTool,
-	CreateDirectoryTool,
-} from './fileTools';
 import { SaveKnowledgeCardTool, EditKnowledgeCardTool, OrganizeKnowledgeCardsTool, GetCardTool } from './knowledgeCardTools';
-import { SaveCacheTool, SearchCacheTool, ReadCacheTool, EditCacheTool } from './cacheTools';
-import { SemanticSearchTool, CtxTool } from './searchTools';
+// cacheTools removed — cache LM tools are obsolete (from @ctx chat participant era)
+import { CtxTool } from './searchTools';
 import type { AutoCaptureService } from '../autoCapture';
-
-// ─── Tool Stream Registry ───────────────────────────────────────
-// Set by runToolCallingLoop before each loop so file tools can emit
-// stream.textEdit() calls, showing the "N files changed" diff UI.
-let _toolStream: vscode.ChatResponseStream | undefined;
-
-export function setToolStream(stream: vscode.ChatResponseStream | undefined): void {
-	_toolStream = stream;
-}
-
-export function getToolStream(): vscode.ChatResponseStream | undefined {
-	return _toolStream;
-}
 
 // ─── Re-exports ─────────────────────────────────────────────────
 
 export { ProjectContextTool } from './projectContextTool';
 export { TodoManagerTool } from './todoManagerTool';
-export { SubagentTool } from './subagentTool';
-export {
-	WriteFileTool,
-	ReplaceStringInFileTool,
-	FileStatTool,
-	RenameFileTool,
-	DeleteFileTool,
-	CopyFileTool,
-	CreateDirectoryTool,
-} from './fileTools';
 export { SaveKnowledgeCardTool, EditKnowledgeCardTool, OrganizeKnowledgeCardsTool, GetCardTool } from './knowledgeCardTools';
-export { SaveCacheTool, SearchCacheTool, ReadCacheTool, EditCacheTool } from './cacheTools';
-export { SemanticSearchTool, CtxTool } from './searchTools';
+// cacheTools exports removed — cache LM tools are obsolete
+export { CtxTool } from './searchTools';
 
 // ─── Registration ───────────────────────────────────────────────
 
@@ -98,8 +59,6 @@ function safeRegisterTool(
 export function registerTools(
 	context: vscode.ExtensionContext,
 	projectManager: ProjectManager,
-	cache: ExplanationCache,
-	embeddingManager?: EmbeddingManager,
 	searchIndex?: SearchIndex,
 	autoCapture?: AutoCaptureService,
 ) {
@@ -117,7 +76,7 @@ export function registerTools(
 	// Keeping the class in projectContextTool.ts for reference but NOT registering the tool.
 	// safeRegisterTool(context,
 	// 	'contextManager_getProjectContext',
-	// 	new ProjectContextTool(projectManager, cache)
+	// 	new ProjectContextTool(projectManager)
 	// );
 
 	// TODO tool removed — TODOs are user-managed only, not created by agents
@@ -136,27 +95,9 @@ export function registerTools(
 		new GetCardTool(projectManager)
 	);
 
-	if (embeddingManager) {
-		safeRegisterTool(context,
-			'contextManager_semanticSearch',
-			new SemanticSearchTool(projectManager, embeddingManager, searchIndex)
-		);
-	}
+	// Subagent tool removed — autonomous subagent loops are obsolete
 
-	// NOTE:File operation tools (writeFile, editFile, fileStat, renameFile,
-	// deleteFile, copyFile, createDirectory) are NOT declared in package.json's
-	// languageModelTools, so registerTool() would throw "was not contributed".
-	// They are only used internally by the subagent tool-calling loop.
-
-	// Register subagent tool (conditionally based on setting)
-	if (ConfigurationManager.subagentEnabled) {
-		safeRegisterTool(context,
-			'contextManager_runSubagent',
-			new SubagentTool(projectManager, cache, searchIndex)
-		);
-	}
-
-	// ─── Background knowledge & cache tools ─────────────────────────
+	// ─── Background knowledge tools ─────────────────────────────────
 	// These run silently (no confirmation dialog) so the chat session is
 	// not interrupted while saving or reading project memory.
 
@@ -165,20 +106,7 @@ export function registerTools(
 		new SaveKnowledgeCardTool(projectManager)
 	);
 
-	safeRegisterTool(context,
-		'contextManager_saveCache',
-		new SaveCacheTool(cache, projectManager)
-	);
-
-	safeRegisterTool(context,
-		'contextManager_searchCache',
-		new SearchCacheTool(cache, projectManager, searchIndex)
-	);
-
-	safeRegisterTool(context,
-		'contextManager_readCache',
-		new ReadCacheTool(cache, projectManager)
-	);
+	// Cache tools removed — obsolete (from @ctx chat participant era)
 
 	safeRegisterTool(context,
 		'contextManager_editKnowledgeCard',
@@ -190,10 +118,7 @@ export function registerTools(
 		new OrganizeKnowledgeCardsTool(projectManager)
 	);
 
-	safeRegisterTool(context,
-		'contextManager_editCache',
-		new EditCacheTool(cache)
-	);
+	// editCache tool removed — obsolete
 
 	console.log('[ContextManager] All tools registered.');
 }

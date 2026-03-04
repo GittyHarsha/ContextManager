@@ -1,4 +1,4 @@
-# install.ps1 — Build, package, and install the ContextManager extension
+﻿# install.ps1 -- Build, validate, package, and install the ContextManager extension
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -10,10 +10,19 @@ try {
     npm run compile
     if ($LASTEXITCODE -ne 0) { throw "Compile failed" }
 
+    Write-Host ">> Validating webview script..." -ForegroundColor Cyan
+    node -e "const fs=require('fs'); const m=require('./out/dashboard/webviewScript.js'); const s=m.getDashboardScript('p','overview'); const start=s.indexOf('>')+1; const end=s.lastIndexOf('</script>'); fs.writeFileSync('.tmp-wv.js', s.slice(start,end));"
+    node --check .tmp-wv.js
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item .tmp-wv.js -ErrorAction SilentlyContinue
+        throw "Webview script has syntax errors -- fix before packaging"
+    }
+    Remove-Item .tmp-wv.js -ErrorAction SilentlyContinue
+    Write-Host "   Webview script OK" -ForegroundColor Green
+
     Write-Host ">> Packaging VSIX..." -ForegroundColor Cyan
-    # Install vsce locally if not present
     if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-        throw "npx not found — ensure Node.js is on PATH"
+        throw "npx not found - ensure Node.js is on PATH"
     }
     npx @vscode/vsce package --allow-missing-repository --allow-star-activation --out context-manager.vsix
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
@@ -24,7 +33,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Install failed" }
 
     Write-Host ""
-    Write-Host "✅  ContextManager installed successfully. Reload VS Code to activate." -ForegroundColor Green
+    Write-Host "ContextManager installed successfully. Reload VS Code to activate." -ForegroundColor Green
 } finally {
     Pop-Location
 }

@@ -14,5 +14,5 @@
 		"jsxFragmentFactory": "vscppf"
 	},
 	"include": ["src/**/*"],
-	"exclude": ["node_modules", "out", "src/tools.old.ts", "src/chatParticipant.old.ts"]
+	"exclude": ["node_modules", "out", "src/**/*.old.ts", "src/tools/fileTools.ts", "src/tools/subagentTool.ts"]
 }

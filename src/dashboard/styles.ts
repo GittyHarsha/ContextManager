@@ -1414,5 +1414,156 @@ export function getDashboardStyles(): string {
 			outline-offset: -2px;
 			border-radius: 2px;
 		}
+
+		/* ─── Workbench: Kind Badges ────────────────────────────── */
+		.kind-badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 2px;
+			padding: 1px 7px;
+			font-size: 0.7em;
+			border-radius: 10px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.3px;
+		}
+		.kind-badge.kind-card { background: rgba(33,150,243,0.15); color: #90caf9; }
+		.kind-badge.kind-queue { background: rgba(255,193,7,0.15); color: #ffe082; }
+		.kind-badge.kind-convention { background: rgba(76,175,80,0.15); color: #a5d6a7; }
+		.kind-badge.kind-note { background: rgba(156,39,176,0.15); color: #ce93d8; }
+		.kind-badge.kind-hint { background: rgba(255,152,0,0.15); color: #ffcc80; }
+
+		/* Kind tile accents */
+		.card-tile.convention-tile { border-left: 3px solid rgba(76,175,80,0.5); }
+		.card-tile.note-tile { border-left: 3px solid rgba(156,39,176,0.5); }
+		.card-tile.hint-tile { border-left: 3px solid rgba(255,152,0,0.5); }
+
+		/* ─── Workbench: Subtab Content ─────────────────────────── */
+		.knowledge-subtab-content {
+			/* Visible by default — hidden via inline style when inactive */
+		}
+
+		/* ─── Workbench: Filter Bar ─────────────────────────────── */
+		.workbench-filter-bar {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			padding: 10px 12px;
+			margin-bottom: 12px;
+			background: var(--card-bg);
+			border: 1px solid var(--border-color);
+			border-radius: 6px;
+		}
+		.workbench-filter-row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			flex-wrap: wrap;
+		}
+		.workbench-filter-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			padding: 3px 10px;
+			font-size: 0.82em;
+			border-radius: 12px;
+			background: var(--vscode-badge-background, rgba(255,255,255,0.1));
+			cursor: pointer;
+			user-select: none;
+			transition: opacity 0.15s;
+		}
+		.workbench-filter-pill:hover { opacity: 0.85; }
+		.workbench-filter-pill input[type="checkbox"] {
+			width: 14px;
+			height: 14px;
+			margin: 0;
+			cursor: pointer;
+		}
+		.workbench-search {
+			padding: 4px 10px;
+			font-size: 0.85em;
+			border-radius: 4px;
+			border: 1px solid var(--input-border, var(--border-color));
+			background: var(--input-bg);
+			color: var(--input-fg);
+			min-width: 160px;
+		}
+
+		/* ─── Workbench: Staging Area ───────────────────────────── */
+		.workbench-staging {
+			border: 2px dashed var(--border-color);
+			border-radius: 8px;
+			padding: 12px 16px;
+			margin-top: 16px;
+			margin-bottom: 12px;
+			background: var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.03));
+			transition: border-color 0.2s;
+		}
+		.workbench-staging:has(.staging-item) {
+			border-color: var(--button-bg);
+			border-style: solid;
+		}
+		.workbench-staging-header {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			margin-bottom: 8px;
+		}
+		.workbench-staging-header h4 { font-size: 0.95em; }
+		.staging-count {
+			font-size: 0.82em;
+			opacity: 0.6;
+		}
+		.workbench-staging-items {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			min-height: 32px;
+		}
+		.staging-empty {
+			font-size: 0.85em;
+			opacity: 0.4;
+			font-style: italic;
+			padding: 8px 0;
+		}
+		.staging-item {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 10px;
+			border-radius: 6px;
+			background: var(--card-bg);
+			border: 1px solid var(--border-color);
+			font-size: 0.82em;
+			max-width: 240px;
+			overflow: hidden;
+		}
+		.staging-item-kind {
+			font-size: 0.8em;
+			opacity: 0.6;
+			white-space: nowrap;
+		}
+		.staging-item-title {
+			flex: 1;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.staging-item-remove {
+			padding: 0 4px;
+			font-size: 0.85em;
+			cursor: pointer;
+			opacity: 0.5;
+			background: none;
+			border: none;
+			color: var(--fg-color);
+		}
+		.staging-item-remove:hover { opacity: 1; }
+		.workbench-staging-actions {
+			display: flex;
+			gap: 8px;
+			margin-top: 10px;
+			flex-wrap: wrap;
+		}
 	</style>`;
 }

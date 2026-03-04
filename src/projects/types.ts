@@ -2,6 +2,12 @@
  * Data models for Projects, TODOs, Cache, and Knowledge Cards
  */
 
+export interface PromptInjection {
+	customInstruction: string;   // Custom message prepended to the injected block
+	includeFullContent: boolean; // true = inject full card body; false = title + ID only
+	// Card selection is driven by project.selectedCardIds (Knowledge tab checkboxes)
+}
+
 export interface ToolSharingConfig {
 	enabled: boolean;              // Master toggle for LM tool sharing
 	shareProjectMeta: boolean;     // Share project name, description, goals, conventions
@@ -32,6 +38,7 @@ export interface Project {
 	selectedCardIds: string[];            // Cards selected to include in prompts
 	contextEnabled: boolean;              // Whether to include project context in prompts
 	toolSharingConfig?: ToolSharingConfig; // Controls what the #projectContext LM tool shares
+	promptInjection?: PromptInjection;     // Cards/instruction injected into every prompt via session-context.txt
 	conventions?: Convention[];           // Learned project conventions (architecture, patterns, etc.)
 	selectedConventionIds?: string[];     // Conventions selected for prompt injection
 	toolHints?: ToolHint[];               // Learned tool usage hints (search patterns, etc.)
@@ -374,11 +381,11 @@ export function generateId(): string {
 	return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
-// ─── Background Tasks ──────────────────────────────────────────
+
 
 export type BackgroundTaskType =
 	| 'auto-learn'     // Auto-learning pipeline
-	| 'auto-capture'   // Auto-capture from non-@ctx interactions
+	| 'auto-capture'   // Auto-capture from chat interactions
 	| 'query'          // Ad-hoc question to the background agent
 	| 'audit'          // Knowledge card audit
 	| 'map'            // Module architectural map

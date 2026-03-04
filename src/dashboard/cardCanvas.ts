@@ -8,7 +8,23 @@
  */
 
 import { escapeHtml, formatAge } from './htmlHelpers';
-import type { KnowledgeCard, QueuedCardCandidate, ToolCallRecord, AnchorStub } from '../projects/types';
+import type { KnowledgeCard, QueuedCardCandidate, ToolCallRecord, AnchorStub, Convention, WorkingNote, ToolHint } from '../projects/types';
+
+// ─── Workbench item kind ───────────────────────────────────────
+
+export type WorkbenchItemKind = 'card' | 'queue' | 'convention' | 'note' | 'hint';
+
+/** Union of all item types renderable as tiles */
+export type WorkbenchItem = KnowledgeCard | QueuedCardCandidate | Convention | WorkingNote | ToolHint;
+
+/** Kind badge labels & colors */
+const KIND_BADGES: Record<WorkbenchItemKind, { label: string; icon: string; css: string }> = {
+	card:       { label: 'Card',       icon: '📚', css: 'kind-card' },
+	queue:      { label: 'Queue',      icon: '📬', css: 'kind-queue' },
+	convention: { label: 'Convention', icon: '🏗',  css: 'kind-convention' },
+	note:       { label: 'Note',       icon: '📝', css: 'kind-note' },
+	hint:       { label: 'Hint',       icon: '🔧', css: 'kind-hint' },
+};
 
 // ─── Category badge helpers ────────────────────────────────────
 
@@ -101,55 +117,102 @@ export function renderToolCallEvidence(groups: Array<{ title: string; toolCalls:
 interface TileOptions {
 	isSelected?: boolean;
 	isQueue?: boolean;
+	/** Workbench item kind — overrides isQueue when set */
+	kind?: WorkbenchItemKind;
 }
 
-/** Render a card tile for the grid — works for both saved cards and queue candidates */
-export function renderCardTile(item: KnowledgeCard | QueuedCardCandidate, opts: TileOptions = {}): string {
-	const isQueue = opts.isQueue ?? false;
+/** Render a card tile for the grid — works for saved cards, queue candidates, conventions, notes, and hints */
+export function renderCardTile(item: WorkbenchItem, opts: TileOptions = {}): string {
+	const kind: WorkbenchItemKind = opts.kind ?? (opts.isQueue ? 'queue' : 'card');
 	const isSelected = opts.isSelected ?? false;
 
-	// Normalize fields across both types
+	// Normalize fields across all item types
 	const id = item.id;
-	const title = isQueue
-		? (item as QueuedCardCandidate).suggestedTitle || 'Untitled'
-		: (item as KnowledgeCard).title;
-	const category = isQueue
-		? ((item as QueuedCardCandidate).suggestedCategory || (item as QueuedCardCandidate).category || 'note')
-		: (item as KnowledgeCard).category;
-	const content = isQueue
-		? (item as QueuedCardCandidate).suggestedContent || (item as QueuedCardCandidate).response || ''
-		: (item as KnowledgeCard).content;
-	const toolCalls: ToolCallRecord[] = isQueue
-		? ((item as QueuedCardCandidate).toolCalls || [])
-		: [];
-	const tags = isQueue ? [] : ((item as KnowledgeCard).tags || []);
-	const confidence = isQueue ? (item as QueuedCardCandidate).confidenceScore : undefined;
-	const participant = isQueue ? (item as QueuedCardCandidate).participant : undefined;
-	const timestamp = isQueue ? (item as QueuedCardCandidate).createdAt : (item as KnowledgeCard).updated;
-	const pinned = !isQueue && (item as KnowledgeCard).pinned;
-	const archived = !isQueue && (item as KnowledgeCard).archived;
+	let title = '';
+	let category = '';
+	let content = '';
+	let toolCalls: ToolCallRecord[] = [];
+	let tags: string[] = [];
+	let confidence: number | undefined;
+	let participant: string | undefined;
+	let timestamp: number | undefined;
+	let pinned = false;
+	let archived = false;
+
+	switch (kind) {
+		case 'queue': {
+			const q = item as QueuedCardCandidate;
+			title = q.suggestedTitle || 'Untitled';
+			category = q.suggestedCategory || q.category || 'note';
+			content = q.suggestedContent || q.response || '';
+			toolCalls = q.toolCalls || [];
+			confidence = q.confidenceScore;
+			participant = q.participant;
+			timestamp = q.createdAt;
+			break;
+		}
+		case 'convention': {
+			const c = item as Convention;
+			title = c.title;
+			category = c.category;
+			content = c.content;
+			timestamp = c.updatedAt || c.createdAt;
+			break;
+		}
+		case 'note': {
+			const n = item as WorkingNote;
+			title = n.subject;
+			category = 'note';
+			content = n.insight;
+			timestamp = n.updatedAt || n.createdAt;
+			break;
+		}
+		case 'hint': {
+			const h = item as ToolHint;
+			title = h.toolName;
+			category = 'other';
+			content = h.pattern + (h.example ? '\n\nExample: ' + h.example : '');
+			timestamp = h.updatedAt || h.createdAt;
+			break;
+		}
+		default: { // 'card'
+			const k = item as KnowledgeCard;
+			title = k.title;
+			category = k.category;
+			content = k.content;
+			tags = k.tags || [];
+			timestamp = k.updated;
+			pinned = !!k.pinned;
+			archived = !!k.archived;
+			break;
+		}
+	}
 
 	// Snippet: first 120 chars of content, strip markdown
 	const snippet = content.replace(/[#*`_~\[\]]/g, '').substring(0, 120).trim();
 
 	const classes = [
 		'card-tile',
-		isQueue ? 'queue-tile' : '',
+		kind === 'queue' ? 'queue-tile' : '',
+		kind !== 'card' && kind !== 'queue' ? `${kind}-tile` : '',
 		isSelected ? 'selected' : '',
 		archived ? 'archived' : '',
 	].filter(Boolean).join(' ');
 
-	return `<div class="${classes}" data-tile-id="${escapeHtml(id)}" data-tile-type="${isQueue ? 'queue' : 'card'}">
+	const kindBadge = KIND_BADGES[kind];
+
+	return `<div class="${classes}" data-tile-id="${escapeHtml(id)}" data-tile-type="${kind}" data-tile-category="${escapeHtml(category)}" data-tile-tags="${escapeHtml(tags.join(','))}" data-tile-pinned="${pinned}" data-tile-archived="${archived}" data-tile-timestamp="${timestamp || 0}">
 		<div class="card-tile-actions">
 			<button class="tile-edit-btn" data-id="${escapeHtml(id)}" title="Edit">✏️</button>
-			<button class="tile-dismiss-btn" data-id="${escapeHtml(id)}" title="${isQueue ? 'Remove from queue' : 'Delete card'}">✕</button>
+			<button class="tile-dismiss-btn" data-id="${escapeHtml(id)}" title="${kind === 'queue' ? 'Remove from queue' : 'Delete'}">✕</button>
 		</div>
 		<div class="card-tile-header">
-			<input type="checkbox" class="tile-select-cb" data-id="${escapeHtml(id)}"
-				${isSelected ? 'checked' : ''} onclick="event.stopPropagation()" title="${isQueue ? 'Select for actions' : 'Include in context'}">
+			<input type="checkbox" class="tile-select-cb" data-id="${escapeHtml(id)}" data-kind="${kind}"
+				${isSelected ? 'checked' : ''} onclick="event.stopPropagation()" title="Select for workbench actions">
 			<span class="card-tile-title">${pinned ? '📌 ' : ''}${escapeHtml(title)}</span>
 		</div>
 		<div class="card-tile-meta">
+			<span class="kind-badge ${kindBadge.css}">${kindBadge.icon} ${kindBadge.label}</span>
 			${categoryBadge(category)}
 			${renderToolCallBadge(toolCalls)}
 			${participant ? `<span>via ${escapeHtml(participant)}</span>` : ''}
@@ -165,8 +228,12 @@ export function renderCardTile(item: KnowledgeCard | QueuedCardCandidate, opts: 
 
 // ─── Sub-tabs ──────────────────────────────────────────────────
 
-export function renderKnowledgeSubtabs(cardCount: number, queueCount: number, activeSubtab: string): string {
+export function renderKnowledgeSubtabs(cardCount: number, queueCount: number, activeSubtab: string, conventionCount = 0, noteCount = 0): string {
+	const totalWorkbench = cardCount + queueCount + conventionCount + noteCount;
 	return `<div class="knowledge-subtabs">
+		<div class="knowledge-subtab${activeSubtab === 'workbench' ? ' active' : ''}" data-subtab="workbench" onclick="switchKnowledgeSubtab('workbench')">
+			🔧 Workbench<span class="subtab-badge">${totalWorkbench}</span>
+		</div>
 		<div class="knowledge-subtab${activeSubtab === 'cards' ? ' active' : ''}" data-subtab="cards" onclick="switchKnowledgeSubtab('cards')">
 			📚 Knowledge Cards<span class="subtab-badge">${cardCount}</span>
 		</div>
@@ -184,6 +251,7 @@ export function renderMultiSelectBar(isQueueView: boolean): string {
 		<button onclick="composeFromSelected()" title="Open editor with selected items as source material">📝 New Card from Selected</button>
 		<button onclick="aiSynthesizeSelected()" title="AI merges selected items into one card draft">✨ AI Synthesize</button>
 		${isQueueView ? `<button onclick="bulkQuickSave()" title="Save all selected with suggested values">💾 Quick Save All</button>` : ''}
+		<button class="secondary" onclick="mergeSelectedCards()" title="Merge selected items into a single card">🔗 Merge</button>
 		<button class="secondary" onclick="dismissSelected()" title="${isQueueView ? 'Remove selected from queue' : 'Delete selected cards'}">${isQueueView ? '✕ Remove Selected' : '🗑 Delete Selected'}</button>
 		<span style="flex:1"></span>
 		<button class="secondary" onclick="clearTileSelection()">Clear Selection</button>
@@ -223,6 +291,10 @@ export function renderEditorPanel(): string {
 						<input type="text" id="editor-tag-input" placeholder="Add tag…"
 							onkeydown="if(event.key==='Enter'){event.preventDefault();addEditorTag(this.value);this.value='';}">
 					</div>
+				</div>
+				<div id="editor-custom-prompt-container" style="display:none;">
+					<label for="editor-custom-prompt">Custom Prompt <span style="opacity:0.5; font-size:0.85em;">(guide the AI)</span></label>
+					<textarea id="editor-custom-prompt" placeholder="e.g. Focus on error handling patterns… / Summarize as a quick-reference cheat sheet… / Write in bullet points…" style="min-height:60px;"></textarea>
 				</div>
 				<div>
 					<label for="editor-content">Content <span style="opacity:0.5; font-size:0.85em;">(Markdown)</span></label>
@@ -332,4 +404,68 @@ export function extractAnchorsFromToolCalls(toolCalls: ToolCallRecord[]): Anchor
 	}
 
 	return anchors;
+}
+
+// ─── Workbench: Source Filter Bar ──────────────────────────────
+
+export function renderWorkbenchFilterBar(): string {
+	return `<div class="workbench-filter-bar" id="workbench-filter-bar">
+		<div class="workbench-filter-row">
+			<span style="font-size: 0.85em; opacity: 0.7; margin-right: 8px;">Sources:</span>
+			<label class="workbench-filter-pill"><input type="checkbox" checked data-filter-kind="card" onchange="applyWorkbenchFilter()"> 📚 Cards</label>
+			<label class="workbench-filter-pill"><input type="checkbox" checked data-filter-kind="queue" onchange="applyWorkbenchFilter()"> 📬 Queue</label>
+			<label class="workbench-filter-pill"><input type="checkbox" checked data-filter-kind="convention" onchange="applyWorkbenchFilter()"> 🏗 Conventions</label>
+			<label class="workbench-filter-pill"><input type="checkbox" checked data-filter-kind="note" onchange="applyWorkbenchFilter()"> 📝 Notes</label>
+			<label class="workbench-filter-pill"><input type="checkbox" checked data-filter-kind="hint" onchange="applyWorkbenchFilter()"> 🔧 Hints</label>
+			<span style="flex: 1;"></span>
+			<input type="text" class="workbench-search" id="workbench-search" placeholder="Search items…" oninput="applyWorkbenchFilter()">
+		</div>
+		<div class="workbench-filter-row">
+			<select class="workbench-category-select" id="workbench-category-filter" onchange="applyWorkbenchFilter()">
+				<option value="all">All Categories</option>
+				<option value="architecture">Architecture</option>
+				<option value="pattern">Pattern</option>
+				<option value="convention">Convention</option>
+				<option value="explanation">Explanation</option>
+				<option value="note">Note</option>
+				<option value="other">Other</option>
+			</select>
+			<div class="workbench-tag-filter" id="workbench-tag-filter">
+				<div class="filter-tag-chips" id="filter-tag-chips"></div>
+				<input type="text" class="workbench-tag-input" id="workbench-tag-input" placeholder="Filter by tag…" oninput="showTagSuggestions(this.value)" onfocus="showTagSuggestions(this.value)" onkeydown="handleTagInputKey(event)">
+				<div class="tag-suggestions" id="tag-suggestions"></div>
+			</div>
+			<label class="workbench-filter-pill workbench-status-toggle"><input type="checkbox" id="workbench-pinned-only" onchange="applyWorkbenchFilter()"> 📌 Pinned only</label>
+			<label class="workbench-filter-pill workbench-status-toggle"><input type="checkbox" id="workbench-show-archived" onchange="applyWorkbenchFilter()"> 📦 Show archived</label>
+			<span style="flex: 1;"></span>
+			<select class="workbench-sort-select" id="workbench-sort" onchange="applyWorkbenchFilter()">
+				<option value="newest">Newest first</option>
+				<option value="oldest">Oldest first</option>
+				<option value="az">A → Z</option>
+				<option value="za">Z → A</option>
+			</select>
+			<span class="workbench-result-count" id="workbench-result-count"></span>
+			<button class="workbench-clear-filters" id="workbench-clear-filters" onclick="clearWorkbenchFilters()" style="display:none;">✕ Clear filters</button>
+		</div>
+	</div>`;
+}
+
+// ─── Workbench: Staging Area ───────────────────────────────────
+
+export function renderWorkbenchStagingArea(): string {
+	return `<div class="workbench-staging" id="workbench-staging">
+		<div class="workbench-staging-header">
+			<h4 style="margin: 0;">🎯 Staging Area</h4>
+			<span class="staging-count" id="staging-count">Drop items here or select with checkboxes</span>
+		</div>
+		<div class="workbench-staging-items" id="staging-items">
+			<div class="staging-empty">Select items from above to start mixing &amp; matching</div>
+		</div>
+		<div class="workbench-staging-actions" id="staging-actions" style="display: none;">
+			<button onclick="composeFromSelected()" title="Open editor with selected items as source material">📝 Compose New Card</button>
+			<button onclick="aiSynthesizeSelected()" title="AI merges selected items into one card draft">✨ AI Synthesize</button>
+			<button onclick="mergeSelectedCards()" title="Merge selected items into a single card">🔗 Merge into One</button>
+			<button class="secondary" onclick="clearTileSelection()">Clear All</button>
+		</div>
+	</div>`;
 }

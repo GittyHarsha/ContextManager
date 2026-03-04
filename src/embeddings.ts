@@ -62,9 +62,6 @@ export class EmbeddingManager implements vscode.Disposable {
 	 * Check if the embeddings API is available at runtime.
 	 */
 	isAvailable(): boolean {
-		if (!ConfigurationManager.experimentalProposedApi) {
-			return false;
-		}
 		try {
 			const models = (vscode.lm as any).embeddingModels;
 			return Array.isArray(models) && models.length > 0;
@@ -378,14 +375,6 @@ export function registerEmbeddingCommands(
 	// Smart Select: query → find relevant cards → select them
 	context.subscriptions.push(
 		vscode.commands.registerCommand('contextManager.smartSelect', async () => {
-			if (!ConfigurationManager.experimentalProposedApi) {
-				vscode.window.showWarningMessage(
-					'Smart Select requires enabling experimental APIs. ' +
-					'Set `contextManager.experimental.enableProposedApi` to true.'
-				);
-				return;
-			}
-
 			if (!embeddingManager.isAvailable()) {
 				vscode.window.showWarningMessage(
 					'Embedding models not available. Ensure GitHub Copilot is active and you\'re on VS Code Insiders.'
@@ -473,14 +462,6 @@ export function registerEmbeddingCommands(
 	// Embed Project: pre-compute embeddings for faster smart-select
 	context.subscriptions.push(
 		vscode.commands.registerCommand('contextManager.embedProject', async () => {
-			if (!ConfigurationManager.experimentalProposedApi) {
-				vscode.window.showWarningMessage(
-					'Embeddings require enabling experimental APIs. ' +
-					'Set `contextManager.experimental.enableProposedApi` to true.'
-				);
-				return;
-			}
-
 			if (!embeddingManager.isAvailable()) {
 				vscode.window.showWarningMessage(
 					'Embedding models not available. Ensure GitHub Copilot is active and you\'re on VS Code Insiders.'

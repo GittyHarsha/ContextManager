@@ -51,14 +51,14 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<TreeItemTyp
 		);
 
 		item.description = `${selectedCards}/${project.knowledgeCards?.length || 0} cards`;
-		item.iconPath = new vscode.ThemeIcon(isActive ? 'folder-opened' : 'folder');
 		item.contextValue = isActive ? 'project-active' : 'project';
-		
-		// Don't activate on click - user can expand/collapse to see content
-		// Activation is done via context menu button
 
 		if (isActive) {
-			item.description = `✓ ${item.description}`;
+			item.iconPath = new vscode.ThemeIcon('folder-opened', new vscode.ThemeColor('charts.green'));
+			item.tooltip = `${project.name} (active) — ${item.description}`;
+		} else {
+			item.iconPath = new vscode.ThemeIcon('folder');
+			item.tooltip = `${project.name} — ${item.description}`;
 		}
 
 		return item;
@@ -76,8 +76,7 @@ export function registerSidebar(
 	const treeProvider = new ProjectsTreeProvider(projectManager);
 	
 	const treeView = vscode.window.createTreeView('contextManagerProjects', {
-		treeDataProvider: treeProvider,
-		showCollapseAll: true
+		treeDataProvider: treeProvider
 	});
 
 	context.subscriptions.push(treeView);

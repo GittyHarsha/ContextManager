@@ -118,8 +118,8 @@ export class GitHubInstructionsManager {
 		// Read existing file or create new
 		let existingContent = '';
 		try {
-			const doc = await vscode.workspace.openTextDocument(filePath);
-			existingContent = doc.getText();
+			const rawBytes = await vscode.workspace.fs.readFile(filePath);
+			existingContent = new TextDecoder().decode(rawBytes);
 		} catch {
 			// File doesn't exist — create with managed block only
 			await this._ensureDir(vscode.Uri.joinPath(rootUri, '.github'));
@@ -286,6 +286,7 @@ export class GitHubInstructionsManager {
 				lines.push(`- **${card.title}** [${card.category}]${pin} — ID: ${card.id}`);
 			}
 		}
+
 
 		try {
 			await this._ensureDir(cmDirUri);

@@ -1,6 +1,6 @@
 /**
  * Types for the BM25 full-text search index.
- * The search index uses SQLite FTS5 (via sql.js WASM) to provide
+ * The search index uses SQLite FTS4 (via sql.js WASM) to provide
  * ranked full-text search across all entity types in the extension.
  */
 
@@ -32,9 +32,9 @@ export interface SearchResult {
 	projectId: string;
 	/** Display title for the result. */
 	title: string;
-	/** FTS5 snippet with match highlighting (uses [...] markers). */
+	/** FTS4 snippet with match highlighting (uses [...] markers). */
 	snippet: string;
-	/** BM25 relevance score (lower = more relevant in FTS5). */
+	/** BM25 relevance score (lower = more relevant, matching FTS5 bm25() convention). */
 	score: number;
 	/** Additional metadata about the match (varies by entity type). */
 	metadata: Record<string, string>;

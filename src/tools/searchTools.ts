@@ -1,25 +1,15 @@
 /**
- * Search tools — semantic (embedding) search and full-text (BM25) search.
+ * Search tools — BM25 full-text search and unified #ctx tool.
  */
 
 import * as vscode from 'vscode';
 import { ConfigurationManager } from '../config';
-import { EmbeddingManager } from '../embeddings';
 import { ProjectManager } from '../projects/ProjectManager';
 import { SearchIndex } from '../search/SearchIndex';
 import type { SearchEntityType } from '../search/types';
 import type { AutoCaptureService } from '../autoCapture';
 
 // ─── Interfaces ─────────────────────────────────────────────────
-
-interface ISemanticSearchParams {
-	/** The natural-language query to search knowledge cards for. */
-	query: string;
-	/** Maximum number of results to return (default 5, max 10). */
-	topK?: number;
-	/** Whether to automatically select the matching cards for context injection. Default false. */
-	autoSelect?: boolean;
-}
 
 interface ICtxToolParams {
 	/** Natural-language search query. Required for search mode. */
@@ -34,12 +24,10 @@ interface ICtxToolParams {
 	 * - "list": List all items of a given type (conventions, workingNotes, toolHints, cards)
 	 * - "learn": Create a convention, tool hint, or working note
 	 * - "getCard": Read a knowledge card by ID
-	 * - "timeline": Observation context around an anchor
 	 * - "fetch": Full observation details by IDs
-	 * - "economics": Token savings statistics
 	 * - "retrospect": End-of-task retrospective
 	 */
-	mode?: 'search' | 'list' | 'learn' | 'getCard' | 'timeline' | 'fetch' | 'economics' | 'retrospect';
+	mode?: 'search' | 'list' | 'learn' | 'getCard' | 'fetch' | 'retrospect';
 	/** For list mode: which type to list */
 	type?: 'conventions' | 'workingNotes' | 'toolHints' | 'cards';
 	/** For learn mode: what to learn */
@@ -63,12 +51,8 @@ interface ICtxToolParams {
 	discoveredWhile?: string;
 	// getCard
 	id?: string;
-	/** Observation ID to center timeline around (for mode="timeline"). */
-	observationId?: string;
 	/** Array of observation IDs to fetch full details (for mode="fetch"). */
 	observationIds?: string[];
-	/** Depth before/after anchor for timeline mode (default 5). */
-	timelineDepth?: number;
 	// retrospect fields
 	taskSummary?: string;
 	whatWorked?: string[];
@@ -76,189 +60,6 @@ interface ICtxToolParams {
 	newConventions?: Array<{ category: string; title: string; content: string }>;
 	newToolHints?: Array<{ toolName: string; pattern: string; antiPattern?: string; example: string }>;
 	knowledgeCards?: Array<{ title: string; content: string; category: string; anchors?: Array<{ filePath: string; symbolName?: string; startLine?: number; endLine?: number; stubContent: string }> }>;
-}
-
-// ─── Semantic Search Tool ───────────────────────────────────────
-
-export class SemanticSearchTool implements vscode.LanguageModelTool<ISemanticSearchParams> {
-	constructor(
-		private readonly projectManager: ProjectManager,
-		private readonly embeddingManager: EmbeddingManager,
-		private readonly searchIndex?: SearchIndex,
-	) {}
-
-	async invoke(
-		options: vscode.LanguageModelToolInvocationOptions<ISemanticSearchParams>,
-		token: vscode.CancellationToken
-	): Promise<vscode.LanguageModelToolResult> {
-		const activeProject = this.projectManager.getActiveProject();
-		if (!activeProject) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart('No active project. Cannot perform semantic search.')
-			]);
-		}
-
-		if (!this.embeddingManager.isAvailable()) {
-			// Fallback: use FTS5 BM25 search when embeddings aren't available
-			return this.ftsOrKeywordFallback(activeProject.id, options.input.query, options.input?.topK);
-		}
-
-		const query = options.input.query;
-		if (!query?.trim()) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart('No query provided for semantic search.')
-			]);
-		}
-
-		const topK = Math.min(Math.max(options.input?.topK ?? 5, 1), 10);
-
-		try {
-			const results = await this.embeddingManager.smartSelect(
-				activeProject.id,
-				query,
-				topK,
-				token
-			);
-
-			if (results.length === 0) {
-				return new vscode.LanguageModelToolResult([
-					new vscode.LanguageModelTextPart(`No knowledge cards found matching "${query}" in project "${activeProject.name}".`)
-				]);
-			}
-
-			// Auto-select matching cards if requested
-			if (options.input?.autoSelect) {
-				const cardIds = results.map(r => r.card.id);
-				await this.projectManager.setCardSelection(activeProject.id, cardIds);
-			}
-
-			const parts: string[] = [];
-			parts.push(`## Semantic Search Results for: "${query}"`);
-			parts.push(`Found ${results.length} relevant knowledge card(s) in project "${activeProject.name}":\n`);
-
-			for (const { card, score } of results) {
-				const pct = (score * 100).toFixed(1);
-				parts.push(`### ${card.title} [${card.category}] (ID: ${card.id}) — ${pct}% match`);
-				if (card.tags?.length) {
-					parts.push(`**Tags:** ${card.tags.join(', ')}`);
-				}
-				parts.push(card.content);
-				parts.push('');
-			}
-
-			if (options.input?.autoSelect) {
-				parts.push(`_\u2705 ${results.length} card(s) auto-selected for context injection._`);
-			}
-
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart(parts.join('\n'))
-			]);
-		} catch (err: any) {
-			// If embeddings fail at runtime, fall back to FTS5/keyword search
-			return this.ftsOrKeywordFallback(activeProject.id, query, topK);
-		}
-	}
-
-	/**
-	 * BM25 full-text search fallback using SQLite FTS5.
-	 * Falls back to simple keyword search if FTS is disabled or unavailable.
-	 */
-	private async ftsOrKeywordFallback(
-		projectId: string,
-		query: string,
-		topK?: number,
-	): Promise<vscode.LanguageModelToolResult> {
-		const limit = Math.min(Math.max(topK ?? ConfigurationManager.searchMaxCardResults, 1), 20);
-
-		// Try FTS5 BM25 search first
-		if (this.searchIndex?.isReady && ConfigurationManager.searchEnableFTS) {
-			try {
-				const results = await this.searchIndex.searchCards(projectId, query, limit, ConfigurationManager.searchSnippetTokens);
-				if (results.length > 0) {
-					const parts: string[] = [];
-					parts.push(`## Knowledge Card Search Results (BM25 ranked)`);
-					parts.push(`Found ${results.length} card(s) matching "${query}":\n`);
-					for (const result of results) {
-						const score = Math.abs(result.score).toFixed(2);
-						parts.push(`### ${result.title} [${result.metadata.category}] — relevance ${score}`);
-						if (result.metadata.tags) {
-							parts.push(`**Tags:** ${result.metadata.tags}`);
-						}
-						// Include full content if available, otherwise snippet
-						parts.push(result.metadata.fullContent || result.snippet);
-						parts.push('');
-					}
-					return new vscode.LanguageModelToolResult([
-						new vscode.LanguageModelTextPart(parts.join('\n'))
-					]);
-				}
-				// FTS returned 0 results — fall through to keyword fallback
-			} catch {
-				// FTS error — fall through to keyword fallback
-			}
-		}
-
-		// Simple keyword fallback
-		return this.keywordFallback(projectId, query, limit);
-	}
-
-	/**
-	 * Simple keyword fallback when embeddings are unavailable.
-	 * Searches card titles, content, tags, and category.
-	 */
-	private keywordFallback(
-		projectId: string,
-		query: string,
-		limit: number,
-	): vscode.LanguageModelToolResult {
-		const cards = this.projectManager.getKnowledgeCards(projectId);
-		const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-
-		const scored = cards.map(card => {
-			const text = `${card.title} ${card.category} ${card.tags?.join(' ') ?? ''} ${card.content}`.toLowerCase();
-			let score = 0;
-			for (const term of terms) {
-				if (text.includes(term)) { score++; }
-			}
-			return { card, score };
-		}).filter(r => r.score > 0);
-
-		scored.sort((a, b) => b.score - a.score);
-		const top = scored.slice(0, limit);
-
-		if (top.length === 0) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart(`No knowledge cards matched the query "${query}" (keyword fallback — embeddings unavailable).`)
-			]);
-		}
-
-		const parts: string[] = [];
-		parts.push(`## Knowledge Card Search Results (keyword fallback)`);
-		parts.push(`Found ${top.length} card(s) matching "${query}":\n`);
-		for (const { card, score } of top) {
-			parts.push(`### ${card.title} [${card.category}] (ID: ${card.id}) — ${score}/${terms.length} terms matched`);
-			if (card.tags?.length) {
-				parts.push(`**Tags:** ${card.tags.join(', ')}`);
-			}
-			parts.push(card.content);
-			parts.push('');
-		}
-		parts.push('_Note: Using keyword search. Enable experimental proposed APIs on VS Code Insiders for semantic (embedding-based) search._');
-
-		return new vscode.LanguageModelToolResult([
-			new vscode.LanguageModelTextPart(parts.join('\n'))
-		]);
-	}
-
-	async prepareInvocation(
-		options: vscode.LanguageModelToolInvocationPrepareOptions<ISemanticSearchParams>,
-		_token: vscode.CancellationToken
-	) {
-		const query = options.input?.query || 'knowledge cards';
-		return {
-			invocationMessage: `Searching knowledge cards for "${query}"...`,
-		};
-	}
 }
 
 // ─── Unified #ctx Tool (Search + List + Learn + Read) ───────────
@@ -281,9 +82,7 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 			case 'learn': return this._handleLearn(options.input);
 			case 'getCard': return this._handleGetCard(options.input);
 			case 'retrospect': return this._handleRetrospect(options.input);
-			case 'timeline': return this._handleTimeline(options.input);
 			case 'fetch': return this._handleFetch(options.input);
-			case 'economics': return this._handleEconomics();
 			case 'search': default: return this._handleSearch(options.input);
 		}
 	}
@@ -522,7 +321,7 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 				const { OBSERVATION_TYPE_EMOJI } = require('../autoCapture');
 				const obsEmoji = OBSERVATION_TYPE_EMOJI[result.metadata.type] || '📝';
 				parts.push(`${obsEmoji} **Type:** ${result.metadata.type} | **From:** ${result.metadata.participant} | **ID:** ${result.entityId}`);
-				parts.push(`_Use \`mode: "timeline", observationId: "${result.entityId}"\` for context or \`mode: "fetch", observationIds: ["${result.entityId}"]\` for full details._`);
+			parts.push(`_Use \`mode: "fetch", observationIds: ["${result.entityId}"]\` for full details._`);
 			} else if (result.entityType === 'learning' || result.entityType === 'convention' || result.entityType === 'workingNote' || result.entityType === 'toolHint') {
 				parts.push(`**Type:** ${result.metadata.type}${result.metadata.category ? ` | **Category:** ${result.metadata.category}` : ''}${result.metadata.confidence ? ` | **Confidence:** ${result.metadata.confidence}` : ''}`);
 			}
@@ -549,64 +348,10 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 			list: `Listing ${options.input?.type || 'items'}...`,
 			learn: `Learning ${options.input?.learnType || 'item'}: "${options.input?.title || options.input?.subject || options.input?.pattern || '...'}"`,
 			getCard: `Reading card ${options.input?.id || '...'}`,
-			timeline: `Getting observation timeline...`,
 			fetch: `Fetching observation details...`,
-			economics: `Getting token economics...`,
 			retrospect: `Processing retrospective...`,
 		};
 		return { invocationMessage: messages[mode] ?? `#ctx (${mode})...` };
-	}
-
-	// ─── 3-Layer Search: Timeline Mode ──────────────────────────
-
-	private _handleTimeline(input: ICtxToolParams): vscode.LanguageModelToolResult {
-		if (!this.autoCapture) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart('Timeline mode requires auto-capture service.')
-			]);
-		}
-
-		const anchorId = input.observationId;
-		if (!anchorId) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart('Timeline mode requires `observationId`. First use search mode to find observation IDs, then use `timeline` mode with an anchor ID.')
-			]);
-		}
-
-		const depth = Math.min(Math.max(input.timelineDepth || 5, 1), 20);
-		const timeline = this.autoCapture.getTimeline(anchorId, depth, depth);
-
-		if (timeline.length === 0) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart(`No observations found around anchor "${anchorId}".`)
-			]);
-		}
-
-		const { OBSERVATION_TYPE_EMOJI } = require('../autoCapture');
-		const parts: string[] = [];
-		parts.push(`## Timeline around ${anchorId}`);
-		parts.push(`Showing ${timeline.length} observations (${depth} before, ${depth} after anchor):\n`);
-
-		for (const obs of timeline) {
-			const isAnchor = obs.id === anchorId;
-			const emoji = OBSERVATION_TYPE_EMOJI[obs.type] || '📝';
-			const date = new Date(obs.timestamp).toLocaleString();
-			const marker = isAnchor ? ' ← **ANCHOR**' : '';
-			parts.push(`### ${emoji} ${obs.type.toUpperCase()} — ${date}${marker}`);
-			parts.push(`**ID:** ${obs.id} | **From:** ${obs.participant}`);
-			parts.push(`**Q:** ${obs.prompt.substring(0, 200)}`);
-			if (obs.filesReferenced?.length > 0) {
-				parts.push(`**Files:** ${obs.filesReferenced.slice(0, 8).join(', ')}`);
-			}
-			if (obs.toolCalls?.length) {
-				parts.push(`**Tools:** ${obs.toolCalls.map((tc: any) => tc.name).join(', ')}`);
-			}
-			parts.push('');
-		}
-
-		return new vscode.LanguageModelToolResult([
-			new vscode.LanguageModelTextPart(parts.join('\n'))
-		]);
 	}
 
 	// ─── 3-Layer Search: Fetch Mode ─────────────────────────────
@@ -661,34 +406,6 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 
 		if (found === 0) {
 			parts.push('\nNo matching observations found. IDs may have been evicted from the circular buffer.');
-		}
-
-		return new vscode.LanguageModelToolResult([
-			new vscode.LanguageModelTextPart(parts.join('\n'))
-		]);
-	}
-
-	// ─── Token Economics ────────────────────────────────────────
-
-	private _handleEconomics(): vscode.LanguageModelToolResult {
-		if (!this.autoCapture) {
-			return new vscode.LanguageModelToolResult([
-				new vscode.LanguageModelTextPart('Token economics requires auto-capture service.')
-			]);
-		}
-
-		const econ = this.autoCapture.getTokenEconomics();
-		const parts: string[] = [];
-		parts.push('## Token Economics — Auto-Capture ROI');
-		parts.push(`| Metric | Value |`);
-		parts.push(`|--------|-------|`);
-		parts.push(`| Observations captured | ${econ.count} |`);
-		parts.push(`| Original interaction cost | ~${econ.totalDiscovery.toLocaleString()} tokens |`);
-		parts.push(`| Compressed read cost | ~${econ.totalRead.toLocaleString()} tokens |`);
-		parts.push(`| **Tokens saved** | **${econ.savings.toLocaleString()} (${econ.savingsPercent}%)** |`);
-
-		if (econ.count > 0) {
-			parts.push(`\n_Each observation compresses a full chat interaction (~${Math.round(econ.totalDiscovery / econ.count)} tokens) into a searchable record (~${Math.round(econ.totalRead / econ.count)} tokens)._`);
 		}
 
 		return new vscode.LanguageModelToolResult([

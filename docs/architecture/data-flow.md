@@ -17,30 +17,28 @@ How data moves through ContextManager's pipelines - from capture to injection.
 
 ContextManager has three main data pipelines that operate concurrently:
 
-1. **Direct Pipeline** - `@ctx` commands → immediate processing
+1. **Tool Pipeline** — LM tool invocations → immediate processing
 2. **Auto-Capture Pipeline** - all chat responses → background processing
 3. **Hook Pipeline** - VS Code Copilot transcript → file-based queue
 
 ---
 
-## 1. Direct Pipeline
+## 1. Tool Pipeline
 
-When you use `@ctx` commands, data flows synchronously:
+When agents invoke ContextManager’s Language Model Tools, data flows synchronously:
 
 {::nomarkdown}
 <pre class="mermaid">
 graph TD
-    A[User types ctx /knowledge] --> B[ChatParticipant receives request]
-    B --> C[Build system prompt]
-    C --> D[Send to Language Model API]
-    D --> E[Handle tool calls in loop]
-    E --> F[Stream response to user]
-    F --> G[Post-processing]
-    G --> H[Auto-capture records observation]
+    A[Agent invokes #ctx or #saveCard] --> B[Tool handler receives request]
+    B --> C[Query project data]
+    C --> D[Return structured result]
+    D --> E[Post-processing]
+    E --> F[Auto-capture records observation]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style D fill:#2563eb,stroke:#58a6ff,color:#fff
-    style H fill:#059669,stroke:#3fb950,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style C fill:#1158c7,stroke:#388bfd,color:#fff
+    style F fill:#238636,stroke:#3fb950,color:#fff
 </pre>
 {:/nomarkdown}
 ---
@@ -53,24 +51,24 @@ Runs in the background for **all** chat participants:
 <pre class="mermaid">
 graph TD
     A[Any Model Response] --> B[AutoCaptureService]
-    B --> C{Content hash dedup}
-    C -->|New| D[Strip private tags]
-    C -->|Duplicate| X[Skip]
-    D --> E[Classify observation type]
+    B --> C[Strip private tags]
+    C --> D{Content hash dedup}
+    D -->|New| E[Classify observation type]
+    D -->|Duplicate| X[Skip]
     E --> F[Extract file paths]
     F --> G[Calculate token economics]
     G --> H[Add to observation buffer]
     H --> I[Update FTS index]
     I --> J{autoLearn enabled?}
     J -->|Yes| K[LLM extraction]
-    K --> L[Conventions + Tool Hints + Notes]
+    K --> L[Conventions + Working Notes]
     J -->|No| N[Done]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style H fill:#2563eb,stroke:#58a6ff,color:#fff
-    style K fill:#d97706,stroke:#fbbf24,color:#fff
-    style L fill:#059669,stroke:#3fb950,color:#fff
-    style X fill:#1c2333,stroke:#30363d,color:#8b949e
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style H fill:#1158c7,stroke:#388bfd,color:#fff
+    style K fill:#9e6a03,stroke:#d29922,color:#fff
+    style L fill:#238636,stroke:#3fb950,color:#fff
+    style X fill:#21262d,stroke:#30363d,color:#8b949e
 </pre>
 {:/nomarkdown}
 ---
@@ -96,16 +94,14 @@ graph TD
     L --> L1[Stop: autoCapture + cardQueue]
     L --> L2[PostToolUse: observation]
     L --> L3[PreCompact: multi-turn]
-    L --> L4[SessionStart: context injection]
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style C fill:#d97706,stroke:#fbbf24,color:#fff
-    style J fill:#2563eb,stroke:#58a6ff,color:#fff
-    style L1 fill:#059669,stroke:#3fb950,color:#fff
-    style L2 fill:#059669,stroke:#3fb950,color:#fff
-    style L3 fill:#059669,stroke:#3fb950,color:#fff
-    style L4 fill:#059669,stroke:#3fb950,color:#fff
-    style I fill:#1c2333,stroke:#30363d,color:#8b949e
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style C fill:#9e6a03,stroke:#d29922,color:#fff
+    style J fill:#1158c7,stroke:#388bfd,color:#fff
+    style L1 fill:#238636,stroke:#3fb950,color:#fff
+    style L2 fill:#238636,stroke:#3fb950,color:#fff
+    style L3 fill:#238636,stroke:#3fb950,color:#fff
+    style I fill:#21262d,stroke:#30363d,color:#8b949e
 </pre>
 {:/nomarkdown}
 ---
@@ -159,17 +155,17 @@ graph TD
     E["Agent invokes #ctx tool"] --> F[On-demand search / getCard / learn]
     F --> H[Context returned to agent]
 
-    I["Agent invokes #searchCards or #getCard"] --> J[Knowledge cards returned]
+    I["Agent invokes #getCard"] --> J[Knowledge cards returned]
     J --> H
 
     G --> K[Language model receives context]
     H --> K
 
-    style A fill:#7c3aed,stroke:#a78bfa,color:#fff
-    style C fill:#059669,stroke:#3fb950,color:#fff
-    style G fill:#2563eb,stroke:#58a6ff,color:#fff
-    style E fill:#d97706,stroke:#fbbf24,color:#fff
-    style K fill:#059669,stroke:#3fb950,color:#fff
+    style A fill:#1f6feb,stroke:#388bfd,color:#fff
+    style C fill:#238636,stroke:#3fb950,color:#fff
+    style G fill:#1158c7,stroke:#388bfd,color:#fff
+    style E fill:#9e6a03,stroke:#d29922,color:#fff
+    style K fill:#238636,stroke:#3fb950,color:#fff
 </pre>
 {:/nomarkdown}
 ---
@@ -180,9 +176,7 @@ graph TD
 |:----------|:--------|:--------|:------|
 | Intelligence Tier 1 | `intelligence.tier1MaxTokens` | 400 tokens | 100–1000 |
 | Intelligence Tier 2 | `intelligence.tier2MaxTokens` | 400 tokens | 100–1000 |
-| Intelligence Max Chars | `intelligence.injectionMaxChars` | 0 (unlimited) | 0+ |
-| Session Continuity | `sessionContinuity.maxContextTokens` | 800 tokens | 200–2000 |
-| Knowledge Cards | `maxKnowledgeCardsInContext` | 5 cards | 1–20 |
+| Knowledge Cards | `maxKnowledgeCardsInContext` | 10 cards | 1–20 |
 
 ---
 

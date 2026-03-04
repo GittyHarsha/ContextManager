@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# cm-version: 2
+# cm-version: 5
 # ContextManager Agent Hook Script — Linux/macOS
-# Handles: SessionStart, PostToolUse, PreCompact, Stop
+# Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.sh
 
 set -euo pipefail
@@ -14,7 +14,7 @@ mkdir -p "$CM_DIR"
 
 # Read stdin
 STDIN=$(cat)
-if [ -z "$STDIN" ]; then exit 0; fi
+if [ -z "$STDIN" ]; then echo '{}'; exit 0; fi
 
 HOOK_TYPE=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hookEventName',''))" 2>/dev/null || echo "")
 SESSION_ID=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sessionId',''))" 2>/dev/null || echo "")
@@ -132,18 +132,38 @@ PYEOF
 case "$HOOK_TYPE" in
 
   "SessionStart")
+    CTX=""
+    if [ -f "$SESSION_CTX" ]; then
+      CTX=$(cat "$SESSION_CTX")
+    fi
+    python3 -c "import sys,json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':sys.argv[1]}}))" "$CTX"
+    exit 0
+    ;;
+
+  "SubagentStart")
+    CTX=""
+    if [ -f "$SESSION_CTX" ]; then
+      CTX=$(cat "$SESSION_CTX")
+    fi
+    python3 -c "import sys,json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'SubagentStart','additionalContext':sys.argv[1]}}))" "$CTX"
+    exit 0
+    ;;
+
+  "UserPromptSubmit")
     if [ -f "$SESSION_CTX" ]; then
       CTX=$(cat "$SESSION_CTX")
       if [ -n "$CTX" ]; then
-        python3 -c "import sys,json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':sys.argv[1]}}))" "$CTX"
+        python3 -c "import sys,json; print(json.dumps({'systemMessage':sys.argv[1]}))" "$CTX"
+      else echo '{}'
       fi
+    else echo '{}'
     fi
     exit 0
     ;;
 
   "PostToolUse")
     TOOL_NAME=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
-    if [ -z "$TOOL_NAME" ]; then exit 0; fi
+    if [ -z "$TOOL_NAME" ]; then echo '{}'; exit 0; fi
     ENTRY=$(echo "$STDIN" | python3 - "$TOOL_NAME" "$SESSION_ID" "$TS" <<'PYEOF'
 import sys, json
 raw = sys.stdin.read()
@@ -157,11 +177,12 @@ print(json.dumps({"hookType":"PostToolUse","toolName":tool_name,"toolInput":inp,
 PYEOF
 )
     echo "$ENTRY" >> "$QUEUE_FILE"
+    echo '{}'
     exit 0
     ;;
 
   "PreCompact")
-    if [ -z "$TRANSCRIPT" ]; then exit 0; fi
+    if [ -z "$TRANSCRIPT" ]; then echo '{}'; exit 0; fi
     TURNS_JSON=$(get_all_turns_since_offset "$TRANSCRIPT" "$SESSION_ID")
     if [ -n "$TURNS_JSON" ]; then
       # Multi-turn format
@@ -191,16 +212,22 @@ PYEOF
     fi
 
     # Print knowledge index to stdout for context survival
+    # PreCompact uses common output format only (systemMessage or {})
     INDEX_FILE="$CM_DIR/knowledge-index.txt"
     if [ -f "$INDEX_FILE" ]; then
-      cat "$INDEX_FILE"
+      INDEX_CONTENT=$(cat "$INDEX_FILE")
+      if [ -n "$INDEX_CONTENT" ]; then
+        python3 -c "import sys,json; print(json.dumps({'systemMessage':sys.argv[1]}))" "$INDEX_CONTENT"
+      else echo '{}'
+      fi
+    else echo '{}'
     fi
 
     exit 0
     ;;
 
   "Stop")
-    if [ -z "$TRANSCRIPT" ]; then exit 0; fi
+    if [ -z "$TRANSCRIPT" ]; then echo '{}'; exit 0; fi
     EXCHANGE=$(get_last_exchange "$TRANSCRIPT")
     ENTRY=$(python3 - "$SESSION_ID" "$TS" "$EXCHANGE" <<'PYEOF'
 import sys, json
@@ -221,9 +248,11 @@ PYEOF
     OFFSET_FILE="$CM_DIR/transcript-offset-$SESSION_ID"
     rm -f "$OFFSET_FILE" 2>/dev/null
 
+    echo '{}'
     exit 0
     ;;
 
 esac
 
+echo '{}'
 exit 0

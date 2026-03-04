@@ -15,6 +15,14 @@ export class ConfigurationManager {
 		return config.get<T>(key, defaultValue);
 	}
 
+	/** Get a string config value, safely coercing non-string values. */
+	private static getString(key: string, defaultValue: string = ''): string {
+		const val = this.get(key, defaultValue);
+		// Non-string primitives (boolean, number, null, undefined) → use default
+		if (typeof val !== 'string') { return defaultValue; }
+		return val.trim();
+	}
+
 	/**
 	 * Set a configuration value.
 	 */
@@ -33,33 +41,8 @@ export class ConfigurationManager {
 		return this.get('confirmDelete', true);
 	}
 
-	static get autoSelectKnowledgeCards(): boolean {
-		return this.get('autoSelectKnowledgeCards', false);
-	}
-
 	static get maxKnowledgeCardsInContext(): number {
-		return this.get('maxKnowledgeCardsInContext', 5);
-	}
-
-	static get cacheExpiration(): number {
-		return this.get('cacheExpiration', 30);
-	}
-
-	static get enableContextByDefault(): boolean {
-		return this.get('enableContextByDefault', true);
-	}
-
-	// ─── Chat Settings ──────────────────────────────────────────────
-
-	static get chatIncludeCopilotInstructions(): boolean {
-		return this.get('chat.includeCopilotInstructions', true);
-	}
-
-
-	// ─── TODO Settings ──────────────────────────────────────────────
-
-	static get todoAutoUpdateStatus(): boolean {
-		return this.get('todo.autoUpdateStatus', true);
+		return this.get('maxKnowledgeCardsInContext', 10);
 	}
 
 	// ─── Explanation Settings ───────────────────────────────────────
@@ -68,37 +51,11 @@ export class ConfigurationManager {
 		return this.get('explanation.expandContext', true);
 	}
 
-	static get explanationIncludeReferences(): boolean {
-		return this.get('explanation.includeReferences', true);
-	}
 
-	// ─── Dashboard Settings ─────────────────────────────────────────
-
-	static get dashboardDefaultTab(): string {
-		return this.get('dashboard.defaultTab', 'overview');
-	}
-
-	// ─── Notification Settings ──────────────────────────────────────
-
-	static get notificationsShowProgress(): boolean {
-		return this.get('notifications.showProgress', true);
-	}
-
-	// ─── Context Settings ───────────────────────────────────────────
-
-	static get contextAutoDeselectAfterUse(): boolean {
-		return this.get('context.autoDeselectAfterUse', false);
-	}
-
-	// ─── Experimental Settings ─────────────────────────────────────
-
-	static get experimentalProposedApi(): boolean {
-		return this.get('experimental.enableProposedApi', false);
-	}
 
 	// ─── Search Settings ──────────────────────────────────────────
 
-	/** Whether BM25 full-text search (SQLite FTS5) is enabled. */
+	/** Whether BM25 full-text search (SQLite FTS4) is enabled. */
 	static get searchEnableFTS(): boolean {
 		return this.get('search.enableFTS', true);
 	}
@@ -108,7 +65,7 @@ export class ConfigurationManager {
 		return this.get('search.maxCardResults', 5);
 	}
 
-	/** Max results returned by #search cross-entity search (1–50, default 10). */
+	/** Max results returned by #ctx cross-entity search (1–50, default 10). */
 	static get searchMaxSearchResults(): number {
 		return this.get('search.maxSearchResults', 10);
 	}
@@ -118,22 +75,7 @@ export class ConfigurationManager {
 		return this.get('search.snippetTokens', 16);
 	}
 
-	// ─── Subagent Settings ─────────────────────────────────────────
-
-	/** Whether the subagent tool is enabled for delegating complex tasks. */
-	static get subagentEnabled(): boolean {
-		return this.get('subagent.enabled', true);
-	}
-
-	/** Maximum tool-calling iterations a subagent can perform (10–200, default 50). */
-	static get subagentMaxIterations(): number {
-		return Math.max(10, Math.min(200, this.get('subagent.maxIterations', 50)));
-	}
-
-	/** Preferred model family for subagent loops (empty = use default). */
-	static get subagentModelFamily(): string {
-		return this.get('subagent.modelFamily', '').trim();
-	}
+	// Subagent settings removed — subagent tool is obsolete
 
 	/**
 	 * When true (default), the save/read/search cache and save knowledge card tools
@@ -144,18 +86,6 @@ export class ConfigurationManager {
 		return this.get('tools.backgroundMode', true);
 	}
 
-	// ─── Git Settings ─────────────────────────────────────────────
-
-	/** Base branch for computing changed files / branch-scoped commits. Empty = auto-detect main/master. */
-	static get branchBaseBranch(): string {
-		return this.get('branch.baseBranch', '').trim();
-	}
-
-	/** Update the base branch setting. */
-	static async setBranchBaseBranch(value: string): Promise<void> {
-		await this.set('branch.baseBranch', value, vscode.ConfigurationTarget.Workspace);
-	}
-
 	// ─── Project Intelligence Settings ─────────────────────────────
 
 	/** Enable tiered injection of conventions + tool hints into prompts. */
@@ -163,47 +93,34 @@ export class ConfigurationManager {
 		return this.get('intelligence.enableTieredInjection', true);
 	}
 
-	/** Inject learned intelligence into ALL chat participants (not just @ctx). */
-	static get intelligenceInjectIntoAllParticipants(): boolean {
-		return this.get('intelligence.injectIntoAllParticipants', true);
-	}
-
 	/** Token budget for Tier 1 (always-injected) learnings. */
 	static get intelligenceTier1MaxTokens(): number {
-		return this.get('intelligence.tier1MaxTokens', 800);
+		return this.get('intelligence.tier1MaxTokens', 400);
 	}
 
 	/** Token budget for Tier 2 (task-relevant) learnings. */
 	static get intelligenceTier2MaxTokens(): number {
-		return this.get('intelligence.tier2MaxTokens', 800);
+		return this.get('intelligence.tier2MaxTokens', 400);
 	}
 
-	/** Hard cap on characters injected per prompt (0 = unlimited). */
-	static get intelligenceInjectionMaxChars(): number {
-		return this.get('intelligence.injectionMaxChars', 0);
-	}
 
-	/** @deprecated Per-prompt injection removed — intelligence via copilot-instructions.md + #ctx tool. */
-	static get intelligenceMinPromptLength(): number {
-		return 0;
-	}
 
-	/** Inject conventions into non-@ctx prompts. */
+	/** Inject conventions into prompts. */
 	static get intelligenceInjectConventions(): boolean {
 		return this.get('intelligence.injectConventions', true);
 	}
 
-	/** Inject working notes into non-@ctx prompts. */
+	/** Inject working notes into prompts. */
 	static get intelligenceInjectWorkingNotes(): boolean {
 		return this.get('intelligence.injectWorkingNotes', true);
 	}
 
-	/** Inject tool hints into non-@ctx prompts. */
+	/** Inject tool hints into prompts. */
 	static get intelligenceInjectToolHints(): boolean {
 		return this.get('intelligence.injectToolHints', true);
 	}
 
-	/** Inject knowledge cards into non-@ctx prompts. */
+	/** Inject knowledge cards into prompts. */
 	static get intelligenceInjectKnowledgeCards(): boolean {
 		return this.get('intelligence.injectKnowledgeCards', true);
 	}
@@ -237,7 +154,7 @@ export class ConfigurationManager {
 
 	/** Preferred model family for auto-learn LLM extraction (empty = use default). */
 	static get autoLearnModelFamily(): string {
-		return this.get('intelligence.autoLearn.modelFamily', '').trim();
+		return this.getString('intelligence.autoLearn.modelFamily');
 	}
 
 	/** Suppress a signal category after N user discards. 0 = never suppress. */
@@ -307,7 +224,7 @@ export class ConfigurationManager {
 		return this.get('autoCapture.enabled', true);
 	}
 
-	/** Run LLM extraction on non-@ctx interactions to learn conventions. */
+	/** Run LLM extraction on all interactions to learn conventions. */
 	static get autoCaptureLearnFromAll(): boolean {
 		return this.get('autoCapture.learnFromAllParticipants', true);
 	}
@@ -341,10 +258,7 @@ export class ConfigurationManager {
 		return this.get('saveAsCard.smartMerge', true);
 	}
 
-	/** Enable save-as-card follow-up buttons after @ctx commands. */
-	static get saveAsCardFollowupsEnabled(): boolean {
-		return this.get('saveAsCard.showFollowups', true);
-	}
+
 
 	// ─── Card Queue Settings ────────────────────────────────────────
 
@@ -382,57 +296,22 @@ export class ConfigurationManager {
 
 	/** Global custom instructions appended to all prompts. */
 	static get promptGlobalInstructions(): string {
-		return this.get('prompts.globalInstructions', '').trim();
-	}
-
-	/** Custom system prompt for chat (overrides default when non-empty). */
-	static get promptChat(): string {
-		return this.get('prompts.chat', '').trim();
-	}
-
-	/** Custom system prompt for /explain (overrides default when non-empty). */
-	static get promptExplain(): string {
-		return this.get('prompts.explain', '').trim();
-	}
-
-	/** Custom system prompt for /usage (overrides default when non-empty). */
-	static get promptUsage(): string {
-		return this.get('prompts.usage', '').trim();
-	}
-
-	/** Custom system prompt for /relationships (overrides default when non-empty). */
-	static get promptRelationships(): string {
-		return this.get('prompts.relationships', '').trim();
-	}
-
-	/** Custom system prompt for /research (overrides default when non-empty). */
-	static get promptResearch(): string {
-		return this.get('prompts.research', '').trim();
-	}
-
-	/** Custom system prompt for /refine (overrides default when non-empty). */
-	static get promptRefine(): string {
-		return this.get('prompts.refine', '').trim();
-	}
-
-	/** Custom system prompt for TODO agent (overrides default when non-empty). */
-	static get promptTodo(): string {
-		return this.get('prompts.todo', '').trim();
+		return this.getString('prompts.globalInstructions');
 	}
 
 	/** Custom prompt for observation distillation (overrides default when non-empty). */
 	static get promptDistillObservations(): string {
-		return this.get('prompts.distillObservations', '').trim();
+		return this.getString('prompts.distillObservations');
 	}
 
 	/** Custom prompt for queue distillation (overrides default when non-empty). */
 	static get promptDistillQueue(): string {
-		return this.get('prompts.distillQueue', '').trim();
+		return this.getString('prompts.distillQueue');
 	}
 
 	/** Custom prompt for card synthesis / AI draft (overrides default when non-empty). */
 	static get promptSynthesizeCard(): string {
-		return this.get('prompts.synthesizeCard', '').trim();
+		return this.getString('prompts.synthesizeCard');
 	}
 
 	/**
@@ -442,13 +321,6 @@ export class ConfigurationManager {
 	 */
 	static getEffectivePrompt(command: string, defaultPrompt: string): string {
 		const customMap: Record<string, string> = {
-			chat: this.promptChat,
-			explain: this.promptExplain,
-			usage: this.promptUsage,
-			relationships: this.promptRelationships,
-			research: this.promptResearch,
-			refine: this.promptRefine,
-			todo: this.promptTodo,
 			distillObservations: this.promptDistillObservations,
 			distillQueue: this.promptDistillQueue,
 			synthesizeCard: this.promptSynthesizeCard,
@@ -483,27 +355,6 @@ export class ConfigurationManager {
 
 	// ─── Validation ─────────────────────────────────────────────────
 
-	/**
-	 * Ensure cache expiration is never expired.
-	 * Returns timestamp of when the cache entry should expire, or undefined if never.
-	 */
-	static getCacheExpirationTimestamp(): number | undefined {
-		const days = this.cacheExpiration;
-		if (days === 0) {
-			return undefined; // Never expire
-		}
-		return Date.now() + (days * 24 * 60 * 60 * 1000);
-	}
 
-	/**
-	 * Check if a timestamp has expired based on current settings.
-	 */
-	static isCacheExpired(timestamp: number): boolean {
-		const expirationDays = this.cacheExpiration;
-		if (expirationDays === 0) {
-			return false; // Never expire
-		}
-		const expirationTime = expirationDays * 24 * 60 * 60 * 1000;
-		return (Date.now() - timestamp) > expirationTime;
-	}
+
 }

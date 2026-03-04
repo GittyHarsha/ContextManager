@@ -1,8 +1,8 @@
 # ContextManager — AI Project Memory
 
-> Give Copilot persistent, structured memory for your codebase. Curate knowledge cards, delegate tasks to autonomous AI agents, search everything with BM25, track branch sessions, and share context across every Copilot interaction — all from a single dashboard.
+> Give Copilot persistent, structured memory for your codebase. Knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, and a full dashboard — all injected automatically into every AI interaction.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/GittyHarsha/ContextManager)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/GittyHarsha/ContextManager)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.100.0+-007ACC.svg)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
@@ -12,107 +12,55 @@
 
 ### 🧠 Knowledge Cards — Persistent AI Memory
 
-Create, curate, and inject expert knowledge into every AI interaction. Knowledge cards are structured notes — architectural decisions, coding conventions, patterns — that you select to automatically enhance all Copilot responses.
+Create, curate, and inject expert knowledge into every AI interaction. Knowledge cards are structured markdown notes — architectural decisions, coding conventions, patterns — that enhance all Copilot responses.
 
-- **Create cards manually** from the dashboard or **generate them with AI** using `@ctx /knowledge`
-- **Refine existing cards** with `@ctx /refine` — the AI researches your codebase and updates a card
+- **Create cards** from the dashboard, via `#saveCard` tool, or from the Card Queue
 - **Tag and categorize** (architecture, pattern, convention, explanation, note)
-- **Select cards** to inject them into AI prompts — only selected cards are used
-- **Reference files** — attach source files to cards for richer context
-- **Linked TODO cards** — TODOs can auto-create and refine a linked knowledge card across runs
-- **Search and filter** — find cards by keyword, tag, or BM25 full-text search
+- **Folder organization** — organize cards into folders manually or with `#organizeCards` auto-organize
+- **Code anchors** — cards track referenced files and flag staleness when code changes
+- **Search and filter** — find cards by keyword or BM25 full-text search
+- **Smart merge** — when saving a card similar to an existing one, a merge picker appears automatically
 
-### 🤖 Subagent Tool — Delegate Complex Tasks
+### 🔄 Auto-Capture & Card Queue
 
-Launch an autonomous subagent that runs its own tool-calling loop in an isolated context window. Any agent — local, background, cloud, or Codex — can invoke `#ctxSubagent` to delegate multi-step work:
+ContextManager captures knowledge silently in the background from **all** chat participants:
 
-| Task | What it does |
-|------|-------------|
-| `executeTodo` | Research and implement a TODO item, update its status |
-| `generateKnowledge` | Research a topic across the codebase, create a knowledge card |
-| `refineKnowledge` | Improve an existing card with fresh codebase research |
-| `research` | General research — explore code and project memory |
-| `analyzeCode` | Deep code analysis — patterns, architecture, relationships |
+| What's captured | How |
+|:----------------|:----|
+| **Conventions** | LLM extracts coding patterns from responses |
+| **Tool Hints** | Learned search terms that work for your codebase |
+| **Working Notes** | Code relationships and insights discovered during exploration |
+| **Card Candidates** | High-confidence knowledge staged in the Card Queue for review |
 
-The subagent gets **pre-filled context** (project state, TODO details, card content) so it starts working immediately. Post-processing auto-creates cards and updates TODOs.
+Card-worthy responses are automatically queued. Click **Distill into Cards** in the dashboard to synthesize them into knowledge card proposals for review.
 
-Configurable via `contextManager.subagent.*` settings (enable/disable, max iterations, model family).
-
-### 💬 Chat Participant (`@ctx`) — 10 Specialized Commands
-
-Type `@ctx` in Copilot Chat:
-
-| Command | What it does |
-|---------|-------------|
-| `@ctx /chat` | Ask questions with full project context (default) |
-| `@ctx /explain` | Deep-dive explanation of a symbol, class, or function |
-| `@ctx /usage` | Explain _why_ a symbol is used at a specific location |
-| `@ctx /relationships` | Show class hierarchies and architectural patterns |
-| `@ctx /todo` | Work on a TODO with AI agent (full tool access) |
-| `@ctx /knowledge` | Research a topic and generate a knowledge card |
-| `@ctx /refine` | Refine an existing knowledge card with new AI research |
-| `@ctx /save` | Answer a question and save the result as a knowledge card |
-| `@ctx /context` | Display current project context (cards, cache, metadata) |
-| `@ctx /doc` | ⚠️ _Experimental_ — Generate and apply doc comments to selected code |
-
-Every command automatically includes your selected knowledge cards and cache entries as context.
-
-### 🔍 BM25 Full-Text Search (SQLite FTS5)
+### 🔍 BM25 Full-Text Search (SQLite FTS4)
 
 Fast, ranked search across your entire project memory:
 
-- **`#searchCards`** — BM25-ranked knowledge card search with full content retrieval
-- **`#search`** — Cross-entity search across cards, TODOs, cache, branch sessions, agent messages, and projects
-- SQLite FTS5 via sql.js (WebAssembly) — no native binaries, works everywhere
+- **`#ctx`** — unified BM25 search across cards, conventions, working notes, tool hints, cache, observations, sessions, and projects
+- SQLite FTS4 via sql.js (WebAssembly) — no native binaries, works everywhere
 - Quoted phrases (`"error handler"`), prefix matching (`auth*`), snippet previews
 - Index persisted between sessions, rebuilt on activation, incrementally synced on every mutation
 
-### 🔗 `#projectContext` — Share Context With All Chat Participants
+### 🧩 Project Intelligence — Auto-Learn Pipeline
 
-Your curated knowledge is available in **any Copilot chat** — not just `@ctx`:
+ContextManager automatically learns from your interactions:
 
-- Type `#projectContext` to pull in your project context
-- Copilot can also **auto-invoke** it when your question relates to project architecture
-- **Fine-grained control** from the dashboard:
-  - ✅ Project metadata (name, goals, conventions)
-  - ✅ Selected knowledge cards
-  - ✅ Selected cache entries
-  - ☐ Active TODOs (off by default)
-- Per-project master toggle to enable/disable
-
-### ✅ TODO Management with AI Agents
-
-Create TODOs, then let an AI agent work on them autonomously:
-
-- **Full tool access** — the agent searches, reads files, and navigates your entire codebase
-- **Conversation history** — review every step the agent took
-- **Resume with instructions** — pause, adjust, and continue with additional context
-- **Auto-status updates** — status changes automatically based on agent progress
-- **Linked knowledge cards** — each TODO can create/refine a linked card across runs
-- **Priority levels** — low, medium, high
-- **Bulk operations** — select all, bulk complete, bulk delete
-- **Subagent delegation** — use `#ctxSubagent` with `executeTodo` to run TODOs from any agent
-
-### 🔀 Branch Tracking & Git Integration
-
-Track your work across branches with automatic git state capture:
-
-- **Branch session tracking** — task, goal, approaches, decisions, next steps, blockers
-- **Git state capture** — changed files, recent commits (filtered by author), branch name
-- **Dashboard Git section** — async-loaded commit history, changed files, branch status
-- **`@ctx /save` auto-links** branch sessions to knowledge cards
-- **Session history** — browse and review past sessions per branch
+- **Conventions** — coding patterns and rules extracted from AI responses
+- **Tool Hints** — search queries that work for your codebase (fail→success patterns)
+- **Working Notes** — file relationships and insights from code exploration
+- **Tiered injection** — confirmed conventions are always injected; task-relevant notes are matched by keywords
+- **Staleness tracking** — items are flagged when their referenced files change
 
 ### 💾 Explanation Cache
 
-Explanations from `/explain`, `/usage`, and `/relationships` are automatically cached:
+Right-click context menu explanations are automatically cached:
 
 - **Never ask twice** — cached explanations are served instantly
 - **Project-scoped** — cache entries belong to a specific project
-- **Selectable for context** — check entries to include them in AI prompts
-- **Editable** — rename or modify cached content inline
-- **Convert to knowledge** — promote a cache entry to a knowledge card
-- **Configurable expiration** — set days to keep (0 = never expire)
+- **Editable** — rename or modify cached content in the dashboard
+- **Searchable** — find entries via `#ctx` search
 
 ### 📊 Dashboard — Centralized Management
 
@@ -120,28 +68,24 @@ Open with the status bar icon or `ContextManager: Open Dashboard`:
 
 | Tab | What's inside |
 |-----|--------------|
-| **Overview** | Project stats, context injection toggle, quick actions |
-| **TODOs** | Full TODO management with search, filter, bulk ops |
-| **Branches** | Tracked branches, session history, git status |
-| **Knowledge** | All cards with search, filter, select/deselect, inline editing |
-| **Cache** | Cached explanations with selection, editing, conversion |
-| **Context** | Project goals, conventions, key files, `#projectContext` tool config |
-| **⚙ Settings** | All extension settings — edit right in the dashboard |
+| **Intelligence** | Conventions, tool hints, working notes, auto-learn pipeline status |
+| **Knowledge** | Cards, folders, card queue, search, inline editing, card canvas |
+| **Context** | Project goals, conventions, key files, prompt customization |
+| **Settings** | All extension settings — edit right in the dashboard |
 
 ---
 
-## 7 Language Model Tools
+## 5 Language Model Tools
 
-These tools are registered via `vscode.lm.registerTool` and available to **all agents** — Copilot, background agents, cloud agents, Codex:
+These tools are registered via `vscode.lm.registerTool` and available to **all agents** — Copilot Chat, background agents, cloud agents, and Codex:
 
 | Tool | Reference | Purpose |
-|------|-----------|---------|
-| `contextManager_getProjectContext` | `#projectContext` | Get project metadata, knowledge cards, cache |
-| `contextManager_manageTodos` | `#manageTodos` | CRUD TODOs, update status, run agents |
-| `contextManager_branchSession` | `#branchSession` | Save/resume branch sessions, track branches |
-| `contextManager_semanticSearch` | `#searchCards` | Embedding-based semantic card search |
-| `contextManager_fullTextSearch` | `#search` | BM25 cross-entity full-text search |
-| `contextManager_runSubagent` | `#ctxSubagent` | Autonomous subagent for complex tasks |
+|------|-----------|---------|  
+| `contextManager_ctx` | `#ctx` | Unified project memory — search, list, learn, getCard, retrospect |
+| `contextManager_getCard` | `#getCard` | Read a specific knowledge card by ID |
+| `contextManager_saveKnowledgeCard` | `#saveCard` | Save a new knowledge card (runs silently) |
+| `contextManager_editKnowledgeCard` | `#editCard` | Edit an existing knowledge card |
+| `contextManager_organizeKnowledgeCards` | `#organizeCards` | Organize cards into folders |
 
 ---
 
@@ -154,46 +98,40 @@ These tools are registered via `vscode.lm.registerTool` and available to **all a
 3. Name it and select workspace folders
 4. Open the **Dashboard** → **Context** tab to add goals and conventions
 
-### Step 2 — Understand Your Code
+### Step 2 — Chat Normally
 
-Right-click any symbol in the editor:
-- **Explain** — what does this code do?
-- **Explain Usage** — why is this used here?
-- **Explain Relationships** — show class hierarchy and architecture
+Just use Copilot as you normally would. ContextManager captures intelligence silently in the background from all chat participants.
 
-Explanations are cached automatically. Select cached entries to include them in future AI prompts.
+### Step 3 — Review the Card Queue
 
-### Step 3 — Build Knowledge
+AI responses accumulate in the **Card Queue**. Periodically:
 
-```
-@ctx /save How does authentication work in this project?
-@ctx /knowledge Research the observer pattern in this codebase
-```
+1. Open the Dashboard → **Knowledge** tab → **Card Queue** subtab
+2. Click **Distill into Cards** — one LLM call synthesizes all queued items into card proposals
+3. Review proposals: click **Add** for ones worth keeping (or **Approve All**)
 
-Cards are created and added to your project. Select them to inject into all AI interactions.
+### Step 4 — Use Tools Directly
 
-### Step 4 — Delegate Work
+Type `#ctx` in any Copilot Chat to search your project memory:
 
 ```
-@ctx /todo Refactor the authentication module
+#ctx query:"error handling"
+#ctx mode:list type:conventions
+#ctx mode:learn learnType:convention title:"Error handling" content:"Always use Result<T>"
 ```
 
-Or use the subagent tool from any agent:
-```
-#ctxSubagent task:research prompt:"How does the error handling pipeline work?"
-```
+### Step 5 — Context Everywhere
 
-### Step 5 — Use Context Everywhere
+ContextManager delivers context to every AI interaction via two channels:
 
-- **`@ctx` queries** — knowledge cards and cache are injected automatically
-- **Normal Copilot queries** — type `#projectContext` to pull in your project knowledge
-- **Any agent** — tools are available to background, cloud, and Codex agents
+- **`copilot-instructions.md` managed block** — auto-synced `#ctx` usage instructions and pinned card titles, included in every agent session
+- **`#ctx` tool** — available on-demand for search, list, learn, and getCard across all project knowledge
 
 ---
 
 ## Settings Reference
 
-All settings are accessible from the **⚙ Settings** tab in the dashboard.
+All settings are accessible from the **Settings** tab in the dashboard.
 
 ### General
 
@@ -201,105 +139,89 @@ All settings are accessible from the **⚙ Settings** tab in the dashboard.
 |---------|---------|-------------|
 | `contextManager.showStatusBar` | ✅ | Show active project in the status bar |
 | `contextManager.confirmDelete` | ✅ | Confirmation dialog before deleting items |
-| `contextManager.autoSelectKnowledgeCards` | ☐ | Auto-select relevant cards based on context |
-| `contextManager.maxKnowledgeCards` | 5 | Maximum cards to include in AI prompts (1–20) |
-| `contextManager.cacheExpiration` | 30 | Days to keep cached explanations (0 = never) |
-| `contextManager.enableContextByDefault` | ✅ | Auto-enable context for new projects |
+| `contextManager.maxKnowledgeCardsInContext` | 10 | Maximum cards injected into AI prompts (1–20) |
+| `contextManager.explanation.expandContext` | ✅ | Expand surrounding code when explaining symbols |
 
-### Chat
+### Intelligence & Auto-Learn
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `contextManager.chat.includeCopilotInstructions` | ✅ | Include `.github/copilot-instructions.md` |
-| `contextManager.chat.includeReadme` | ✅ | Include README.md in project context |
+| `contextManager.intelligence.enableTieredInjection` | ✅ | Auto-inject conventions and top tool hints into every prompt |
+| `contextManager.intelligence.tier1MaxTokens` | 400 | Token budget for always-injected learnings (100–1000) |
+| `contextManager.intelligence.tier2MaxTokens` | 400 | Token budget for task-relevant learnings (100–1000) |
+| `contextManager.intelligence.autoLearn` | ✅ | Enable auto-learning pipeline |
+| `contextManager.intelligence.autoLearn.useLLM` | ✅ | Use LLM for convention/note extraction (vs regex-only) |
+| `contextManager.intelligence.enableStalenessTracking` | ✅ | Flag items when referenced files change |
+| `contextManager.intelligence.stalenessAgeDays` | 30 | Days before cards are flagged as age-stale (7–365) |
 
-### TODO Agent
+### Auto-Capture
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `contextManager.todo.autoUpdateStatus` | ✅ | Auto-change TODO status based on agent progress |
+| `contextManager.autoCapture.enabled` | ✅ | Capture observations from all chat participants |
+| `contextManager.autoCapture.learnFromAllParticipants` | ✅ | Run LLM extraction on non-@ctx interactions |
+| `contextManager.autoCapture.maxObservations` | 50 | Max observations in circular buffer (10–200) |
 
-### Subagent
+### Card Queue
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `contextManager.subagent.enabled` | ✅ | Enable the subagent tool for delegating tasks |
-| `contextManager.subagent.maxIterations` | 50 | Max tool-calling iterations per subagent run (10–200) |
-| `contextManager.subagent.modelFamily` | _(auto)_ | Preferred model family for subagent loops |
+| `contextManager.cardQueue.enabled` | ✅ | Auto-detect card-worthy content in chat responses |
+| `contextManager.cardQueue.minResponseLength` | 300 | Min response length to queue as candidate (50–5000) |
+| `contextManager.cardQueue.maxSize` | 30 | Max candidates in review queue (5–100) |
+
+### Auto-Distill
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `contextManager.autoDistill.enabled` | ✅ | Auto-distill observations at compaction checkpoints |
+| `contextManager.autoDistill.intervalMinutes` | 30 | Min minutes between distillation runs |
 
 ### Search
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `contextManager.search.enableFTS` | ✅ | Enable BM25 full-text search |
-| `contextManager.search.maxCardResults` | 10 | Max results for card search |
-| `contextManager.search.maxSearchResults` | 20 | Max results for cross-entity search |
-| `contextManager.search.snippetTokens` | 80 | Snippet size in search results |
+| `contextManager.search.maxCardResults` | 5 | Max results for card search (1–20) |
+| `contextManager.search.maxSearchResults` | 10 | Max results for cross-entity search (1–50) |
+| `contextManager.search.snippetTokens` | 16 | Context tokens around match highlights (8–64) |
 
-### Explanations
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `contextManager.explanation.expandContext` | ✅ | Expand surrounding code when explaining symbols |
-| `contextManager.explanation.includeReferences` | ✅ | Include file references in explanations |
-
-### Context
+### Prompts
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `contextManager.context.autoDeselectAfterUse` | ☐ | Deselect cards/cache after they're used in a query |
-
-### Branch Tracking
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `contextManager.branch.includeInPrompts` | ✅ | Include branch context in AI prompts |
-| `contextManager.branch.autoCapture` | ☐ | Auto-capture branch state on switch |
-
-### Dashboard
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `contextManager.dashboard.defaultTab` | Overview | Tab shown when dashboard opens |
-| `contextManager.notifications.showProgress` | ✅ | Progress notifications for long-running operations |
-
-### Experimental
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `contextManager.experimental.enableProposedApi` | ☐ | Enables `/doc` command and Smart Select (embeddings). Requires VS Code Insiders. |
+| `contextManager.prompts.globalInstructions` | _(empty)_ | Custom instructions appended to every prompt |
+| `contextManager.prompts.distillObservations` | _(empty)_ | Custom prompt for observation distillation |
+| `contextManager.prompts.distillQueue` | _(empty)_ | Custom prompt for card queue distillation |
+| `contextManager.prompts.synthesizeCard` | _(empty)_ | Custom prompt for AI card synthesis |
 
 ---
 
 ## Architecture
 
 ```
-@ctx Chat Participant (10 commands)
-  ├── Tool-calling loop (search, read, navigate codebase)
-  ├── Project context injection (knowledge cards + cache)
-  ├── Explanation caching (auto-cache + selectable)
-  └── Knowledge card lifecycle (create → refine → inject)
+copilot-instructions.md (auto-synced managed block)
+  └── #ctx usage instructions + pinned card titles
 
-7 Language Model Tools (available to ALL agents)
-  ├── #projectContext — project metadata + selected cards/cache
-  ├── #manageTodos — CRUD + agent execution
-  ├── #branchSession — save/resume/track branches
-  ├── #searchCards — BM25 knowledge card search
-  ├── #search — cross-entity full-text search
-  ├── #ctxSubagent — autonomous subagent with isolated loop
-  └── #semanticSearch — embedding-based card search (experimental)
+5 Language Model Tools (available to ALL agents)
+  ├── #ctx — unified project memory (search, list, learn, getCard, retrospect)
+  ├── #getCard — read a specific card by ID
+  └── #saveCard / #editCard / #organizeCards — knowledge card CRUD
 
-Dashboard (WebView)
-  ├── Overview — stats, quick actions
-  ├── TODOs — search, filter, bulk ops, agent runs
-  ├── Branches — tracked branches, session history, git status
-  ├── Knowledge — cards, tags, search, select
-  ├── Cache — entries, edit, select, convert
-  ├── Context — project metadata, tool sharing config
+Auto-Capture Pipeline
+  ├── Observation capture from all chat participants
+  ├── Auto-learn: conventions, tool hints, working notes
+  ├── Card Queue: card-worthy responses staged for review
+  └── Auto-distill: periodic observation compaction
+
+Dashboard (WebView, 4 tabs)
+  ├── Intelligence — conventions, tool hints, working notes
+  ├── Knowledge — cards, folders, card queue, card canvas
+  ├── Context — project metadata, prompt customization
   └── Settings — all extension settings
 
-SQLite FTS5 (sql.js WebAssembly)
-  └── BM25-ranked search across 6 entity types
+SQLite FTS4 (sql.js WebAssembly)
+  └── BM25-ranked search across 8 FTS tables
 ```
 
 ---
@@ -315,19 +237,14 @@ SQLite FTS5 (sql.js WebAssembly)
 ## FAQ
 
 **Q: How is this different from `.github/copilot-instructions.md`?**
-A: Copilot instructions are a flat file. ContextManager gives you structured, selectable, taggable knowledge cards with per-project organization. You choose exactly which context to inject. Plus you get TODO agents, subagent delegation, BM25 search, branch tracking, and a full dashboard.
+A: Copilot instructions are a flat file. ContextManager gives you structured, searchable knowledge cards with auto-capture, a learning pipeline, BM25 search, and a full dashboard. It also auto-syncs a managed block into your `copilot-instructions.md` so every agent starts informed.
 
 **Q: Does my context persist across workspaces?**
 A: Project metadata and knowledge cards are stored in VS Code's `globalState` — they persist across workspaces. Cache entries use `workspaceState` and are workspace-specific.
 
-**Q: Can Copilot see my context without `@ctx`?**
-A: Yes. Type `#projectContext` in any chat query, or Copilot may auto-invoke it based on your question. All 7 tools are also available to background/cloud/Codex agents.
+**Q: How do agents access my knowledge?**
+A: Two ways: (1) ContextManager auto-syncs a managed block into `copilot-instructions.md` with `#ctx` tool instructions and pinned card titles — every agent sees this automatically. (2) Agents can invoke any of the 5 LM tools on-demand (e.g. `#ctx`, `#getCard`, `#saveCard`).
 
-**Q: What is the subagent tool?**
-A: `#ctxSubagent` launches an autonomous subagent with its own tool-calling loop. It gets pre-filled project context and can search, read, and use all ContextManager tools independently. Use it to delegate complex tasks like researching a topic, executing a TODO, or analyzing code — without consuming the main agent's context budget.
-
-**Q: What are the proposed API features?**
-A: Features like chat status items, `#variables`, inline question carousels, tool progress, and chat sessions auto-activate on VS Code Insiders and gracefully degrade on stable VS Code. No setting needed.
 
 ---
 

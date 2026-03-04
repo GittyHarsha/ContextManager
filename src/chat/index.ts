@@ -188,13 +188,11 @@ export function registerChatParticipant(
 				if (result.command !== 'relationships') {
 					followups.push({ prompt: 'explain relationships', label: 'Show class relationships', command: 'relationships' });
 				}
-				if (ConfigurationManager.experimentalProposedApi) {
-					followups.push({ prompt: '', label: '\uD83D\uDCDD Add doc comments (experimental)', command: 'doc' });
-				}
+
 			}
 
 			// Save-as-card followups for all content-generating commands (if enabled)
-			if (ConfigurationManager.saveAsCardFollowupsEnabled && contentCommands.includes(result.command)) {
+			if (contentCommands.includes(result.command)) {
 				followups.push({ prompt: 'save this as a knowledge card', label: 'Save as Knowledge Card', command: 'save' });
 				followups.push({ prompt: '', label: '\uD83D\uDCE5 Add last response as card', command: 'add' });
 			}

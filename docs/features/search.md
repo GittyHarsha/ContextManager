@@ -30,9 +30,7 @@ Unified search across **all** entity types simultaneously. Replaces the old `#se
 | Knowledge Cards | Title, content, category, tags, source |
 | Cached Explanations | Symbol name, content, file path, type |
 | Observations | Auto-captured interactions (prompt, response summary, participant) |
-| Agent Messages | Subagent conversation messages (role, content) |
 | Projects | Project metadata (name, description, goals, conventions) |
-| Todos | TODO items (title, description, notes, status, priority) |
 | Learnings | Conventions, tool hints, and working notes (subject, content, category) |
 
 {: .note }
@@ -42,12 +40,10 @@ Unified search across **all** entity types simultaneously. Replaces the old `#se
 #ctx query:"error handling" maxResults:10
 ```
 
-### `#searchCards` - Knowledge Card Search
-
-BM25-ranked search specifically across knowledge cards. Returns full card content.
+Card-specific search is available via `#ctx` with `entityTypes: ['card']`:
 
 ```
-#searchCards query:"authentication flow"
+#ctx query:"authentication flow" entityTypes:["card"]
 ```
 
 ---

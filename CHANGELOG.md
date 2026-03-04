@@ -5,6 +5,38 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-03-04
+
+### Changed
+- **Observations are raw data, not promotable** — Removed "Promote to convention" and "Promote to working note" buttons from individual observation rows. Observations are unprocessed raw captures; use "Distill with AI" to extract structured knowledge instead.
+- **Build script now validates webview** — `install.ps1` includes automatic webview script syntax validation between compile and package steps, catching template-literal JS errors that TypeScript misses.
+
+### Removed
+- **Legacy chat participant code** — Deleted `src/chat/` (6 files), `src/prompts/` (8 files), `src/chatParticipant.old.ts`, and `src/tools.old.ts` (~8,300 lines of dead code from the pre-MCP architecture).
+- **Overview tab** — Removed from dashboard. Intelligence is now the default landing tab.
+- **Cache tab** — Removed standalone cache tab; cache entries integrated into other views.
+
+## [2.2.0] - 2026-03-03
+
+### Added
+- **Tags propagation in distill-to-approve pipeline** — The LLM now generates 2–5 keyword tags per distilled card. Tags are stored in the DOM, passed through `approveDistilledCard()` / `approveAllDistilled()` messages, validated in the message handler, and persisted via `addKnowledgeCard()`. Previously tags were hardcoded to `[]` at every stage.
+- **Custom prompt for AI synthesis** — The ✨ AI Synthesize action now opens the card editor with a custom prompt textarea. Users can provide specific instructions (e.g., "Focus on security implications") that are injected as a `## User's Custom Instructions` section in the LLM prompt. Leave blank for default behavior.
+- **Generate with AI uses LM API directly** — The "Generate with AI" button in the Knowledge tab now calls `vscode.lm.selectChatModels()` + `model.sendRequest()` directly instead of opening `@ctx /knowledge` via the chat panel. Includes cancellable progress notification and robust JSON parsing.
+- **Descriptive error messages for AI operations** — All AI failure paths (distill, synthesize, generate) now return specific reasons: "No unprocessed observations", "No language model available", "LLM returned no response", parse failures with response preview. Replaces generic "AI draft failed" / "No model available" messages.
+
+### Changed
+- **Unified card selection for hook injection** — The Knowledge tab checkboxes (`selectedCardIds`) now drive the "Inject into Every Prompt" hook system. Previously there was a separate card picker in the injection section; this has been removed. One checkbox, one source of truth.
+- **Hook renamed SessionStart → UserPromptSubmit** — The capture script now uses `UserPromptSubmit` (fires before every prompt) with a `hookSpecificOutput` wrapper instead of the old `SessionStart` event.
+- **Injection section simplified** — The dashboard's "Inject into Every Prompt" section no longer has a duplicate card picker. It now shows the count of selected cards from the Knowledge tab, a custom instruction textarea, and an "Include full card content" toggle.
+
+### Fixed
+- **Multi-strategy JSON parsing** — LLM response parsing now tries 3 approaches: strip boundary fences → extract first `{...}` block → extract from fenced code block. Fixes failures when the model returns preamble text before JSON.
+- **Config crash on non-string values** — Added `getString()` helper that safely coerces config values to strings before `.trim()`. Fixes `TypeError: this.get(...).trim is not a function` when settings have null/undefined/non-string values. Applied to all 11 vulnerable call sites.
+
+### Removed
+- **Agents feature** — Entire Agents feature removed across 9 files (~160 lines): Agents tab in dashboard, `broadcastAgentContext`/`pruneAgent` handlers, `getAgents()`/`updateAgentActivity()`/`pruneAgent()` methods, `AgentSession` interface, `agentsActivityWindowHours` config, agent identity in hook entries, peer agents section in session context.
+- **Overview tab** — Removed from dashboard. Intelligence is now the default tab. Dead branch-tracking functions removed from webview script.
+
 ## [2.1.0] - 2026-02-28
 
 ### Added

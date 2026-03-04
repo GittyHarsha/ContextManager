@@ -8,7 +8,7 @@ nav_order: 1
 # Project Intelligence
 {: .fs-8 }
 
-Automatically learns conventions, tool hints, and working notes from every AI interaction - not just `@ctx`.
+Automatically learns conventions, tool hints, and working notes from every AI interaction.
 {: .fs-5 .fw-300 }
 
 ---
@@ -18,7 +18,7 @@ Automatically learns conventions, tool hints, and working notes from every AI in
 The Project Intelligence layer is a three-part learning system that captures institutional knowledge as a side effect of normal work. Unlike knowledge cards (which are explicit), intelligence accumulates **automatically** from all chat participants.
 
 {: .important }
-> **Prerequisite for full auto-capture:** Register the VS Code agent hook once (Dashboard → Settings → **Copy hook install command**). Without it, only `@ctx` interactions are captured. With it, every Copilot Chat, `@workspace`, and background agent response feeds the intelligence pipeline.
+> **Prerequisite for full auto-capture:** Register the VS Code agent hook once (Dashboard → Settings → **🪝 Agent Hooks** → **Install Hooks**). Without it, only interactions during your active chat sessions are captured. With it, every Copilot Chat, `@workspace`, and background agent response feeds the intelligence pipeline.
 
 ---
 
@@ -92,9 +92,7 @@ All intelligence is queryable via the `#ctx` tool. Agents invoke it when they ne
 | `#ctx mode:"list" type:"conventions"` | List all items of a type (`conventions`, `workingNotes`, `toolHints`, `cards`) |
 | `#ctx mode:"learn" learnType:"convention" ...` | Store a new convention, tool hint, or working note |
 | `#ctx mode:"getCard" id:"<cardId>"` | Read the full content of a knowledge card |
-| `#ctx mode:"timeline" observationId:"<id>"` | Observation timeline context around an anchor |
 | `#ctx mode:"fetch" observationIds:["<id>"]` | Fetch full observation details by IDs |
-| `#ctx mode:"economics"` | Token economics stats |
 | `#ctx mode:"retrospect"` | End-of-task reflection and capture |
 
 {: .tip }
@@ -106,28 +104,16 @@ Because delivery is on-demand, there are no token budgets to configure. Agents p
 
 The Auto-Capture service records every AI response as a lightweight observation:
 
-- **Source tracking** - which participant generated the response (Copilot, @workspace, @ctx, etc.)
+- **Source tracking** - which participant generated the response (Copilot, @workspace, hook, etc.)
 - **Content-hash deduplication** - identical interactions are never recorded twice (30-second window)
 - **Privacy tags** - `<private>content</private>` tags are stripped before storage
-- **Token economics** - tracks `discoveryTokens` (original cost) vs `readTokens` (compressed cost)
-- **Typed observations** - classified as bugfix 🔴, feature 🟣, discovery 🔵, decision ⚖️, refactor 🔄, or change ✅
-
-### Observation Types
-
-| Type | Emoji | Trigger Keywords |
-|:-----|:------|:-----------------|
-| Bugfix | 🔴 | fix, bug, error, crash, broken, issue, regression, patch, hotfix |
-| Feature | 🟣 | add, implement, create, new feature, build, introduce, support for |
-| Refactor | 🔄 | refactor, restructure, reorganize, clean up, rename, extract, move to, split into |
-| Decision | ⚖️ | should we, trade-off, decision, chose, approach, alternative, pros and cons, why did, rationale |
-| Discovery | 🔵 | how does, what is, explain, understand, investigate, look into, find out, where is, search for |
-| Change | ✅ | _(default fallback — no specific keywords)_ |
+- **Type badges** - observations are classified internally (bugfix, feature, discovery, etc.) and shown as summary counts in the observations header
 
 ---
 
 ## Auto-Learn
 
-When enabled, a lightweight LLM extraction runs on non-`@ctx` interactions to learn:
+When enabled, a lightweight LLM extraction runs on chat interactions to learn:
 
 - **Conventions** - coding patterns the AI observes in your codebase
 - **Working notes** - relationships and insights discovered during exploration
@@ -144,51 +130,20 @@ Knowledge cards and architecture notes detected by Auto-Capture / Auto-Learn are
 
 ---
 
-## Session Continuity
-
-ContextManager provides session continuity through two channels:
-
-1. **`copilot-instructions.md` managed block** — pinned card titles and `#ctx` instructions are always visible to the agent, giving it awareness of your project's key conventions and architecture from the first message.
-2. **`#ctx` tool** — agents can call `#ctx query:"..."` or `#ctx mode:"getCard" id:"..."` to retrieve prior session context, working notes, and branch state on demand.
-
-{: .note }
-Session continuity means the AI never "starts from scratch" - even if you close VS Code and come back the next day.
-
----
-
-## `@ctx /done` - End-of-Task Retrospective
-
-Run this at the end of a task to capture structured learnings:
-
-```
-@ctx /done
-```
-
-The retrospective:
-1. Extracts outcome summary
-2. Calls `retrospect` internally to capture:
-   - What worked and what didn't
-   - New conventions to add
-   - Tool hints worth keeping
-   - Knowledge cards to create
-
----
-
 ## Dashboard: Intelligence Tab
 
 The Intelligence tab provides a unified view:
 
 - **Auto-Capture / Auto-Learn toggles** with live stats
-- **Observation feed** with per-source filter pills (Copilot, @workspace, @ctx, hook)
+- **Observation feed** with per-source filter pills (Copilot, @workspace, hook)
 - **Convention list** with confidence badges and confirm/edit/discard actions
 - **Tool hints** with anti-patterns and delete actions
 - **Working notes** with staleness badges, related files, and promote-to-card actions
-- **Token Economics** widget showing ROI across all observations
 - **AI Distill** - run LLM extraction on selected observations
 
 ---
 
 ## Next Steps
 
-[Chat Participant →]({% link features/chat-participant.md %})
+[Knowledge Cards →]({% link features/knowledge-cards.md %})
 {: .fs-5 }

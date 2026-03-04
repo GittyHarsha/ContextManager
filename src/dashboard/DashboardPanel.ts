@@ -7,7 +7,7 @@ import { handleWebviewMessage, DashboardContext } from './messageHandler';
 import { getDashboardStyles } from './styles';
 import { getDashboardScript } from './webviewScript';
 import { escapeHtml, formatAge, formatDuration, getNonce, renderMarkdown } from './htmlHelpers';
-import { renderCardTile, renderKnowledgeSubtabs, renderMultiSelectBar, renderEditorPanel, renderToolCallViewer } from './cardCanvas';
+import { renderCardTile, renderKnowledgeSubtabs, renderMultiSelectBar, renderEditorPanel, renderToolCallViewer, renderWorkbenchFilterBar, renderWorkbenchStagingArea } from './cardCanvas';
 import { ProjectManager } from '../projects/ProjectManager';
 import { ExplanationCache, CacheEntry } from '../cache';
 import { Project } from '../projects/types';
@@ -27,7 +27,7 @@ export class DashboardPanel {
 	private _updateTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Host-side active tab — survives full HTML re-renders; updated via webview message
-	private _currentTab: string = 'overview';
+	private _currentTab: string = 'intelligence';
 	// Cached model families from vscode.lm API — populated async on first render
 	private _availableModelFamilies: string[] = [];
 	// Card IDs with stale file references (anchors/referenceFiles modified since card.updated)
@@ -75,10 +75,7 @@ export class DashboardPanel {
 		projectManager.onDidChangeProjects(() => this._guardedUpdate(), null, this._disposables);
 		projectManager.onDidChangeActiveProject(() => this._guardedUpdate(), null, this._disposables);
 
-		// Update when cache changes
-		cache.onDidChangeCache(() => this._guardedUpdate(), null, this._disposables);
-
-		// Refresh staleness on file save (debounced — only if dashboard is open)
+		// Refresh stalenesson file save (debounced — only if dashboard is open)
 		let stalenessTimer: ReturnType<typeof setTimeout> | undefined;
 		vscode.workspace.onDidSaveTextDocument(() => {
 			if (stalenessTimer) { clearTimeout(stalenessTimer); }
@@ -98,6 +95,7 @@ export class DashboardPanel {
 			projectManager,
 			cache,
 			autoCapture: this.autoCapture,
+			hookWatcher: this.hookWatcher,
 			postMessage: (msg: any) => this._panel.webview.postMessage(msg),
 			update: () => this._update(),
 			setSuppressUpdate: (v: boolean) => { this._suppressUpdate = v; },
@@ -289,14 +287,8 @@ export class DashboardPanel {
 	private _getHtmlForWebview(webview: vscode.Webview): string {
 		const projects = this.projectManager.getAllProjects();
 		const activeProject = this.projectManager.getActiveProject();
-		const currentTab = this._currentTab || 'overview';
+		const currentTab = this._currentTab || 'intelligence';
 		
-		// Get cache entries - filter by active project if one is selected
-		const allCache = this.cache.getAllEntries();
-		const cache = activeProject 
-			? this.cache.getEntriesForProject(activeProject.id)
-			: allCache;
-		const globalCache = this.cache.getEntriesForProject(undefined);
 		const knowledgeFolders = activeProject?.knowledgeFolders || [];
 
 		// Git data is loaded async via postMessage — not needed for initial render
@@ -325,68 +317,14 @@ export class DashboardPanel {
 			`).join('')}
 		</select>
 		<button onclick="showNewProjectForm()">+ New Project</button>
-		<span style="opacity: 0.5; font-size: 0.78em; margin-left: auto;" title="Ctrl+K: Search | 1-6: Switch tabs | Ctrl+N: New card">⌨️ Shortcuts: Ctrl+K search · 1-6 tabs · Ctrl+N new card</span>
+		<span style="opacity: 0.5; font-size: 0.78em; margin-left: auto;" title="Ctrl+K: Search | 1-4: Switch tabs | Ctrl+N: New card">⌨️ Shortcuts: Ctrl+K search · 1-4 tabs · Ctrl+N new card</span>
 	</div>
 
 	<div class="tabs" role="tablist" aria-label="Dashboard tabs">
-		<div class="tab${currentTab === 'overview' ? ' active' : ''}" id="tabBtn-overview" data-tab="overview" onclick="switchTab('overview')" role="tab" aria-selected="${currentTab === 'overview'}" aria-controls="tab-overview" tabindex="${currentTab === 'overview' ? '0' : '-1'}">Overview</div>
 		<div class="tab${currentTab === 'intelligence' ? ' active' : ''}" id="tabBtn-intelligence" data-tab="intelligence" onclick="switchTab('intelligence')" role="tab" aria-selected="${currentTab === 'intelligence'}" aria-controls="tab-intelligence" tabindex="${currentTab === 'intelligence' ? '0' : '-1'}">🧠 Intelligence</div>
 		<div class="tab${currentTab === 'knowledge' ? ' active' : ''}"id="tabBtn-knowledge" data-tab="knowledge" onclick="switchTab('knowledge')" role="tab" aria-selected="${currentTab === 'knowledge'}" aria-controls="tab-knowledge" tabindex="${currentTab === 'knowledge' ? '0' : '-1'}">Knowledge (${activeProject?.knowledgeCards?.length || 0})</div>
-		<div class="tab${currentTab === 'cache' ? ' active' : ''}" id="tabBtn-cache" data-tab="cache" onclick="switchTab('cache')" role="tab" aria-selected="${currentTab === 'cache'}" aria-controls="tab-cache" tabindex="${currentTab === 'cache' ? '0' : '-1'}">Cache (${cache.length})</div>
-		<div class="tab${currentTab === 'context' ? ' active' : ''}" id="tabBtn-context" data-tab="context" onclick="switchTab('context')" role="tab" aria-selected="${currentTab === 'context'}" aria-controls="tab-context" tabindex="${currentTab === 'context' ? '0' : '-1'}">Context</div>
+		<div class="tab${currentTab === 'context' ? ' active' : ''}" id="tabBtn-context"data-tab="context" onclick="switchTab('context')" role="tab" aria-selected="${currentTab === 'context'}" aria-controls="tab-context" tabindex="${currentTab === 'context' ? '0' : '-1'}">Context</div>
 		<div class="tab${currentTab === 'settings' ? ' active' : ''}" id="tabBtn-settings" data-tab="settings" onclick="switchTab('settings')" role="tab" aria-selected="${currentTab === 'settings'}" aria-controls="tab-settings" tabindex="${currentTab === 'settings' ? '0' : '-1'}">⚙ Settings</div>
-	</div>
-
-	<div id="tab-overview" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-overview"${currentTab !== 'overview' ? ' style="display: none;"' : ''}>
-		${activeProject ? `
-			<div class="card" style="background: ${(activeProject.contextEnabled ?? true) ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-testing-iconFailed)'}20; border: 1px solid ${(activeProject.contextEnabled ?? true) ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-testing-iconFailed)'}50;">
-				<div style="display: flex; align-items: center; justify-content: space-between;">
-					<div>
-						<h3 style="margin: 0;">📡 Context Injection</h3>
-						<p style="margin: 4px 0 0 0; opacity: 0.8; font-size: 0.9em;">
-							${(activeProject.contextEnabled ?? true) 
-								? '✅ Knowledge cards, cache, and project context will be injected into all AI prompts'
-								: '❌ Context injection is OFF — AI prompts will not include any project knowledge'
-							}
-						</p>
-					</div>
-					<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 1.1em;">
-						<input type="checkbox" 
-							${(activeProject.contextEnabled ?? true) ? 'checked' : ''}
-							onchange="toggleContextEnabled(this.checked)"
-							style="width: 20px; height: 20px;">
-						<strong>${(activeProject.contextEnabled ?? true) ? 'ON' : 'OFF'}</strong>
-					</label>
-				</div>
-			</div>
-			<div class="grid">
-				<div class="card">
-					<h3>📋 Project: ${activeProject.name}</h3>
-					<p>${activeProject.description || 'No description'}</p>
-					<p><strong>Root paths:</strong> ${activeProject.rootPaths.join(', ') || 'None'}</p>
-					<p><strong>Created:</strong> ${new Date(activeProject.created).toLocaleDateString()}</p>
-				</div>
-				<div class="card">
-					<h3>📊 Stats</h3>
-					<p><strong>Knowledge cards:</strong> ${activeProject.selectedCardIds?.length || 0} selected / ${activeProject.knowledgeCards?.length || 0} total</p>
-					<p><strong>Cached explanations:</strong> ${cache.filter(c => c.projectId === activeProject.id).length}</p>
-				</div>
-			</div>
-			<div class="card">
-				<h3>⚡ Quick Actions</h3>
-				<button class="secondary" onclick="switchTab('intelligence')">🧠 Intelligence</button>
-				<button class="secondary" onclick="switchTab('context')">Edit Context</button>
-				<button class="secondary" onclick="switchTab('cache')">View Cache</button>
-			</div>
-
-
-		` : `
-			<div class="empty-state">
-				<h2>No project selected</h2>
-				<p>Select a project from the dropdown or create a new one.</p>
-				<button onclick="showNewProjectForm()">Create Project</button>
-			</div>
-		`}
 	</div>
 
 	<!-- Intelligence Tab — Orchestrate Auto-Learn & Auto-Capture -->
@@ -415,7 +353,7 @@ export class DashboardPanel {
 				<p style="margin: 0 0 10px 0; opacity: 0.75; font-size: 0.88em;">Records interactions from all chat participants into a searchable, typed observation feed.</p>
 				<p style="margin: 0 0 10px 0; font-size: 0.88em;"><strong>${allObs.length}</strong> total · <strong>${recent24.length}</strong> in last 24h</p>
 				<label class="setting-row" style="margin-bottom: 6px;">
-					<div class="setting-info"><strong>Learn from all chats</strong><div class="setting-desc">Run LLM extraction on non-@ctx chats too</div></div>
+					<div class="setting-info"><strong>Learn from all chats</strong><div class="setting-desc">Run LLM extraction on all chat participants</div></div>
 					<input type="checkbox" ${cfg.get('autoCapture.learnFromAllParticipants', true) ? 'checked' : ''} onchange="updateSetting('autoCapture.learnFromAllParticipants', this.checked)">
 				</label>
 				<div class="setting-row">
@@ -438,10 +376,6 @@ export class DashboardPanel {
 				<label class="setting-row" style="margin-bottom: 6px;">
 					<div class="setting-info"><strong>Use LLM</strong><div class="setting-desc">Higher-precision via lightweight LLM call</div></div>
 					<input type="checkbox" ${cfg.get('intelligence.autoLearn.useLLM', true) ? 'checked' : ''} onchange="updateSetting('intelligence.autoLearn.useLLM', this.checked)">
-				</label>
-				<label class="setting-row" style="margin-bottom: 6px;">
-					<div class="setting-info"><strong>Sync to instructions</strong><div class="setting-desc">Auto-sync knowledge to copilot-instructions.md</div></div>
-					<input type="checkbox" ${cfg.get('intelligence.enableTieredInjection', true) ? 'checked' : ''} onchange="updateSetting('intelligence.enableTieredInjection', this.checked)">
 				</label>
 				<label class="setting-row" style="margin-bottom: 10px;">
 					<div class="setting-info"><strong>Show notifications</strong><div class="setting-desc">Toast when new learnings are extracted</div></div>
@@ -493,7 +427,6 @@ export class DashboardPanel {
 				<table id="obs-table" style="width: 100%; border-collapse: collapse; font-size: 0.88em;">
 					<thead>
 						<tr style="opacity: 0.7; border-bottom: 1px solid var(--vscode-widget-border);">
-							<th style="text-align: left; padding: 4px 8px;">Type</th>
 							<th style="text-align: left; padding: 4px 8px;">Time</th>
 							<th style="text-align: left; padding: 4px 8px;">From</th>
 							<th style="text-align: left; padding: 4px 8px;">Prompt</th>
@@ -502,17 +435,13 @@ export class DashboardPanel {
 					</thead>
 					<tbody>
 						${items.map(o => {
-							const emoji = OBSERVATION_TYPE_EMOJI[o.type] || '📝';
 							const age = formatAge(o.timestamp);
 							const promptPreview = escapeHtml((o.prompt || '').substring(0, 100).replace(/\n+/g, ' '));
 							return `<tr data-src="${escapeHtml(o.participant)}" style="border-bottom: 1px solid var(--vscode-widget-border)20;">
-								<td style="padding: 6px 8px; white-space: nowrap;">${emoji} ${o.type}</td>
 								<td style="padding: 6px 8px; white-space: nowrap; opacity: 0.7;">${age}</td>
 								<td style="padding: 6px 8px; white-space: nowrap; opacity: 0.7;">${escapeHtml(o.participant || 'copilot')}</td>
 								<td style="padding: 6px 8px;">${promptPreview}${(o.prompt || '').length > 100 ? '…' : ''}</td>
 								<td style="padding: 6px 4px; white-space: nowrap; text-align: right;">
-									<button title="Promote to convention" onclick="vscode.postMessage({command:'promoteObservation',id:'${o.id}',target:'convention'})" style="font-size:0.75em;padding:1px 5px;margin-right:2px;">🏗</button>
-									<button title="Promote to working note" onclick="vscode.postMessage({command:'promoteObservation',id:'${o.id}',target:'note'})" style="font-size:0.75em;padding:1px 5px;margin-right:2px;">📝</button>
 									<button title="Delete observation" onclick="deleteObs('${o.id}', this)" style="font-size:0.75em;padding:1px 5px;opacity:0.6;">✕</button>
 								</td>
 							</tr>`;
@@ -547,6 +476,41 @@ export class DashboardPanel {
 
 	<div id="tab-knowledge"class="tab-content" role="tabpanel" aria-labelledby="tabBtn-knowledge"${currentTab !== 'knowledge' ? ' style="display: none;"' : ''}>
 		${activeProject ? `
+			${renderKnowledgeSubtabs(
+				activeProject.knowledgeCards?.length || 0,
+				activeProject.cardQueue?.length || 0,
+				'workbench',
+				(activeProject.conventions || []).length,
+				(activeProject.workingNotes || []).length
+			)}
+
+			<!-- ─── Workbench Subtab ───────────────────────────────────────── -->
+			<div id="subtab-workbench" class="knowledge-subtab-content">
+				${renderWorkbenchFilterBar()}
+				${renderMultiSelectBar(false)}
+				<div class="card-tile-grid" id="workbench-tile-grid">
+					${(activeProject.knowledgeCards || []).map(card =>
+						renderCardTile(card, { kind: 'card', isSelected: false })
+					).join('')}
+					${(activeProject.cardQueue || []).map((candidate: any) =>
+						renderCardTile(candidate, { kind: 'queue', isSelected: false })
+					).join('')}
+					${(activeProject.conventions || []).map((conv: any) =>
+						renderCardTile(conv, { kind: 'convention', isSelected: false })
+					).join('')}
+					${(activeProject.workingNotes || []).map((note: any) =>
+						renderCardTile(note, { kind: 'note', isSelected: false })
+					).join('')}
+					${(activeProject.toolHints || []).map((hint: any) =>
+						renderCardTile(hint, { kind: 'hint', isSelected: false })
+					).join('')}
+				</div>
+				${renderWorkbenchStagingArea()}
+				${renderEditorPanel()}
+			</div>
+
+			<!-- ─── Knowledge Cards Subtab ──────────────────────────────────── -->
+			<div id="subtab-cards" class="knowledge-subtab-content" style="display: none;">
 			<div class="card">
 				<div style="display: flex; align-items: center; margin-bottom: 16px;">
 					<h3 style="flex-grow: 1; margin: 0;">
@@ -556,7 +520,6 @@ export class DashboardPanel {
 						</span>
 					</h3>
 					${(activeProject.selectedCardIds?.length || 0) > 0 ? `<button class="secondary" onclick="uncheckAllCards()" style="margin-right: 8px;">Uncheck All</button>` : ''}
-					${vscode.workspace.getConfiguration('contextManager').get('experimental.enableProposedApi', false) ? `<button class="secondary" onclick="smartSelectCards()" style="margin-right: 8px;" title="Use AI embeddings to find relevant cards for a query">✨ Smart Select</button>` : ''}
 					<button onclick="generateCardWithAI()">🤖 Generate with AI</button>
 					<button onclick="showAddCardForm()" style="margin-left: 8px;">+ Add Card</button>
 				</div>
@@ -886,10 +849,13 @@ export class DashboardPanel {
 							${health.duplicates.length > 0 ? `
 							<div style="margin-bottom: 12px;">
 								<strong style="font-size: 0.9em;">\u26a0\ufe0f Possible duplicates</strong>
-								<ul style="margin: 6px 0 0 18px; font-size: 0.85em;">
-									${health.duplicates.slice(0, 5).map(d => `<li>"${escapeHtml(d.cardA.title)}" \u2194 "${escapeHtml(d.cardB.title)}" \u2014 ${(d.similarity * 100).toFixed(0)}% similar</li>`).join('')}
+								<ul style="margin: 6px 0 0 18px; font-size: 0.85em; list-style: none; padding: 0;">
+									${health.duplicates.slice(0, 5).map(d => `<li style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.2));">
+										<span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;">"${escapeHtml(d.cardA.title)}" \u2194 "${escapeHtml(d.cardB.title)}" \u2014 ${(d.similarity * 100).toFixed(0)}% similar</span>
+										<button onclick="mergeHealthDuplicates('${d.cardA.id}', '${d.cardB.id}')" title="Merge these two cards in the editor" style="flex-shrink: 0; padding: 2px 8px; font-size: 0.85em; cursor: pointer; border: 1px solid var(--vscode-button-border, transparent); border-radius: 4px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);">\ud83d\udd17 Merge</button>
+									</li>`).join('')}
 								</ul>
-								<p style="font-size: 0.8em; opacity: 0.7; margin-top: 4px;">Consider merging these cards to reduce context waste.</p>
+								<p style="font-size: 0.8em; opacity: 0.7; margin-top: 4px;">Click Merge to combine a pair in the card editor.</p>
 							</div>` : ''}
 
 							${health.neverUsedCards.length > 0 ? `
@@ -914,7 +880,10 @@ export class DashboardPanel {
 				})() : ''}
 
 			</div>
+			</div> <!-- /subtab-cards -->
 
+			<!-- ─── Card Queue Subtab ──────────────────────────────────────── -->
+			<div id="subtab-queue" class="knowledge-subtab-content" style="display: none;">
 			<!-- ─── Card Queue (Canvas) ──────────────────────────────────────── -->
 			<div class="card" style="margin-top: 16px;">
 				<div style="display: flex; align-items: center; margin-bottom: 12px;">
@@ -940,8 +909,8 @@ export class DashboardPanel {
 					`
 				}
 				<div id="distill-queue-results" style="display:none; margin-bottom: 16px;"></div>
-				${renderEditorPanel()}
 			</div>
+			</div> <!-- /subtab-queue -->
 		` : `
 			<div class="empty-state">
 				<p>Select a project first.</p>
@@ -949,199 +918,15 @@ export class DashboardPanel {
 		`}
 	</div>
 
-	<div id="tab-cache" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-cache"${currentTab !== 'cache' ? ' style="display: none;"' : ''}>
-		<div class="card">
-			<div style="display: flex; align-items: center; margin-bottom: 16px;">
-				<h3 style="flex-grow: 1; margin: 0;">
-					Cached Explanations
-					${activeProject ? `<span style="font-weight: normal; font-size: 0.9em;"> (${activeProject.name})</span>` : ''}
-				</h3>
-				${cache.length > 0 ? `
-					${cache.some(e => e.selected) ? `<button class="secondary" onclick="uncheckAllCache()" style="margin-right: 8px;">Uncheck All</button>` : ''}
-					<button class="danger" onclick="clearAllCache()">Clear All</button>
-				` : ''}
-			</div>
-			${!activeProject ? `
-				<p style="opacity: 0.7; margin-bottom: 16px;">Select a project to see its cached explanations, or showing all ${allCache.length} cached entries.</p>
-			` : ''}
 
-			<!-- Search & Filter Bar -->
-			${cache.length > 0 ? `
-			<div class="search-filter-bar">
-				<input type="text" class="search-input" placeholder="🔍 Search cache..." oninput="searchCache(this.value)">
-				<select class="filter-select" onchange="filterCache(this.value)">
-					<option value="all">All Types</option>
-					<option value="explain">Explain</option>
-					<option value="usage">Usage</option>
-					<option value="relationships">Relationships</option>
-				</select>
-			</div>
-			` : ''}
-
-			${cache.length > 0 ? (() => {
-				// Group entries by file
-				const byFile = new Map<string, typeof cache>();
-				for (const entry of cache) {
-					const file = entry.filePath || 'Unknown file';
-					if (!byFile.has(file)) {
-						byFile.set(file, []);
-					}
-					byFile.get(file)!.push(entry);
-				}
-				
-				// Sort files alphabetically
-				const sortedFiles = Array.from(byFile.keys()).sort((a, b) => {
-					const aName = a.split(/[/\\]/).pop() || a;
-					const bName = b.split(/[/\\]/).pop() || b;
-					return aName.localeCompare(bName);
-				});
-				
-				return sortedFiles.map(filePath => {
-					const entries = byFile.get(filePath)!;
-					const fileName = filePath.split(/[/\\]/).pop() || filePath;
-					const selectedCount = entries.filter(e => e.selected).length;
-					
-					return `
-					<details class="file-group" data-expand-id="file-${fileName.replace(/[^a-zA-Z0-9]/g, '_')}" open>
-						<summary style="cursor: pointer; list-style: none; padding: 8px; background: var(--bg-color); border-radius: 4px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-							<span>▶</span>
-							<span style="font-weight: bold;">📄 ${fileName}</span>
-							<span style="opacity: 0.7; font-size: 0.85em;">${entries.length} item${entries.length !== 1 ? 's' : ''}${selectedCount > 0 ? ` · ${selectedCount} selected` : ''}</span>
-						</summary>
-						<div style="padding-left: 16px; margin-bottom: 16px;">
-							${entries.map(entry => {
-								const isSelected = entry.selected === true;
-								return `
-								<details class="cache-item" data-expand-id="cache-${entry.id}" style="border-left: 3px solid ${isSelected ? 'var(--vscode-testing-iconPassed)' : 'transparent'}; padding-left: 12px;">
-									<summary class="cache-header" style="cursor: pointer; list-style: none;">
-										<span style="margin-right: 8px;">▶</span>
-										<input type="checkbox" 
-											${isSelected ? 'checked' : ''} 
-											onchange="toggleCacheEntry('${entry.id}')"
-											onclick="event.stopPropagation()"
-											title="Include in context">
-										<span class="cache-symbol">${entry.symbolName}</span>
-										<span class="cache-type">${entry.type}</span>
-										${entry.lineNumber ? `<span style="opacity: 0.7; font-size: 0.85em; margin-left: auto;">:${entry.lineNumber}</span>` : ''}
-										<span style="opacity: 0.5; font-size: 0.8em; margin-left: 6px;" title="Last updated: ${new Date(entry.cachedAt || Date.now()).toLocaleString()}">${formatAge(entry.cachedAt || Date.now())}</span>
-										${!activeProject && entry.projectId ? `<span style="opacity: 0.6; font-size: 0.85em;">(${this.projectManager.getProject(entry.projectId)?.name || 'Unknown'})</span>` : ''}
-									</summary>
-									<div style="margin-top: 12px; padding-left: 24px;">
-										<div id="cache-view-${entry.id}" class="cache-explanation" style="background: var(--bg-color); padding: 12px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5;">${renderMarkdown(entry.content)}</div>
-										<div id="cache-edit-${entry.id}" class="inline-edit" style="display: none;">
-											<label style="font-size: 0.85em; opacity: 0.8;">Name</label>
-											<input type="text" id="cache-name-editor-${entry.id}" value="${escapeHtml(entry.symbolName)}" style="width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 4px 8px;">
-											<label style="font-size: 0.85em; opacity: 0.8;">Content</label>
-											<textarea id="cache-editor-${entry.id}" class="inline-edit-textarea">${escapeHtml(entry.content)}</textarea>
-											<div class="inline-edit-actions">
-												<button onclick="saveCacheEdit('${entry.id}')">Save</button>
-												<button class="secondary" onclick="cancelCacheEdit('${entry.id}')">Cancel</button>
-											</div>
-										</div>
-										<div class="cache-actions" style="margin-top: 12px;">
-											${activeProject ? `<button onclick="saveToKnowledge('${entry.id}')">Save to Knowledge</button>` : ''}
-											<button class="secondary" onclick="editCacheEntry('${entry.id}')">Edit</button>
-											<button class="secondary" onclick="reexplain('${entry.id}')">Re-explain</button>
-											<button class="secondary" onclick="clearCacheEntry('${entry.id}', this)">Clear</button>
-										</div>
-									</div>
-								</details>
-								`;
-							}).join('')}
-						</div>
-					</details>
-					`;
-				}).join('');
-			})() : `
-				<div class="empty-state">
-					<p>No cached explanations${activeProject ? ' for this project' : ''} yet.</p>
-					<p>Use the context menu on a symbol to explain it.</p>
-				</div>
-			`}
-		</div>
-		${globalCache.length > 0 && activeProject ? `
-			<div class="card">
-				<h3>Global Cache (no project)</h3>
-				<p style="opacity: 0.7;">These explanations were created without an active project.</p>
-				${(() => {
-					// Group by file
-					const byFile = new Map<string, typeof globalCache>();
-					for (const entry of globalCache) {
-						const file = entry.filePath || 'Unknown file';
-						if (!byFile.has(file)) {
-							byFile.set(file, []);
-						}
-						byFile.get(file)!.push(entry);
-					}
-					
-					const sortedFiles = Array.from(byFile.keys()).sort((a, b) => {
-						const aName = a.split(/[/\\]/).pop() || a;
-						const bName = b.split(/[/\\]/).pop() || b;
-						return aName.localeCompare(bName);
-					});
-					
-					return sortedFiles.map(filePath => {
-						const entries = byFile.get(filePath)!;
-						const fileName = filePath.split(/[/\\]/).pop() || filePath;
-						
-						return `
-						<details class="file-group" data-expand-id="global-file-${fileName.replace(/[^a-zA-Z0-9]/g, '_')}">
-							<summary style="cursor: pointer; list-style: none; padding: 8px; background: var(--bg-color); border-radius: 4px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-								<span>▶</span>
-								<span style="font-weight: bold;">📄 ${fileName}</span>
-								<span style="opacity: 0.7; font-size: 0.85em;">${entries.length} item${entries.length !== 1 ? 's' : ''}</span>
-							</summary>
-							<div style="padding-left: 16px; margin-bottom: 16px;">
-								${entries.map(entry => `
-								<details class="cache-item" data-expand-id="global-cache-${entry.id}">
-									<summary class="cache-header" style="cursor: pointer; list-style: none;">
-										<span style="margin-right: 8px;">▶</span>
-										<span class="cache-symbol">${entry.symbolName}</span>
-										<span class="cache-type">${entry.type}</span>
-										${entry.lineNumber ? `<span style="opacity: 0.7; font-size: 0.85em; margin-left: auto;">:${entry.lineNumber}</span>` : ''}
-										<span style="opacity: 0.5; font-size: 0.8em; margin-left: 6px;" title="Last updated: ${new Date((entry as any).timestamp || Date.now()).toLocaleString()}">${formatAge((entry as any).timestamp || Date.now())}</span>
-									</summary>
-									<div style="margin-top: 12px; padding-left: 24px;">
-										<div id="cache-view-${entry.id}" class="cache-explanation" style="background: var(--bg-color); padding: 12px; border-radius: 4px; max-height: 400px; overflow-y: auto; line-height: 1.5;">${renderMarkdown(entry.content)}</div>
-										<div id="cache-edit-${entry.id}" class="inline-edit" style="display: none;">
-											<label style="font-size: 0.85em; opacity: 0.8;">Name</label>
-											<input type="text" id="cache-name-editor-${entry.id}" value="${escapeHtml(entry.symbolName)}" style="width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 4px 8px;">
-											<label style="font-size: 0.85em; opacity: 0.8;">Content</label>
-											<textarea id="cache-editor-${entry.id}" class="inline-edit-textarea">${escapeHtml(entry.content)}</textarea>
-											<div class="inline-edit-actions">
-												<button onclick="saveCacheEdit('${entry.id}')">Save</button>
-												<button class="secondary" onclick="cancelCacheEdit('${entry.id}')">Cancel</button>
-											</div>
-										</div>
-										<div class="cache-actions" style="margin-top: 12px;">
-											<button class="secondary" onclick="editCacheEntry('${entry.id}')">Edit</button>
-											<button class="secondary" onclick="clearCacheEntry('${entry.id}', this)">Clear</button>
-										</div>
-									</div>
-								</details>
-								`).join('')}
-							</div>
-						</details>
-						`;
-					}).join('');
-				})()}
-			</div>
-		` : ''}
-	</div>
-
+	
 	<div id="tab-context" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-context"${currentTab !== 'context' ? ' style="display: none;"' : ''}>
 		${activeProject ? `
 			<div class="card">
 				<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
 					<h3 style="margin: 0; flex-grow: 1;">Project Context</h3>
-					<label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-						<input type="checkbox" 
-							${(activeProject.contextEnabled ?? true) ? 'checked' : ''} 
-							onchange="toggleContextEnabled(this.checked)">
-						<span>Include in prompts</span>
-					</label>
 				</div>
-				<p style="opacity: 0.7; margin-bottom: 16px;">When enabled, this context is included in all AI prompts for this project.</p>
+				<p style="opacity: 0.7; margin-bottom: 16px;">Included in AI prompts for this project via the chat helper.</p>
 				
 				<div class="form-group">
 					<label>Goals</label>
@@ -1163,6 +948,41 @@ export class DashboardPanel {
 				</div>
 			</div>
 
+			<!-- Prompt Injection -->
+			${(() => {
+				const injection = activeProject.promptInjection;
+				const selectedCount = (activeProject.selectedCardIds || []).length;
+				const hasInjection = selectedCount > 0 || (injection?.customInstruction || '').trim();
+				return `
+			<div class="card" style="margin-top: 16px;">
+				<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+					<h3 style="margin: 0; flex-grow: 1;">📌 Inject into Every Prompt</h3>
+					${hasInjection ? `<span style="font-size: 0.72em; background: var(--vscode-testing-iconPassed, #28a745); color: #fff; padding: 2px 10px; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">Active</span>` : ''}
+				</div>
+				<p style="opacity: 0.55; margin: 0 0 16px 0; font-size: 0.82em; line-height: 1.4;">
+					Cards checked in the <strong>Knowledge</strong> tab above${selectedCount > 0 ? ` (${selectedCount} selected)` : ''} and your custom instruction are written to <code style="padding: 1px 4px; border-radius: 3px; background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.15));">session-context.txt</code>
+					and injected via the <strong>UserPromptSubmit</strong> hook on every prompt.
+				</p>
+
+				<div style="margin-bottom: 16px;">
+					<label style="margin-bottom: 6px; display: block; font-size: 0.85em; font-weight: 600;">Custom Instruction <span style="opacity: 0.5; font-weight: normal;">(optional — prepended before cards)</span></label>
+					<textarea id="injectionInstruction" rows="3" placeholder="e.g. Before starting, review these cards carefully and follow the patterns described."
+						style="width: 100%; box-sizing: border-box; border-radius: 4px; padding: 8px 10px; font-size: 0.88em; resize: vertical;">${escapeHtml(injection?.customInstruction || '')}</textarea>
+				</div>
+
+				<div style="display: flex; gap: 8px; align-items: center;">
+					<label style="display: flex; align-items: center; gap: 5px; font-size: 0.8em; cursor: pointer; opacity: 0.75; user-select: none;" title="When checked, full card content is included. Otherwise only titles are listed.">
+						<input type="checkbox" id="injectionFullContent" ${injection?.includeFullContent ? 'checked' : ''}
+							onchange="saveInjection()">
+						Include full card content
+					</label>
+					<span style="flex-grow: 1;"></span>
+					<button class="primary" onclick="saveInjection()">💾 Save</button>
+					${hasInjection ? `<button class="secondary" onclick="clearInjection()">✕ Clear</button>` : ''}
+				</div>
+			</div>`;
+			})()}
+
 			<!-- Project Intelligence: Conventions -->
 			${(() => {
 				const conventions = activeProject.conventions || [];
@@ -1173,7 +993,7 @@ export class DashboardPanel {
 					<h3 style="margin: 0; flex-grow: 1;">🏗 Conventions${disabledCount > 0 ? ` <span style="opacity: 0.6; font-size: 0.8em; font-weight: normal;">(${disabledCount} disabled)</span>` : ''}</h3>
 				</div>
 				<p style="opacity: 0.7; margin-bottom: 12px; font-size: 0.9em;">
-					Codebase conventions learned by the agent. All enabled conventions are injected into prompts (including non-@ctx queries).<br/>
+					Codebase conventions learned by the agent. All enabled conventions are injected into every prompt.<br/>
 					<span style="font-size: 0.85em;">Toggle the switch to enable/disable individual conventions.</span>
 				</p>
 				${(() => {
@@ -1309,110 +1129,11 @@ export class DashboardPanel {
 					<input type="checkbox" ${cfg.get('confirmDelete', true) ? 'checked' : ''}
 						onchange="updateSetting('confirmDelete', this.checked)">
 				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Auto-select Knowledge Cards</strong>
-						<div class="setting-desc">Automatically select relevant cards based on context</div>
-					</div>
-					<input type="checkbox" ${cfg.get('autoSelectKnowledgeCards', false) ? 'checked' : ''}
-						onchange="updateSetting('autoSelectKnowledgeCards', this.checked)">
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Max Knowledge Cards in Context</strong>
-						<div class="setting-desc">Maximum cards to include in AI prompts (1-20)</div>
-					</div>
-					<input type="number" min="1" max="20" value="${cfg.get('maxKnowledgeCardsInContext', 5)}"
-						onchange="updateSetting('maxKnowledgeCardsInContext', parseInt(this.value))" style="width: 65px;">
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Cache Expiration (days)</strong>
-						<div class="setting-desc">Days to keep cached explanations (0 = never expire)</div>
-					</div>
-					<input type="number" min="0" max="365" value="${cfg.get('cacheExpiration', 30)}"
-						onchange="updateSetting('cacheExpiration', parseInt(this.value))" style="width: 65px;">
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Enable Context by Default</strong>
-						<div class="setting-desc">Enable context injection for newly created projects</div>
-					</div>
-					<input type="checkbox" ${cfg.get('enableContextByDefault', true) ? 'checked' : ''}
-						onchange="updateSetting('enableContextByDefault', this.checked)">
-				</label>
 			</details>
 
-			<!-- Chat -->
-			<details class="dashboard-settings-section" open>
-				<summary><span class="section-toggle">▶</span> Chat</summary>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Include Copilot Instructions</strong>
-						<div class="setting-desc">Include .github/copilot-instructions.md in context</div>
-					</div>
-					<input type="checkbox" ${cfg.get('chat.includeCopilotInstructions', true) ? 'checked' : ''}
-						onchange="updateSetting('chat.includeCopilotInstructions', this.checked)">
-				</label>
-			</details>
 
-			<!-- Explanation -->
-			<details class="dashboard-settings-section" open>
-				<summary><span class="section-toggle">▶</span> Explanations</summary>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Expand Context</strong>
-						<div class="setting-desc">Automatically expand code context when explaining symbols</div>
-					</div>
-					<input type="checkbox" ${cfg.get('explanation.expandContext', true) ? 'checked' : ''}
-						onchange="updateSetting('explanation.expandContext', this.checked)">
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Include References</strong>
-						<div class="setting-desc">Include file references in explanations</div>
-					</div>
-					<input type="checkbox" ${cfg.get('explanation.includeReferences', true) ? 'checked' : ''}
-						onchange="updateSetting('explanation.includeReferences', this.checked)">
-				</label>
-			</details>
 
-			<!-- Context -->
-			<details class="dashboard-settings-section">
-				<summary><span class="section-toggle">▶</span> Context</summary>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Auto-deselect After Use</strong>
-						<div class="setting-desc">Deselect knowledge cards and cache after they're used in a query</div>
-					</div>
-					<input type="checkbox" ${cfg.get('context.autoDeselectAfterUse', false) ? 'checked' : ''}
-						onchange="updateSetting('context.autoDeselectAfterUse', this.checked)">
-				</label>
-			</details>
 
-			<!-- Dashboard -->
-			<details class="dashboard-settings-section">
-				<summary><span class="section-toggle">▶</span> Dashboard</summary>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Default Tab</strong>
-						<div class="setting-desc">Tab to show when opening the dashboard</div>
-					</div>
-					<select onchange="updateSetting('dashboard.defaultTab', this.value)" style="width: 130px;">
-						${['overview', 'intelligence', 'knowledge', 'cache'].map(tab =>
-							`<option value="${tab}" ${cfg.get<string>('dashboard.defaultTab', 'overview') === tab ? 'selected' : ''}>${tab.charAt(0).toUpperCase() + tab.slice(1)}</option>`
-						).join('\n\t\t\t\t\t\t')}
-					</select>
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Show Progress Notifications</strong>
-						<div class="setting-desc">Show progress notifications for long-running operations</div>
-					</div>
-					<input type="checkbox" ${cfg.get('notifications.showProgress', true) ? 'checked' : ''}
-						onchange="updateSetting('notifications.showProgress', this.checked)">
-				</label>
-			</details>
 
 
 			<!-- Project Intelligence / Auto-Learn -->
@@ -1561,16 +1282,8 @@ export class DashboardPanel {
 					</div>
 					<input type="checkbox" ${cfg.get('saveAsCard.smartMerge', true) ? 'checked' : ''}
 						onchange="updateSetting('saveAsCard.smartMerge', this.checked)">
-				</label>
-				<label class="setting-row">
-					<div class="setting-info">
-						<strong>Show Follow-up Buttons</strong>
-						<div class="setting-desc">Display 'Save as Knowledge Card' follow-up after @ctx commands for quick saves</div>
-					</div>
-					<input type="checkbox" ${cfg.get('saveAsCard.showFollowups', true) ? 'checked' : ''}
-						onchange="updateSetting('saveAsCard.showFollowups', this.checked)">
-				</label>
-			</details>
+				</label>\n\t\t\t</details>
+
 
 			<!-- Auto-Capture -->
 			<details class="dashboard-settings-section">
@@ -1586,7 +1299,7 @@ export class DashboardPanel {
 				<label class="setting-row">
 					<div class="setting-info">
 						<strong>Learn from All Participants</strong>
-						<div class="setting-desc">Run lightweight LLM extraction on non-@ctx chats to learn conventions &amp; working notes</div>
+						<div class="setting-desc">Run lightweight LLM extraction on all chats to learn conventions &amp; working notes</div>
 					</div>
 					<input type="checkbox" ${cfg.get('autoCapture.learnFromAllParticipants', true) ? 'checked' : ''}
 						onchange="updateSetting('autoCapture.learnFromAllParticipants', this.checked)">
@@ -1607,12 +1320,12 @@ export class DashboardPanel {
 				<summary><span class="section-toggle">▶</span> 🪝 Agent Hooks</summary>
 				<p class="dashboard-section-desc">
 					Capture from <strong>all</strong> Copilot agent sessions via VS Code's hook system —
-					not just @ctx. Click <strong>Install Hooks</strong> below to set up scripts in the active project.
+					Click <strong>Install Hooks</strong> below to set up scripts in the active project.
 				</p>
 				<label class="setting-row">
 					<div class="setting-info">
-						<strong>SessionStart — Inject Memory</strong>
-						<div class="setting-desc">Inject project conventions &amp; notes into every agent session at startup</div>
+						<strong>UserPromptSubmit — Inject Memory</strong>
+						<div class="setting-desc">Inject selected cards &amp; custom instructions into every prompt via session-context.txt</div>
 					</div>
 					<input type="checkbox" ${cfg.get('hooks.sessionStart', true) ? 'checked' : ''}
 						onchange="updateSetting('hooks.sessionStart', this.checked)">
@@ -1665,9 +1378,9 @@ export class DashboardPanel {
 				${(() => {
 					const defaultPrompts: Record<string, { label: string; desc: string; text: string }> = {
 						chat: {
-							label: 'Chat (@ctx)',
+							label: 'Chat',
 							desc: 'Default conversational prompt',
-							text: 'You are an autonomous codebase research agent. Your job is to thoroughly investigate the user\'s question by exploring the codebase using tools before answering.\n\n## Critical Rules\n- ALWAYS use tools first. Do NOT answer from memory or assumptions.\n- Search broadly: find definitions, usages, related files, imports, tests, and configuration.\n- Read the actual code before making any claim — do not guess file contents.\n- Keep exploring until you have comprehensive evidence. If one search doesn\'t find what you need, try different search terms, file patterns, or approaches.\n- Do NOT stop after 2-3 tool calls. A thorough answer typically requires 5-15+ tool calls.\n- Cite specific file paths and line numbers for every claim.\n- If your first search returns no results, try alternative terms or broader patterns.\n\n## TODO Tracking\nYou have access to a TODO management tool (contextManager_manageTodos). When the user\'s request involves multiple steps or tasks, proactively create TODOs to track your progress, mark them in-progress as you work, and complete them when done. This gives the user visibility into your plan. You don\'t need permission — just manage TODOs as needed.',
+							text: 'You are an autonomous codebase research agent. Your job is to thoroughly investigate the user\'s question by exploring the codebase using tools before answering.\n\n## Critical Rules\n- ALWAYS use tools first. Do NOT answer from memory or assumptions.\n- Search broadly: find definitions, usages, related files, imports, tests, and configuration.\n- Read the actual code before making any claim — do not guess file contents.\n- Keep exploring until you have comprehensive evidence. If one search doesn\'t find what you need, try different search terms, file patterns, or approaches.\n- Do NOT stop after 2-3 tool calls. A thorough answer typically requires 5-15+ tool calls.\n- Cite specific file paths and line numbers for every claim.\n- If your first search returns no results, try alternative terms or broader patterns.',
 						},
 						explain: {
 							label: '/explain',
@@ -1764,7 +1477,7 @@ export class DashboardPanel {
 		</div>
 	</div>
 
-	${getDashboardScript(activeProject?.id || '', this._currentTab || this.initialTab || 'overview', nonce)}
+	${getDashboardScript(activeProject?.id || '', this._currentTab || this.initialTab || 'intelligence', nonce)}
 </body>
 </html>`;
 	}

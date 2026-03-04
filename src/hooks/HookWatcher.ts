@@ -6,9 +6,9 @@
  *   append JSON-lines to ~/.contextmanager/hook-queue.jsonl.
  *   This service watches that file and ingests new entries into AutoCaptureService.
  *
- *   For SessionStart hooks the script reads ~/.contextmanager/session-context.txt
- *   and injects it as additionalContext — so we also write that file here whenever
- *   the active project or session-continuity context changes.
+ *   The capture script reads ~/.contextmanager/session-context.txt on every
+ *   UserPromptSubmit hook and injects it as a systemMessage — so we write
+ *   that file here whenever the active project or prompt injection config changes.
  */
 
 import * as vscode from 'vscode';
@@ -17,6 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import type { AutoCaptureService } from '../autoCapture';
 import type { ProjectManager } from '../projects/ProjectManager';
+import type { KnowledgeCard } from '../projects/types';
 import { ConfigurationManager } from '../config';
 
 // ── Paths ──────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ export class HookWatcher implements vscode.Disposable {
 
 		// Re-write session-context.txt when project changes
 		projectManager.onDidChangeActiveProject(() => this._syncSessionContext());
+		projectManager.onDidChangeProjects(() => this._syncSessionContext());
 	}
 
 	// ── Public ─────────────────────────────────────────────────
@@ -344,6 +346,46 @@ export class HookWatcher implements vscode.Disposable {
 			`[ContextManager — Project: ${project.name}]`,
 			`Root: ${project.rootPaths?.[0] || 'unknown'}`,
 		];
+
+		// Prompt injection: Knowledge-tab-selected cards + custom instruction
+		const injection = project.promptInjection;
+		const selectedCardIds = project.selectedCardIds || [];
+		const hasCustomInstruction = !!(injection?.customInstruction?.trim());
+		const includeFullContent = injection?.includeFullContent ?? false;
+
+		if (selectedCardIds.length > 0 || hasCustomInstruction) {
+			lines.push('');
+			lines.push('## Injected Context for This Session');
+
+			if (hasCustomInstruction) {
+				lines.push('');
+				lines.push(injection!.customInstruction.trim());
+			}
+
+			if (selectedCardIds.length > 0) {
+				const allCards = this.projectManager.getKnowledgeCards(project.id);
+				const injectedCards = selectedCardIds
+					.map(id => allCards.find((c: KnowledgeCard) => c.id === id))
+					.filter((c): c is KnowledgeCard => !!c && !c.archived);
+
+				if (injectedCards.length > 0) {
+					lines.push('');
+					if (includeFullContent) {
+						for (const card of injectedCards) {
+							lines.push(`### ${card.title} [${card.category}] — ID: ${card.id}`);
+							lines.push('');
+							lines.push(card.content);
+							lines.push('');
+						}
+					} else {
+						lines.push('Knowledge cards available for this session:');
+						for (const card of injectedCards) {
+							lines.push(`- **${card.title}** [${card.category}] — ID: \`${card.id}\``);
+						}
+					}
+				}
+			}
+		}
 
 		this.updateSessionContext(lines.join('\n'));
 	}

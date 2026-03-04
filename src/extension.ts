@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 import { ExplanationCache } from './cache';
-import { registerChatParticipant } from './chat';
 import { registerCommands } from './commands';
 import { ConfigurationManager } from './config';
-import { EmbeddingManager, registerEmbeddingCommands } from './embeddings';
 import { ProjectManager } from './projects/ProjectManager';
 import { registerSidebar } from './sidebar/ProjectsTreeProvider';
 import { DashboardPanel } from './dashboard';
@@ -13,10 +11,6 @@ import { initBackgroundTasks, getLastChatExchange } from './backgroundTasks';
 import { AutoCaptureService } from './autoCapture';
 import { HookWatcher, SCRIPTS_DIR, QUEUE_FILE } from './hooks/HookWatcher';
 import { GitHubInstructionsManager } from './githubInstructions';
-import {
-	registerChatStatusItem,
-	registerDynamicTools,
-} from './proposedApi';
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -106,9 +100,18 @@ export function activate(context: vscode.ExtensionContext) {
 				const project = projectManager.getActiveProject();
 				if (!project?.rootPaths?.[0]) { return; }
 				const hooksFile = pathMod.join(project.rootPaths[0], '.github', 'hooks', 'contextmanager-hooks.json');
-				if (!fs.existsSync(hooksFile)) {
+				const hooksFileValid = (() => {
+					try {
+						if (!fs.existsSync(hooksFile)) { return false; }
+						const content = fs.readFileSync(hooksFile, 'utf8').trim();
+						if (!content || content.length < 10) { return false; }
+						const parsed = JSON.parse(content);
+						return parsed && typeof parsed === 'object' && parsed.hooks;
+					} catch { return false; }
+				})();
+				if (!hooksFileValid) {
 					vscode.commands.executeCommand('contextManager.installHooks');
-					outputChannel.appendLine('[ContextManager] Auto-installing hooks (not found in project)');
+					outputChannel.appendLine('[ContextManager] Auto-installing hooks (missing or invalid hooks file)');
 				} else {
 					// Check if installed scripts are stale by comparing cm-version header
 					const isWindows = process.platform === 'win32';
@@ -133,17 +136,10 @@ export function activate(context: vscode.ExtensionContext) {
 			} catch (e) { /* non-critical */ }
 		}, 4_000);
 
-		registerChatParticipant(context, cache, projectManager, autoCapture);
-
 		// Register context menu commands
 		registerCommands(context, cache);
 
-		// Register embeddings (experimental — gated behind experimental.enableProposedApi)
-		const embeddingManager = new EmbeddingManager(context, projectManager);
-		registerEmbeddingCommands(context, embeddingManager, projectManager);
-		context.subscriptions.push(embeddingManager);
-
-		// Initialize BM25 full-text search index (SQLite FTS5 via sql.js WASM)
+		// Initialize BM25 full-text search index (SQLite FTS4 via sql.js WASM)
 		let searchIndex: SearchIndex | undefined;
 		if (ConfigurationManager.searchEnableFTS) {
 			searchIndex = new SearchIndex(context);
@@ -165,18 +161,18 @@ export function activate(context: vscode.ExtensionContext) {
 						const projects = projectManager.getAllProjects();
 						const cacheEntries = cache.getAllEntries();
 						await searchIndex!.rebuild(projects, cacheEntries);
-						console.log('ContextManager: FTS5 search index built (fresh DB)');
+						console.log('ContextManager: FTS4 search index built (fresh DB)');
 					} else {
-						console.log('ContextManager: FTS5 search index restored from disk');
+						console.log('ContextManager: FTS4 search index restored from disk');
 					}
 				} catch (err) {
-					console.error('ContextManager: Failed to initialize/build FTS5 search index:', err);
+					console.error('ContextManager: Failed to initialize/build FTS4 search index:', err);
 				}
 			}, 2_000); // 2s delay keeps activation fast
 		}
 
 		// Register Language Model Tools for cross-participant context sharing
-		registerTools(context, projectManager, cache, embeddingManager, searchIndex, autoCapture);
+		registerTools(context, projectManager, searchIndex, autoCapture);
 
 		// Initialize GitHub Instructions Manager — syncs .github/ files when cards change
 		const instructionsManager = new GitHubInstructionsManager(projectManager);
@@ -198,10 +194,6 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine(`[ContextManager] Our tools visible to agents: ${ourTools.length}`);
 			ourTools.forEach(t => outputChannel.appendLine(`  ✓ ${t.name}`));
 		}, 3000);
-
-		// Register proposed API features (experimental — gated at runtime)
-		registerChatStatusItem(context, projectManager, cache);
-		registerDynamicTools(context, projectManager, cache);
 
 		// Register dashboard command
 		context.subscriptions.push(
@@ -305,7 +297,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// Get last chat exchange from background tasks
 				const lastExchange = getLastChatExchange();
 				if (!lastExchange.trim()) {
-					vscode.window.showWarningMessage('No recent chat exchange found. Start a conversation with @ctx first.');
+					vscode.window.showWarningMessage('No recent chat exchange found. Start a conversation first.');
 					return;
 				}
 

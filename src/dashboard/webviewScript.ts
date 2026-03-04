@@ -420,7 +420,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				context: { goals, conventions, keyFiles }
 			});
 
-			// Show saved indicator
 			const status = document.getElementById('contextSaveStatus');
 			if (status) {
 				status.textContent = '✓ Saved';
@@ -433,14 +432,12 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			if (status) { status.textContent = 'Saving...'; }
 			_contextSaveTimer = setTimeout(() => { saveContext(); }, 800);
 		}
-		// Wire up debounced auto-save on context textareas
 		document.addEventListener('DOMContentLoaded', () => {
 			['contextGoals', 'contextConventions', 'contextKeyFiles'].forEach(id => {
 				const el = document.getElementById(id);
 				if (el) { el.addEventListener('input', debouncedSaveContext); }
 			});
 		});
-		// Also wire up immediately since DOMContentLoaded may have already fired
 		setTimeout(() => {
 			['contextGoals', 'contextConventions', 'contextKeyFiles'].forEach(id => {
 				const el = document.getElementById(id);
@@ -450,16 +447,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				}
 			});
 		}, 100);
-
-
-
-		function toggleContextEnabled(enabled) {
-			vscode.postMessage({
-				command: 'setContextEnabled',
-				projectId: activeProjectId,
-				enabled
-			});
-		}
 
 		function updateToolSharing(key, value) {
 			const config = {};
@@ -513,57 +500,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			});
 		}
 		window.filterSettings = filterSettings;
-
-		function clearCacheEntry(entryId, btn) {
-			setButtonLoading(btn, 'Deleting…');
-			vscode.postMessage({ command: 'clearCacheEntry', entryId });
-		}
-
-		function editCacheEntry(entryId) {
-			const viewEl = document.getElementById('cache-view-' + entryId);
-			const editEl = document.getElementById('cache-edit-' + entryId);
-			const nameEl = document.getElementById('cache-name-editor-' + entryId);
-			if (viewEl && editEl && nameEl) {
-				viewEl.style.display = 'none';
-				editEl.style.display = 'block';
-				setInteracting(true);
-				nameEl.focus();
-			}
-		}
-
-		function saveCacheEdit(entryId) {
-			const nameEl = document.getElementById('cache-name-editor-' + entryId);
-			const editorEl = document.getElementById('cache-editor-' + entryId);
-			if (nameEl && editorEl) {
-				const saveBtn = document.querySelector('#cache-edit-' + entryId + ' button[onclick*="saveCacheEdit"]');
-				setButtonLoading(saveBtn, 'Saving…');
-				setInteracting(false);
-				vscode.postMessage({
-					command: 'editCacheEntry',
-					entryId,
-					newName: nameEl.value,
-					newContent: editorEl.value
-				});
-			}
-		}
-
-		function cancelCacheEdit(entryId) {
-			const viewEl = document.getElementById('cache-view-' + entryId);
-			const editEl = document.getElementById('cache-edit-' + entryId);
-			if (viewEl && editEl) {
-				viewEl.style.display = 'block';
-				editEl.style.display = 'none';
-			}
-			setInteracting(false);
-		}
-
-		function clearAllCache() {
-			vscode.postMessage({ command: 'clearAllCache' });
-		}
-
-		function reexplain(entryId) {
-			vscode.postMessage({ command: 'reexplain', entryId });
-		}
 
 		// Knowledge Card functions
 		function showAddCardForm() {
@@ -787,13 +723,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			setTimeout(function() { setInteracting(false); }, 600);
 		}
 
-		function toggleCacheEntry(entryId) {
-			vscode.postMessage({
-				command: 'toggleCacheSelection',
-				entryId
-			});
-		}
-
 		function uncheckAllCards() {
 			vscode.postMessage({
 				command: 'deselectAllCards',
@@ -801,14 +730,18 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			});
 		}
 
-		function smartSelectCards() {
-			vscode.postMessage({ command: 'smartSelectCards' });
+		function saveInjection() {
+			const customInstruction = document.getElementById('injectionInstruction')?.value || '';
+			const includeFullContent = document.getElementById('injectionFullContent')?.checked || false;
+			vscode.postMessage({ command: 'setPromptInjection', customInstruction, includeFullContent });
 		}
 
-		function uncheckAllCache() {
-			vscode.postMessage({
-				command: 'deselectAllCacheEntries'
-			});
+		function clearInjection() {
+			vscode.postMessage({ command: 'clearPromptInjection' });
+		}
+
+		function smartSelectCards() {
+			vscode.postMessage({ command: 'smartSelectCards' });
 		}
 
 		function editCard(cardId) {
@@ -1165,59 +1098,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			updateBulkActionsVisibility('knowledge');
 		}
 
-		function searchCache(query) {
-			const entries = document.querySelectorAll('.cache-item[data-expand-id^="cache-"]');
-			const filter = query.toLowerCase();
-			entries.forEach(entry => {
-				const symbol = entry.querySelector('.cache-symbol')?.textContent?.toLowerCase() || '';
-				const file = entry.querySelector('.cache-file')?.textContent?.toLowerCase() || '';
-				const content = entry.textContent.toLowerCase();
-				if (symbol.includes(filter) || file.includes(filter) || content.includes(filter)) {
-					entry.classList.remove('filtered-out');
-				} else {
-					entry.classList.add('filtered-out');
-				}
-			});
-			updateCacheFileGroupVisibility();
-			updateBulkActionsVisibility('cache');
-		}
-
-		function filterCache(type) {
-			const entries = document.querySelectorAll('.cache-item[data-expand-id^="cache-"]');
-			entries.forEach(entry => {
-				if (type === 'all') {
-					entry.classList.remove('filtered-out');
-				} else {
-					const typeEl = entry.querySelector('.cache-type');
-					if (typeEl?.textContent === type) {
-						entry.classList.remove('filtered-out');
-					} else {
-						entry.classList.add('filtered-out');
-					}
-				}
-			});
-			updateCacheFileGroupVisibility();
-			updateBulkActionsVisibility('cache');
-		}
-
-		function updateCacheFileGroupVisibility() {
-			const groups = document.querySelectorAll('.file-group');
-			groups.forEach(group => {
-				const visibleItems = group.querySelectorAll('.cache-item:not(.filtered-out)');
-				if (visibleItems.length === 0) {
-					group.classList.add('filtered-out');
-				} else {
-					group.classList.remove('filtered-out');
-				}
-			});
-		}
-
 		// ─── Bulk Operations ──────────────────────────────────────────
 
 		const bulkSelection = {
 			todos: new Set(),
-			knowledge: new Set(),
-			cache: new Set()
+			knowledge: new Set()
 		};
 
 		function toggleAllSelection(type) {
@@ -1303,19 +1188,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			bulkSelection.todos.clear();
 		}
 
-		// ─── Branch Functions (used by Overview tab git info) ───
-		function trackCurrentBranch() {
-			vscode.postMessage({ command: 'trackCurrentBranch', projectId: activeProjectId });
-		}
-
-		function removeTrackedBranch(branchName) {
-			vscode.postMessage({ command: 'removeTrackedBranch', projectId: activeProjectId, branchName });
-		}
-
-		function setBaseBranch(value) {
-			vscode.postMessage({ command: 'setBaseBranch', baseBranch: value });
-		}
-
 		// Handle branch sessions data from extension
 		window.addEventListener('message', event => {
 			const msg = event.data;
@@ -1367,10 +1239,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				return;
 			}
 
-			if (msg.command === 'observationPromotePrefill') {
-				switchTab('intelligence');
-				return;
-			}
+
 
 			// ── Queue distillation results ───────────────────────────────────────────
 			if (msg.command === 'distillQueueResult') {
@@ -1450,29 +1319,6 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				});
 			});
 			// Don't clear - let user see what was selected
-		}
-
-		function bulkDeleteCache() {
-			if (bulkSelection.cache.size === 0) return;
-			if (confirm('Delete ' + bulkSelection.cache.size + ' cache entry/entries?')) {
-				bulkSelection.cache.forEach(entryId => {
-					vscode.postMessage({
-						command: 'clearCacheEntry',
-						entryId
-					});
-				});
-				bulkSelection.cache.clear();
-			}
-		}
-
-		function bulkSelectCache() {
-			if (bulkSelection.cache.size === 0) return;
-			bulkSelection.cache.forEach(entryId => {
-				vscode.postMessage({
-					command: 'toggleCacheSelection',
-					entryId
-				});
-			});
 		}
 
 		function cancelCardEdit(cardId) {
@@ -1593,7 +1439,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 		// Initialize tab from saved state or URL param
 		const initialTab = previousState.currentTab || '${initialTab}';
-		if (initialTab !== 'overview') {
+		if (initialTab !== 'intelligence') {
 			switchTab(initialTab, false); // Don't re-save on init
 		}
 
@@ -1850,6 +1696,390 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			});
 		}
 
+		// ─── Knowledge Subtab Switching ──────────────────────────
+		var _activeKnowledgeSubtab = 'workbench';
+
+		function switchKnowledgeSubtab(name) {
+			_activeKnowledgeSubtab = name;
+			// Update subtab tabs
+			document.querySelectorAll('.knowledge-subtab').forEach(function(tab) {
+				tab.classList.toggle('active', tab.getAttribute('data-subtab') === name);
+			});
+			// Show/hide subtab content
+			document.querySelectorAll('.knowledge-subtab-content').forEach(function(content) {
+				content.style.display = 'none';
+			});
+			var target = document.getElementById('subtab-' + name);
+			if (target) { target.style.display = 'block'; }
+			// Persist subtab state
+			vscode.setState({ ...vscode.getState(), knowledgeSubtab: name });
+		}
+
+		// Restore persisted subtab on load
+		if (previousState.knowledgeSubtab) {
+			requestAnimationFrame(function() { switchKnowledgeSubtab(previousState.knowledgeSubtab); });
+		}
+
+		// ─── Workbench: Filter & Search ───────────────────────────
+
+		// Active filter tags (managed by tag autocomplete)
+		var _filterTags = [];
+
+		function applyWorkbenchFilter() {
+			var grid = document.getElementById('workbench-tile-grid');
+			if (!grid) { return; }
+
+			// ── Gather filter state ──
+			var enabledKinds = {};
+			document.querySelectorAll('#workbench-filter-bar input[data-filter-kind]').forEach(function(cb) {
+				enabledKinds[cb.getAttribute('data-filter-kind')] = cb.checked;
+			});
+
+			var searchInput = document.getElementById('workbench-search');
+			var searchTerm = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+			var categorySelect = document.getElementById('workbench-category-filter');
+			var categoryFilter = categorySelect ? categorySelect.value : 'all';
+
+			var pinnedOnlyCb = document.getElementById('workbench-pinned-only');
+			var pinnedOnly = pinnedOnlyCb ? pinnedOnlyCb.checked : false;
+
+			var showArchivedCb = document.getElementById('workbench-show-archived');
+			var showArchived = showArchivedCb ? showArchivedCb.checked : false;
+
+			var sortSelect = document.getElementById('workbench-sort');
+			var sortMode = sortSelect ? sortSelect.value : 'newest';
+
+			// ── Filter pass ──
+			var totalCount = 0;
+			var visibleCount = 0;
+			var tiles = Array.from(grid.querySelectorAll('.card-tile'));
+
+			tiles.forEach(function(tile) {
+				totalCount++;
+				var kind = tile.getAttribute('data-tile-type') || 'card';
+				var visible = enabledKinds[kind] !== false;
+
+				// Category filter
+				if (visible && categoryFilter !== 'all') {
+					var tileCat = tile.getAttribute('data-tile-category') || '';
+					visible = tileCat === categoryFilter;
+				}
+
+				// Pinned only
+				if (visible && pinnedOnly) {
+					visible = tile.getAttribute('data-tile-pinned') === 'true';
+				}
+
+				// Archived: hide unless opted in
+				if (visible && !showArchived) {
+					if (tile.getAttribute('data-tile-archived') === 'true') {
+						visible = false;
+					}
+				}
+
+				// Tag filter (AND logic)
+				if (visible && _filterTags.length > 0) {
+					var tileTags = (tile.getAttribute('data-tile-tags') || '').toLowerCase().split(',').filter(Boolean);
+					for (var i = 0; i < _filterTags.length; i++) {
+						if (tileTags.indexOf(_filterTags[i].toLowerCase()) < 0) {
+							visible = false;
+							break;
+						}
+					}
+				}
+
+				// Text search — searches title, snippet, tags, and category
+				if (visible && searchTerm) {
+					var title = tile.querySelector('.card-tile-title');
+					var snippet = tile.querySelector('.card-tile-snippet');
+					var titleText = (title ? title.textContent : '').toLowerCase();
+					var snippetText = (snippet ? snippet.textContent : '').toLowerCase();
+					var tagsText = (tile.getAttribute('data-tile-tags') || '').toLowerCase();
+					var catText = (tile.getAttribute('data-tile-category') || '').toLowerCase();
+					visible = titleText.indexOf(searchTerm) >= 0
+						|| snippetText.indexOf(searchTerm) >= 0
+						|| tagsText.indexOf(searchTerm) >= 0
+						|| catText.indexOf(searchTerm) >= 0;
+				}
+
+				tile.style.display = visible ? '' : 'none';
+				if (visible) { visibleCount++; }
+			});
+
+			// ── Sort pass ──
+			var visibleTiles = tiles.filter(function(t) { return t.style.display !== 'none'; });
+			visibleTiles.sort(function(a, b) {
+				// Pinned always first
+				var aPinned = a.getAttribute('data-tile-pinned') === 'true' ? 1 : 0;
+				var bPinned = b.getAttribute('data-tile-pinned') === 'true' ? 1 : 0;
+				if (aPinned !== bPinned) { return bPinned - aPinned; }
+
+				if (sortMode === 'newest' || sortMode === 'oldest') {
+					var aTs = parseInt(a.getAttribute('data-tile-timestamp') || '0', 10);
+					var bTs = parseInt(b.getAttribute('data-tile-timestamp') || '0', 10);
+					return sortMode === 'newest' ? bTs - aTs : aTs - bTs;
+				}
+				if (sortMode === 'az' || sortMode === 'za') {
+					var aTitle = (a.querySelector('.card-tile-title') || {}).textContent || '';
+					var bTitle = (b.querySelector('.card-tile-title') || {}).textContent || '';
+					var cmp = aTitle.localeCompare(bTitle);
+					return sortMode === 'za' ? -cmp : cmp;
+				}
+				return 0;
+			});
+
+			// Re-append in sorted order (hidden tiles stay at end)
+			var hiddenTiles = tiles.filter(function(t) { return t.style.display === 'none'; });
+			visibleTiles.concat(hiddenTiles).forEach(function(t) {
+				grid.appendChild(t);
+			});
+
+			// ── Update result count ──
+			var countEl = document.getElementById('workbench-result-count');
+			if (countEl) {
+				if (visibleCount < totalCount) {
+					countEl.textContent = visibleCount + ' of ' + totalCount;
+				} else {
+					countEl.textContent = totalCount + ' items';
+				}
+			}
+
+			// ── Show/hide clear filters button ──
+			var hasActiveFilter = searchTerm
+				|| categoryFilter !== 'all'
+				|| pinnedOnly
+				|| showArchived
+				|| _filterTags.length > 0
+				|| sortMode !== 'newest'
+				|| Object.keys(enabledKinds).some(function(k) { return !enabledKinds[k]; });
+			var clearBtn = document.getElementById('workbench-clear-filters');
+			if (clearBtn) {
+				clearBtn.style.display = hasActiveFilter ? '' : 'none';
+			}
+
+			// ── Persist filter state ──
+			vscode.setState({ ...vscode.getState(), workbenchFilter: {
+				enabledKinds: enabledKinds,
+				searchTerm: searchInput ? searchInput.value : '',
+				category: categoryFilter,
+				tags: _filterTags.slice(),
+				pinnedOnly: pinnedOnly,
+				showArchived: showArchived,
+				sortMode: sortMode,
+			}});
+		}
+
+		function clearWorkbenchFilters() {
+			// Reset kind checkboxes
+			document.querySelectorAll('#workbench-filter-bar input[data-filter-kind]').forEach(function(cb) {
+				cb.checked = true;
+			});
+			// Reset search
+			var searchInput = document.getElementById('workbench-search');
+			if (searchInput) { searchInput.value = ''; }
+			// Reset category
+			var categorySelect = document.getElementById('workbench-category-filter');
+			if (categorySelect) { categorySelect.value = 'all'; }
+			// Reset tags
+			_filterTags = [];
+			renderFilterTagChips();
+			// Reset status toggles
+			var pinnedCb = document.getElementById('workbench-pinned-only');
+			if (pinnedCb) { pinnedCb.checked = false; }
+			var archivedCb = document.getElementById('workbench-show-archived');
+			if (archivedCb) { archivedCb.checked = false; }
+			// Reset sort
+			var sortSelect = document.getElementById('workbench-sort');
+			if (sortSelect) { sortSelect.value = 'newest'; }
+			applyWorkbenchFilter();
+		}
+
+		// ─── Workbench: Tag Autocomplete ──────────────────────────
+
+		function collectAllTags() {
+			var tagSet = {};
+			document.querySelectorAll('.card-tile').forEach(function(tile) {
+				var raw = tile.getAttribute('data-tile-tags') || '';
+				raw.split(',').forEach(function(t) {
+					var trimmed = t.trim();
+					if (trimmed) { tagSet[trimmed.toLowerCase()] = trimmed; }
+				});
+			});
+			return Object.values(tagSet);
+		}
+
+		function showTagSuggestions(value) {
+			var container = document.getElementById('tag-suggestions');
+			if (!container) { return; }
+			var term = (value || '').toLowerCase().trim();
+			if (!term) { container.innerHTML = ''; container.style.display = 'none'; return; }
+
+			var allTags = collectAllTags();
+			var matches = allTags.filter(function(t) {
+				return t.toLowerCase().indexOf(term) >= 0 && _filterTags.indexOf(t) < 0;
+			}).slice(0, 8);
+
+			if (matches.length === 0) { container.innerHTML = ''; container.style.display = 'none'; return; }
+
+			container.innerHTML = matches.map(function(tag) {
+				return '<div class="tag-suggestion-item" onmousedown="addFilterTag(\\'' + escapeHtml(tag).replace(/'/g, "\\\\'") + '\\')">' + escapeHtml(tag) + '</div>';
+			}).join('');
+			container.style.display = 'block';
+		}
+
+		function hideTagSuggestions() {
+			var container = document.getElementById('tag-suggestions');
+			if (container) { container.innerHTML = ''; container.style.display = 'none'; }
+		}
+
+		function handleTagInputKey(event) {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				var input = document.getElementById('workbench-tag-input');
+				var val = input ? input.value.trim() : '';
+				if (val && _filterTags.indexOf(val) < 0) {
+					_filterTags.push(val);
+					renderFilterTagChips();
+					applyWorkbenchFilter();
+				}
+				if (input) { input.value = ''; }
+				hideTagSuggestions();
+			} else if (event.key === 'Escape') {
+				hideTagSuggestions();
+			}
+		}
+
+		function addFilterTag(tag) {
+			if (_filterTags.indexOf(tag) < 0) {
+				_filterTags.push(tag);
+				renderFilterTagChips();
+				applyWorkbenchFilter();
+			}
+			var input = document.getElementById('workbench-tag-input');
+			if (input) { input.value = ''; }
+			hideTagSuggestions();
+		}
+
+		function removeFilterTag(tag) {
+			_filterTags = _filterTags.filter(function(t) { return t !== tag; });
+			renderFilterTagChips();
+			applyWorkbenchFilter();
+		}
+
+		function renderFilterTagChips() {
+			var container = document.getElementById('filter-tag-chips');
+			if (!container) { return; }
+			container.innerHTML = _filterTags.map(function(tag) {
+				return '<span class="filter-tag-chip">' + escapeHtml(tag) + '<span class="filter-tag-remove" onclick="removeFilterTag(\\'' + escapeHtml(tag).replace(/'/g, "\\\\'") + '\\')">✕</span></span>';
+			}).join('');
+		}
+
+		// ─── Workbench: Restore persisted filter state ────────────
+		(function restoreWorkbenchFilter() {
+			var saved = previousState.workbenchFilter;
+			if (!saved) { return; }
+			requestAnimationFrame(function() {
+				// Restore kind checkboxes
+				if (saved.enabledKinds) {
+					document.querySelectorAll('#workbench-filter-bar input[data-filter-kind]').forEach(function(cb) {
+						var kind = cb.getAttribute('data-filter-kind');
+						if (kind && saved.enabledKinds[kind] !== undefined) {
+							cb.checked = saved.enabledKinds[kind];
+						}
+					});
+				}
+				// Restore search
+				if (saved.searchTerm) {
+					var searchInput = document.getElementById('workbench-search');
+					if (searchInput) { searchInput.value = saved.searchTerm; }
+				}
+				// Restore category
+				if (saved.category) {
+					var categorySelect = document.getElementById('workbench-category-filter');
+					if (categorySelect) { categorySelect.value = saved.category; }
+				}
+				// Restore tags
+				if (saved.tags && saved.tags.length > 0) {
+					_filterTags = saved.tags.slice();
+					renderFilterTagChips();
+				}
+				// Restore pinned only
+				if (saved.pinnedOnly) {
+					var pinnedCb = document.getElementById('workbench-pinned-only');
+					if (pinnedCb) { pinnedCb.checked = true; }
+				}
+				// Restore show archived
+				if (saved.showArchived) {
+					var archivedCb = document.getElementById('workbench-show-archived');
+					if (archivedCb) { archivedCb.checked = true; }
+				}
+				// Restore sort
+				if (saved.sortMode) {
+					var sortSelect = document.getElementById('workbench-sort');
+					if (sortSelect) { sortSelect.value = saved.sortMode; }
+				}
+				applyWorkbenchFilter();
+			});
+		})();
+
+		// Close tag suggestions when clicking outside
+		document.addEventListener('click', function(e) {
+			var tagFilter = document.getElementById('workbench-tag-filter');
+			if (tagFilter && !tagFilter.contains(e.target)) {
+				hideTagSuggestions();
+			}
+		});
+
+		// ─── Workbench: Staging Area ──────────────────────────────
+		function updateStagingArea() {
+			var stagingItems = document.getElementById('staging-items');
+			var stagingActions = document.getElementById('staging-actions');
+			var stagingCount = document.getElementById('staging-count');
+			if (!stagingItems) { return; }
+
+			var selectedIds = Array.from(_tileSelection);
+			if (selectedIds.length === 0) {
+				stagingItems.innerHTML = '<div class="staging-empty">Select items from above to start mixing &amp; matching</div>';
+				if (stagingActions) { stagingActions.style.display = 'none'; }
+				if (stagingCount) { stagingCount.textContent = 'Drop items here or select with checkboxes'; }
+				return;
+			}
+
+			if (stagingCount) { stagingCount.textContent = selectedIds.length + ' item' + (selectedIds.length !== 1 ? 's' : '') + ' staged'; }
+			if (stagingActions) { stagingActions.style.display = 'flex'; }
+
+			// Build mini-cards for staging area
+			var html = '';
+			selectedIds.forEach(function(id) {
+				var sourceTile = document.querySelector('.card-tile[data-tile-id="' + id + '"]');
+				if (!sourceTile) { return; }
+				var kind = sourceTile.getAttribute('data-tile-type') || 'card';
+				var titleEl = sourceTile.querySelector('.card-tile-title');
+				var title = titleEl ? titleEl.textContent.trim() : 'Untitled';
+				var kindBadge = sourceTile.querySelector('.kind-badge');
+				var kindLabel = kindBadge ? kindBadge.textContent.trim() : kind;
+
+				html += '<div class="staging-item" data-staging-id="' + id + '">'
+					+ '<span class="staging-item-kind">' + escapeHtml(kindLabel) + '</span>'
+					+ '<span class="staging-item-title">' + escapeHtml(title) + '</span>'
+					+ '<button class="staging-item-remove" onclick="removeStagingItem(\\'' + id + '\\')" title="Remove">✕</button>'
+					+ '</div>';
+			});
+			stagingItems.innerHTML = html;
+		}
+
+		function removeStagingItem(id) {
+			_tileSelection.delete(id);
+			// Uncheck corresponding checkbox
+			var cb = document.querySelector('.tile-select-cb[data-id="' + id + '"]');
+			if (cb) { cb.checked = false; }
+			var tile = document.querySelector('.card-tile[data-tile-id="' + id + '"]');
+			if (tile) { tile.classList.remove('selected'); }
+			updateMultiSelectBar();
+			updateStagingArea();
+		}
+
 		// ─── Card Canvas: Tile Selection & Multi-Select ───────────
 		var _tileSelection = new Set();
 		var _editorState = { open: false, tileId: null, tileType: null, mode: null };
@@ -1864,6 +2094,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			} else {
 				bar.classList.remove('visible');
 			}
+			// Also update staging area in workbench
+			updateStagingArea();
 		}
 
 		function clearTileSelection() {
@@ -1932,7 +2164,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var contentArea = document.getElementById('editor-content');
 			var panelTitle = document.getElementById('editor-panel-title');
 			var statusEl = document.getElementById('editor-status');
+			var promptContainer = document.getElementById('editor-custom-prompt-container');
 			if (!panel || !titleInput || !categorySelect || !contentArea) { return; }
+
+			// Hide custom prompt field for regular edits
+			if (promptContainer && _editorState.mode !== 'ai-synthesize') { promptContainer.style.display = 'none'; }
 
 			titleInput.value = data.title || '';
 			categorySelect.value = data.category || 'note';
@@ -1970,6 +2206,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var panel = document.getElementById('card-editor-panel');
 			if (panel) { panel.classList.remove('visible'); }
 			document.querySelectorAll('.card-tile.editing').forEach(function(t) { t.classList.remove('editing'); });
+			// Reset custom prompt field
+			var promptContainer = document.getElementById('editor-custom-prompt-container');
+			var promptInput = document.getElementById('editor-custom-prompt');
+			if (promptContainer) { promptContainer.style.display = 'none'; }
+			if (promptInput) { promptInput.value = ''; }
 			_editorState = { open: false, tileId: null, tileType: null, mode: null };
 		}
 
@@ -2011,7 +2252,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		}
 
 		function saveCardFromEditor() {
-			if (!activeProjectId || !_editorState.tileId) { return; }
+			if (!activeProjectId) { return; }
 			var titleInput = document.getElementById('editor-title');
 			var categorySelect = document.getElementById('editor-category');
 			var contentArea = document.getElementById('editor-content');
@@ -2028,6 +2269,24 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 			var statusEl = document.getElementById('editor-status');
 			if (statusEl) { statusEl.textContent = 'Saving…'; }
+
+			// Compose/merge/synthesize mode: no existing tileId, create a new card
+			if (!_editorState.tileId && (_editorState.mode === 'compose' || _editorState.mode === 'ai-synthesize')) {
+				vscode.postMessage({
+					command: 'addKnowledgeCard',
+					projectId: activeProjectId,
+					title: titleInput.value,
+					content: contentArea.value,
+					category: categorySelect.value,
+					tags: tags
+				});
+				_editorState = { open: false, tileId: null, tileType: null, mode: 'view' };
+				var panel = document.getElementById('card-editor-panel');
+				if (panel) { panel.classList.remove('visible'); }
+				return;
+			}
+
+			if (!_editorState.tileId) { return; }
 
 			if (_editorState.tileType === 'queue') {
 				vscode.postMessage({
@@ -2058,13 +2317,18 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var statusEl = document.getElementById('editor-status');
 			if (statusEl) { statusEl.textContent = '✨ Generating AI draft…'; }
 
+			// Show custom prompt field if not already visible
+			var promptContainer = document.getElementById('editor-custom-prompt-container');
+			if (promptContainer) { promptContainer.style.display = ''; }
+
 			var selectedIds = Array.from(_tileSelection);
 			vscode.postMessage({
 				command: 'synthesizeCard',
 				projectId: activeProjectId,
 				candidateIds: selectedIds.length > 0 ? selectedIds : (_editorState.tileId ? [_editorState.tileId] : []),
 				currentTitle: document.getElementById('editor-title')?.value || '',
-				currentContent: document.getElementById('editor-content')?.value || ''
+				currentContent: document.getElementById('editor-content')?.value || '',
+				customPrompt: (document.getElementById('editor-custom-prompt')?.value || '').trim()
 			});
 		}
 
@@ -2104,7 +2368,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 		function aiSynthesizeSelected() {
 			if (_tileSelection.size === 0 || !activeProjectId) { return; }
-			// Open editor panel with loading state
+			// Open editor panel with prompt input — don't fire LLM yet, let user type a prompt first
 			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'ai-synthesize' };
 			var panel = document.getElementById('card-editor-panel');
 			if (panel) { panel.classList.add('visible'); }
@@ -2112,16 +2376,15 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var contentArea = document.getElementById('editor-content');
 			var statusEl = document.getElementById('editor-status');
 			var panelTitle = document.getElementById('editor-panel-title');
+			var promptContainer = document.getElementById('editor-custom-prompt-container');
+			var promptInput = document.getElementById('editor-custom-prompt');
 			if (titleInput) { titleInput.value = ''; }
 			if (contentArea) { contentArea.value = ''; }
+			if (promptInput) { promptInput.value = ''; }
 			if (panelTitle) { panelTitle.textContent = 'AI Synthesize (' + _tileSelection.size + ' items)'; }
-			if (statusEl) { statusEl.textContent = '✨ Generating AI draft…'; }
+			if (promptContainer) { promptContainer.style.display = ''; }
+			if (statusEl) { statusEl.textContent = 'Enter a custom prompt (optional) then click ✨ AI Draft to generate'; }
 			updateEditorPreview();
-			vscode.postMessage({
-				command: 'synthesizeCard',
-				projectId: activeProjectId,
-				candidateIds: Array.from(_tileSelection)
-			});
 		}
 
 		function dismissSelected() {
@@ -2146,11 +2409,42 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			updateMultiSelectBar();
 		}
 
+		// ─── Card Health: Merge Duplicate Pair ────────────────────
+		function mergeHealthDuplicates(cardAId, cardBId) {
+			if (!activeProjectId || !cardAId || !cardBId) { return; }
+			vscode.postMessage({
+				command: 'mergeHealthDuplicates',
+				projectId: activeProjectId,
+				cardAId: cardAId,
+				cardBId: cardBId
+			});
+		}
+
+		// ─── Workbench: Merge Selected Cards ──────────────────────
+		function mergeSelectedCards() {
+			if (_tileSelection.size < 2 || !activeProjectId) { return; }
+			// Gather kinds for each selected item
+			var items = [];
+			_tileSelection.forEach(function(id) {
+				var tile = document.querySelector('.card-tile[data-tile-id="' + id + '"]');
+				var kind = tile ? tile.getAttribute('data-tile-type') : 'card';
+				items.push({ id: id, kind: kind });
+			});
+			vscode.postMessage({
+				command: 'mergeWorkbenchItems',
+				projectId: activeProjectId,
+				items: items
+			});
+		}
+
 		// Listen for editor population messages from backend
 		window.addEventListener('message', function(event) {
 			var msg = event.data;
 			if (msg.command === 'populateEditor') {
 				populateEditor(msg.data);
+			}
+			if (msg.command === 'switchToSubtab' && msg.subtab) {
+				switchKnowledgeSubtab(msg.subtab);
 			}
 			if (msg.command === 'aiDraftProgress') {
 				var statusEl = document.getElementById('editor-status');
@@ -2183,7 +2477,13 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					}
 					updateEditorPreview();
 				}
-				if (statusEl) { statusEl.textContent = msg.data ? '✨ AI draft applied' : '⚠ AI draft failed'; }
+				if (statusEl) {
+					if (msg.data) {
+						statusEl.textContent = '✨ AI draft applied';
+					} else {
+						statusEl.textContent = '⚠ AI draft failed' + (msg.error ? ': ' + msg.error : '');
+					}
+				}
 			}
 		});
 
@@ -2226,6 +2526,12 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		window.dismissSelected = dismissSelected;
 		window.bulkQuickSave = bulkQuickSave;
 		window.clearTileSelection = clearTileSelection;
+		// Workbench globals
+		window.switchKnowledgeSubtab = switchKnowledgeSubtab;
+		window.applyWorkbenchFilter = applyWorkbenchFilter;
+		window.removeStagingItem = removeStagingItem;
+		window.mergeSelectedCards = mergeSelectedCards;
+		window.mergeHealthDuplicates = mergeHealthDuplicates;
 
 		// ─── Keyboard Shortcuts ────────────────────────────────────
 		document.addEventListener('keydown', function(e) {
@@ -2258,9 +2564,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				}
 			}
 
-			// 1-7 → switch tabs (when no modifier)
+			// 1-4 → switch tabs (when no modifier)
 			if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-				var tabMap = { '1': 'overview', '2': 'intelligence', '3': 'knowledge', '4': 'cache', '5': 'context', '6': 'settings' };
+				var tabMap = { '1': 'intelligence', '2': 'knowledge', '3': 'context', '4': 'settings' };
 				if (tabMap[e.key]) {
 					e.preventDefault();
 					switchTab(tabMap[e.key]);

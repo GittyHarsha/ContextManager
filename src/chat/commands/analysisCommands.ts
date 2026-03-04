@@ -4,7 +4,6 @@
 
 import * as vscode from 'vscode';
 import { ExplanationCache, generateCacheKey } from '../../cache';
-import { ConfigurationManager } from '../../config';
 import { ProjectManager } from '../../projects/ProjectManager';
 import {
 	ChatPrompt,
@@ -188,19 +187,6 @@ export async function handleDoc(
 	projectManager: ProjectManager,
 	cache: ExplanationCache,
 ): Promise<ExplainerMetadata> {
-	// Check if experimental API is enabled
-	if (!ConfigurationManager.experimentalProposedApi) {
-		stream.markdown(
-			'\u26A0\uFE0F **Experimental Feature**\n\n' +
-			'The `/doc` command uses proposed VS Code APIs to apply inline edits.\n\n' +
-			'To enable it:\n' +
-			'1. Open Settings \u2192 search for `contextManager.experimental.enableProposedApi`\n' +
-			'2. Enable it\n' +
-			'3. Make sure you\'re running a VS Code build that supports proposed APIs (e.g. Insiders)\n'
-		);
-		return noToolsResult('doc');
-	}
-
 	// Check if stream.textEdit is available at runtime
 	if (typeof (stream as any).textEdit !== 'function') {
 		stream.markdown(

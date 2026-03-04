@@ -4,7 +4,6 @@
 
 import * as vscode from 'vscode';
 import { ExplanationCache } from '../cache';
-import { ConfigurationManager } from '../config';
 import { ProjectManager } from '../projects/ProjectManager';
 import { ExplainerMetadata, ToolCallRound } from '../prompts/index';
 
@@ -100,10 +99,6 @@ export async function deselectContextAfterUse(
 	projectManager: ProjectManager,
 	cache: ExplanationCache
 ): Promise<void> {
-	if (!ConfigurationManager.contextAutoDeselectAfterUse) {
-		return;
-	}
-
 	const activeProject = projectManager.getActiveProject();
 	if (!activeProject) {
 		return;

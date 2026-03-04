@@ -16,7 +16,7 @@ import { exportCardsToFilesystem, importCardsFromDirectory } from '../fileSync';
 /** Explicit allowlist of valid webview message commands. */
 const ALLOWED_COMMANDS = new Set([
 	'setActiveProject', 'createProject', 'deleteProject', 'updateProjectContext',
-	'webviewInteracting', 'setContextEnabled', 'setToolSharingConfig', 'updateSetting',
+	'webviewInteracting', 'setToolSharingConfig', 'updateSetting',
 	'addTodo', 'updateTodo', 'deleteTodo', 'runTodoAgent',
 	'continueWithPrompt', 'resumeTodo', 'viewTodoDetails', 'viewTodoHistory',
 	'clearCacheEntry', 'editCacheEntry', 'clearAllCache', 'reexplain',
@@ -36,10 +36,12 @@ const ALLOWED_COMMANDS = new Set([
 	'discardWorkingNote', 'resetDiscardCount', 'toggleConventionSelection',
 	'deleteToolHint', 'toggleToolHintSelection',
 	'updateWorkingNote', 'promoteNoteToCard', 'deleteWorkingNote',
-	'deleteObservation', 'promoteObservation', 'distillObservations', 'clearObservationsBySource',
+	'deleteObservation', 'distillObservations', 'clearObservationsBySource',
 	'exportAll', 'importAll', 'exportProject', 'importProject',
 	'exportCardsToFiles', 'importCardsFromDir',
 	'runVscodeCommand',
+	'mergeWorkbenchItems', 'mergeHealthDuplicates',
+	'setPromptInjection', 'clearPromptInjection',
 ]);
 
 /**
@@ -47,21 +49,12 @@ const ALLOWED_COMMANDS = new Set([
  * Any key not in this set is silently rejected.
  */
 const SETTING_ALLOWLIST = new Set([
-	'showStatusBar', 'confirmDelete', 'autoSelectKnowledgeCards',
-	'maxKnowledgeCardsInContext', 'cacheExpiration', 'enableContextByDefault',
-	'chat.includeCopilotInstructions',
-	'explanation.expandContext', 'explanation.includeReferences',
-	'dashboard.defaultTab',
-	'notifications.showProgress',
-	'context.autoDeselectAfterUse',
-	'experimental.enableProposedApi',
-	'prompts.globalInstructions', 'prompts.chat', 'prompts.explain',
-	'prompts.usage', 'prompts.relationships', 'prompts.research',
-	'prompts.refine',
-	'branch.baseBranch', 'branch.includeInPrompts',
-	'branch.maxCommitsToCapture', 'branch.autoCapture',
-	'branch.autoCaptureSessions', 'branch.autoBootstrap',
-	'intelligence.enableTieredInjection', 'intelligence.injectIntoAllParticipants',
+	'showStatusBar', 'confirmDelete', 'maxKnowledgeCardsInContext',
+	'prompts.globalInstructions',
+	'prompts.distillObservations', 'prompts.distillQueue', 'prompts.synthesizeCard',
+	'autoDistill.intervalMinutes', 'autoDistill.dedupThreshold',
+	'saveAsCard.smartMerge',
+	'intelligence.enableTieredInjection',
 	'intelligence.tier1MaxTokens', 'intelligence.tier2MaxTokens',
 	'intelligence.enableStalenessTracking',
 	'intelligence.autoLearn', 'intelligence.autoLearn.useLLM',
@@ -73,13 +66,11 @@ const SETTING_ALLOWLIST = new Set([
 	'intelligence.autoLearn.extractConventions',
 	'intelligence.autoLearn.hintsPerRun', 'intelligence.autoLearn.notesPerRun',
 	'intelligence.autoLearn.conventionsPerRun', 'intelligence.autoLearn.expiryDays',
-	'subagent.enabled', 'subagent.maxIterations', 'subagent.modelFamily',
 	'tools.backgroundMode',
 	'search.enableFTS', 'search.maxCardResults',
 	'search.maxSearchResults', 'search.snippetTokens',
 	'autoCapture.enabled', 'autoCapture.learnFromAllParticipants',
 	'autoCapture.maxObservations',
-	'hooks.sessionStart', 'hooks.postToolUse', 'hooks.preCompact', 'hooks.stop',
 ]);
 
 /**
@@ -99,6 +90,7 @@ export interface DashboardContext {
 	projectManager: ProjectManager;
 	cache: ExplanationCache;
 	autoCapture?: AutoCaptureService;
+	hookWatcher?: import('../hooks/HookWatcher').HookWatcher;
 	postMessage(message: any): Thenable<boolean>;
 	update(): void;
 	setSuppressUpdate(value: boolean): void;
@@ -149,6 +141,27 @@ async function _promptDuplicateAction(
 }
 
 /**
+ * Opens a Copilot Chat session with the given query.
+ * Prompts the user to choose between New Chat or Current Chat.
+ * Returns false if the user cancelled.
+ */
+async function openInChatSession(query: string): Promise<boolean> {
+	const choice = await vscode.window.showQuickPick(
+		[
+			{ label: '$(add) New Chat', description: 'Start a fresh chat session with this query', value: 'new' },
+			{ label: '$(comment-discussion) Current Chat', description: 'Send to the currently active chat session', value: 'current' },
+		],
+		{ title: 'Open in Chat', placeHolder: 'Choose a chat session' }
+	);
+	if (!choice) { return false; }
+	if (choice.value === 'new') {
+		await vscode.commands.executeCommand('workbench.action.chat.newChat');
+	}
+	await vscode.commands.executeCommand('workbench.action.chat.open', { query, isPartialQuery: false });
+	return true;
+}
+
+/**
  * Handle a single message from the dashboard webview.
  */
 export async function handleWebviewMessage(message: any, ctx: DashboardContext): Promise<void> {
@@ -180,16 +193,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 				break;
 			}
 
-			case 'promoteObservation': {
-				// Pre-fills a creation form with observation content; actual save is done by the target command
-				if (!ctx.autoCapture || !message.id || !message.target) { break; }
-				const obs = ctx.autoCapture.getObservationById(message.id);
-				if (!obs) { break; }
-				const content = [obs.prompt, obs.responseSummary].filter(Boolean).join('\n\n').substring(0, 600);
-				// Send prefill back to the webview to open the right form
-				ctx.postMessage({ command: 'observationPromotePrefill', target: message.target, content, obsId: message.id });
-				break;
-			}
+
 
 			case 'distillObservations': {
 				if (!ctx.autoCapture) {
@@ -205,7 +209,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 				try {
 					const result = await ctx.autoCapture.distillObservations(message.maxObs ?? 40, activeProject.id);
 					if (!result) {
-						ctx.postMessage({ command: 'distillResult', error: 'No model available or no observations to distill.' });
+						ctx.postMessage({ command: 'distillResult', error: 'Distillation returned no results. Try again with more observations.' });
 					} else {
 						ctx.postMessage({ command: 'distillResult', result });
 					}
@@ -240,10 +244,6 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						} else {
 							ctx.endSuppression();
 						}
-						break;
-					case 'setContextEnabled':
-						await projectManager.setContextEnabled(message.projectId, message.enabled);
-						ctx.update();
 						break;
 					case 'setToolSharingConfig':
 						await projectManager.setToolSharingConfig(message.projectId, message.config);
@@ -289,7 +289,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 					case 'runTodoAgent':
 						// Run an existing TODO (not create a new one)
 						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: `@ctx /todo run ${message.todoId}`,
+							query: `/todo run ${message.todoId}`,
 							isPartialQuery: false
 						});
 						break;
@@ -305,7 +305,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 							if (customPrompt !== undefined) {
 								const additionalInstructions = customPrompt ? ` Additional: ${customPrompt}` : '';
 								await vscode.commands.executeCommand('workbench.action.chat.open', {
-									query: `@ctx /todo run ${message.todoId}${additionalInstructions}`,
+									query: `/todo run ${message.todoId}${additionalInstructions}`,
 									isPartialQuery: false
 								});
 							}
@@ -314,7 +314,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 					case 'resumeTodo':
 						// Resume a paused TODO
 						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: `@ctx /todo resume ${message.todoId}`,
+							query: `/todo resume ${message.todoId}`,
 							isPartialQuery: false
 						});
 						break;
@@ -357,7 +357,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 
 							if (selected?.label.includes('Resume')) {
 								vscode.commands.executeCommand('workbench.action.chat.open', {
-									query: `@ctx /todo resume ${message.todoId}`,
+									query: `/todo resume ${message.todoId}`,
 									isPartialQuery: false
 								});
 							} else if (selected?.label.includes('View Full History')) {
@@ -575,7 +575,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						const entry = cache.getAllEntries().find(c => c.id === message.entryId);
 						if (entry) {
 							await vscode.commands.executeCommand('workbench.action.chat.open', {
-								query: `@ctx /${entry.type} ${entry.symbolName}`,
+								query: `/${entry.type} ${entry.symbolName}`,
 								isPartialQuery: false
 							});
 						}
@@ -614,8 +614,9 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						await projectManager.moveKnowledgeCardToFolder(message.projectId, message.cardId, message.folderId || undefined);
 						ctx.update();
 						break;
-					case 'generateCardWithAI':
-						// Prompt for topic then open chat to generate
+					case 'generateCardWithAI': {
+						// Prompt for topic, then open chat so the user sees the interaction.
+						// Copilot will use the registered contextManager_saveKnowledgeCard tool via hooks.
 						const cardTopic = await vscode.window.showInputBox({
 							title: 'Generate Knowledge Card',
 							prompt: 'What topic should the AI research and document?',
@@ -623,11 +624,12 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						});
 						if (cardTopic) {
 							await vscode.commands.executeCommand('workbench.action.chat.open', {
-								query: `@ctx /knowledge ${cardTopic}`,
+								query: `Research the topic "${cardTopic}" in this codebase and save a knowledge card using the #contextManager_saveKnowledgeCard tool. Include code snippets, file paths, and specific details.`,
 								isPartialQuery: false
 							});
 						}
 						break;
+					}
 					case 'toggleCardSelection':
 						await projectManager.toggleCardSelection(message.projectId, message.cardId);
 						// Event-driven: updateProject fires onDidChangeProjects → debounced re-render
@@ -681,28 +683,24 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						break;
 					}
 					case 'askAboutSelection': {
-						// Open chat directly with selection as context — user types question in the chat input
 						let cardLabel = '';
 						if (message.sourceCardId && message.projectId) {
 							const proj = projectManager.getProject(message.projectId);
 							const card = proj?.knowledgeCards?.find((c: any) => c.id === message.sourceCardId);
-							if (card) { cardLabel = ` (from knowledge card "${card.title}")`; }
+							if (card) { cardLabel = ` (from knowledge card "${card.title}" [id:${card.id}])`; }
 						}
-						const prefix = `@ctx Regarding this text${cardLabel}:\n\`\`\`\n${message.selectedText}\n\`\`\`\n`;
-						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: prefix,
-							isPartialQuery: true
-						});
+						const prefix = `Regarding this text${cardLabel}:\n\`\`\`\n${message.selectedText}\n\`\`\`\n`;
+						await openInChatSession(prefix);
 						break;
 					}
 					case 'createCardFromSelectionAI': {
-						// Route through /knowledge chat command with the selection as context
 						const selText = message.selectedText || '';
-						const prompt = `Based on this text, create a knowledge card:\n\`\`\`\n${selText}\n\`\`\``;
-						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: `@ctx /knowledge ${prompt}`,
-							isPartialQuery: false,
-						});
+						const sourceCard = message.sourceCardId && message.projectId
+							? projectManager.getProject(message.projectId)?.knowledgeCards?.find((c: any) => c.id === message.sourceCardId)
+							: null;
+						const sourceHint = sourceCard ? `\nSource card: "${sourceCard.title}"` : '';
+						const aiCardQuery = `Create a knowledge card from this text.${sourceHint}\n\nSelected text:\n\`\`\`\n${selText}\n\`\`\`\n\nReturn a title, category (architecture|pattern|convention|explanation|note), content (markdown), and tags.`;
+						await openInChatSession(aiCardQuery);
 						break;
 					}
 					case 'replaceCardSelection': {
@@ -733,16 +731,11 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						break;
 					}
 					case 'refineCardSelection': {
-						if (!message.projectId || !message.sourceCardId) { break; }
-						const selInstruction = message.instruction;
-						if (!selInstruction) { break; }
-						const selectionCtx = message.selectedText
-							? ` In particular, apply this to the following section of the card: "${message.selectedText}". Only modify that section, keep the rest unchanged.`
-							: '';
-						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: `@ctx /refine [id:${message.sourceCardId}] ${selInstruction}${selectionCtx}`,
-							isPartialQuery: false,
-						});
+						if (!message.projectId || !message.sourceCardId || !message.instruction || !message.selectedText) { break; }
+						const refSelCard = projectManager.getProject(message.projectId)?.knowledgeCards?.find((c: any) => c.id === message.sourceCardId);
+						if (!refSelCard) { break; }
+						const refSelQuery = `Refine this section of the knowledge card "${refSelCard.title}" [id:${refSelCard.id}].\n\nInstruction: ${message.instruction}\n\nSection to refine:\n\`\`\`\n${message.selectedText}\n\`\`\``;
+						await openInChatSession(refSelQuery);
 						break;
 					}
 					case 'saveToKnowledge':
@@ -787,10 +780,10 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 					}
 					case 'refineEntireCard': {
 						if (!message.projectId || !message.cardId || !message.instruction) { break; }
-						await vscode.commands.executeCommand('workbench.action.chat.open', {
-							query: `@ctx /refine [id:${message.cardId}] ${message.instruction}`,
-							isPartialQuery: false,
-						});
+						const refCard = projectManager.getProject(message.projectId)?.knowledgeCards?.find((c: any) => c.id === message.cardId);
+						if (!refCard) { break; }
+						const refEntireQuery = `Refine this knowledge card "${refCard.title}" [id:${refCard.id}].\n\nInstruction: ${message.instruction}\n\nCurrent content:\n\`\`\`markdown\n${refCard.content}\n\`\`\``;
+						await openInChatSession(refEntireQuery);
 						break;
 					}
 					case 'updateConvention': {
@@ -1365,24 +1358,63 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 					const project = projectManager.getProject(message.projectId);
 					if (!project) { break; }
 					const { renderToolCallEvidence, renderSourceMaterial } = await import('./cardCanvas.js');
+
+					// Search BOTH queue AND saved cards (+ conventions, notes, hints)
 					const candidates = (project.cardQueue || []).filter((c: any) => message.selectedIds.includes(c.id));
-					const sourceItems = candidates.map((c: any) => ({
-						title: c.suggestedTitle || 'Untitled',
-						prompt: c.prompt || '',
-						response: c.response || '',
-					}));
+					const savedCards = (project.knowledgeCards || []).filter((c: any) => message.selectedIds.includes(c.id));
+					const conventions = (project.conventions || []).filter((c: any) => message.selectedIds.includes(c.id));
+					const notes = (project.workingNotes || []).filter((n: any) => message.selectedIds.includes(n.id));
+
+					const sourceItems: Array<{ title: string; prompt: string; response: string }> = [];
+					// Queue items have prompt/response
+					for (const c of candidates) {
+						sourceItems.push({
+							title: c.suggestedTitle || 'Untitled',
+							prompt: c.prompt || '',
+							response: c.response || '',
+						});
+					}
+					// Saved cards — show content as response
+					for (const card of savedCards) {
+						sourceItems.push({
+							title: card.title,
+							prompt: '',
+							response: card.content || '',
+						});
+					}
+					// Conventions
+					for (const conv of conventions) {
+						sourceItems.push({
+							title: `[Convention] ${(conv as any).title}`,
+							prompt: '',
+							response: (conv as any).content || '',
+						});
+					}
+					// Working notes
+					for (const note of notes) {
+						sourceItems.push({
+							title: `[Note] ${(note as any).subject}`,
+							prompt: '',
+							response: (note as any).insight || '',
+						});
+					}
+
 					const evidenceGroups = candidates
 						.filter((c: any) => c.toolCalls?.length > 0)
 						.map((c: any) => ({
 							title: c.suggestedTitle || 'Untitled',
 							toolCalls: c.toolCalls,
 						}));
+
+					// Gather all tags from selected saved cards
+					const allTags = [...new Set(savedCards.flatMap((c: any) => c.tags || []))];
+
 					const data = {
-						isQueue: true,
+						isQueue: false,
 						title: '',
 						category: 'note',
 						content: '',
-						tags: [],
+						tags: allTags,
 						toolCallsHtml: renderToolCallEvidence(evidenceGroups),
 						sourceHtml: renderSourceMaterial(sourceItems),
 						anchorsHtml: '',
@@ -1471,13 +1503,13 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 
 				case 'synthesizeCard': {
 					if (!message.projectId || !message.candidateIds?.length) {
-						ctx.postMessage({ command: 'aiDraftResult', data: null });
+						ctx.postMessage({ command: 'aiDraftResult', data: null, error: 'No project or candidates selected' });
 						break;
 					}
 					try {
 						const project = projectManager.getProject(message.projectId);
 						if (!project) {
-							ctx.postMessage({ command: 'aiDraftResult', data: null });
+							ctx.postMessage({ command: 'aiDraftResult', data: null, error: 'Project not found' });
 							break;
 						}
 						// Gather source items from queue AND saved cards
@@ -1491,7 +1523,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 							if (sItem) { items.push(sItem); }
 						}
 						if (!items.length) {
-							ctx.postMessage({ command: 'aiDraftResult', data: null });
+							ctx.postMessage({ command: 'aiDraftResult', data: null, error: `None of the ${message.candidateIds.length} selected item(s) were found in the queue or saved cards` });
 							break;
 						}
 
@@ -1518,6 +1550,11 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 							? `\nUser's current draft:\n  Title: ${message.currentTitle || '(none)'}\n  Content: ${message.currentContent || '(none)'}\nUse this as a hint for the topic/direction but generate a comprehensive card.\n`
 							: '';
 
+						const customPrompt = (message.customPrompt || '').trim();
+						const customDirective = customPrompt
+							? `\n## User's Custom Instructions\n${customPrompt}\nFollow the user's instructions above while still returning valid JSON.\n`
+							: '';
+
 						const defaultSynthPrompt = `You are synthesizing a knowledge card for a software project reference.
 
 Create ONE comprehensive knowledge card that captures all important technical details.
@@ -1533,13 +1570,13 @@ Return ONLY valid JSON:
 }`;
 
 						const synthInstructions = ConfigurationManager.getEffectivePrompt('synthesizeCard', defaultSynthPrompt);
-						const llmPrompt = `${synthInstructions}\n\nSOURCE MATERIAL (${items.length} item${items.length !== 1 ? 's' : ''}):\n${sourceMaterial}\n${userHint}`;
+						const llmPrompt = `${synthInstructions}\n${customDirective}\nSOURCE MATERIAL (${items.length} item${items.length !== 1 ? 's' : ''}):\n${sourceMaterial}\n${userHint}`;
 
 						const modelFamily = ConfigurationManager.autoLearnModelFamily;
 						const selector: vscode.LanguageModelChatSelector = modelFamily ? { family: modelFamily } : {};
 						const models = await vscode.lm.selectChatModels(selector);
 						if (!models.length) {
-							ctx.postMessage({ command: 'aiDraftResult', data: null });
+							ctx.postMessage({ command: 'aiDraftResult', data: null, error: `No language model available${modelFamily ? ` (requested family: "${modelFamily}")` : ''}. Ensure Copilot Chat is active.` });
 							break;
 						}
 
@@ -1547,11 +1584,11 @@ Return ONLY valid JSON:
 
 						const messages = [vscode.LanguageModelChatMessage.User(llmPrompt)];
 						const response = await Promise.race([
-							models[0].sendRequest(messages, {}, new vscode.CancellationTokenSource().token),
+							models[0].sendRequest(messages, { justification: 'ContextManager: synthesizing knowledge card from selected items' }, new vscode.CancellationTokenSource().token),
 							new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 90_000)),
 						]);
 						if (!response) {
-							ctx.postMessage({ command: 'aiDraftResult', data: null });
+							ctx.postMessage({ command: 'aiDraftResult', data: null, error: 'LLM returned no response' });
 							break;
 						}
 
@@ -1569,8 +1606,34 @@ Return ONLY valid JSON:
 							}
 						}
 						ctx.postMessage({ command: 'aiDraftProgress', phase: 'parsing', detail: `Received ${text.length} chars, parsing…` });
-						text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
-						const parsed = JSON.parse(text);
+
+						// Robust JSON extraction: try multiple strategies
+						let parsed: any;
+						const rawText = text.trim();
+						// Strategy 1: strip markdown fences at boundaries
+						let jsonText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+						try {
+							parsed = JSON.parse(jsonText);
+						} catch {
+							// Strategy 2: extract first { ... } block (handles preamble text from LLM)
+							const braceMatch = rawText.match(/\{[\s\S]*\}/);
+							if (braceMatch) {
+								try {
+									parsed = JSON.parse(braceMatch[0]);
+								} catch {
+									// Strategy 3: extract from fenced code block anywhere in response
+									const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)```/i);
+									if (fenceMatch) {
+										parsed = JSON.parse(fenceMatch[1].trim());
+									}
+								}
+							}
+						}
+
+						if (!parsed || typeof parsed !== 'object') {
+							throw new Error(`Could not parse JSON from LLM response (${rawText.length} chars). First 200 chars: ${rawText.substring(0, 200)}`);
+						}
+
 						ctx.postMessage({
 							command: 'aiDraftResult',
 							data: {
@@ -1582,7 +1645,8 @@ Return ONLY valid JSON:
 						});
 					} catch (err: any) {
 						console.error('[ContextManager] synthesizeCard failed:', err);
-						ctx.postMessage({ command: 'aiDraftResult', data: null });
+						const errMsg = err?.message || String(err);
+						ctx.postMessage({ command: 'aiDraftResult', data: null, error: errMsg });
 					}
 					break;
 				}
@@ -1609,5 +1673,119 @@ Return ONLY valid JSON:
 					}
 					break;
 				}
+
+				case 'mergeWorkbenchItems': {
+					if (!message.projectId || !message.items?.length || message.items.length < 2) { break; }
+					try {
+						const project = projectManager.getProject(message.projectId);
+						if (!project) { break; }
+
+						// Collect all selected items' content for merge
+						const gathered: Array<{ title: string; content: string; tags: string[]; kind: string; id: string }> = [];
+						for (const item of message.items) {
+							if (item.kind === 'card') {
+								const card = project.knowledgeCards?.find((c: any) => c.id === item.id);
+								if (card) { gathered.push({ title: card.title, content: card.content, tags: card.tags || [], kind: 'card', id: card.id }); }
+							} else if (item.kind === 'queue') {
+								const q = project.cardQueue?.find((c: any) => c.id === item.id);
+								if (q) { gathered.push({ title: q.suggestedTitle || 'Untitled', content: q.suggestedContent || q.response || '', tags: [], kind: 'queue', id: q.id }); }
+							} else if (item.kind === 'convention') {
+								const conv = project.conventions?.find((c: any) => c.id === item.id);
+								if (conv) { gathered.push({ title: conv.title, content: conv.content, tags: [], kind: 'convention', id: conv.id }); }
+							} else if (item.kind === 'note') {
+								const note = project.workingNotes?.find((n: any) => n.id === item.id);
+								if (note) { gathered.push({ title: note.subject, content: note.insight, tags: [], kind: 'note', id: note.id }); }
+							} else if (item.kind === 'hint') {
+								const hint = project.toolHints?.find((h: any) => h.id === item.id);
+								if (hint) { gathered.push({ title: hint.toolName, content: hint.pattern + (hint.example ? '\\nExample: ' + hint.example : ''), tags: [], kind: 'hint', id: hint.id }); }
+							}
+						}
+
+						if (gathered.length < 2) {
+							vscode.window.showWarningMessage('Could not find enough items to merge.');
+							break;
+						}
+
+						// Merge content: concatenate with headers
+						const mergedTitle = gathered.map(g => g.title).join(' + ');
+						const allTags = [...new Set(gathered.flatMap(g => g.tags))];
+						const mergedContent = gathered.map(g =>
+							`## ${g.title}\n\n${g.content}`
+						).join('\n\n---\n\n');
+
+						// Open in editor for user review before saving
+						const { renderToolCallEvidence, renderSourceMaterial } = await import('./cardCanvas.js');
+						const data = {
+							isQueue: false,
+							title: mergedTitle.substring(0, 100),
+							category: 'note',
+							content: mergedContent,
+							tags: allTags,
+							toolCallsHtml: '',
+							sourceHtml: '',
+							anchorsHtml: '',
+						};
+						ctx.postMessage({ command: 'populateEditor', data });
+					} catch (err: any) {
+						vscode.window.showErrorMessage(`Error merging items: ${err.message}`);
+					}
+					break;
+				}
+
+			case 'mergeHealthDuplicates': {
+					if (!message.projectId || !message.cardAId || !message.cardBId) { break; }
+					try {
+						const project = projectManager.getProject(message.projectId);
+						if (!project) { break; }
+						const cardA = project.knowledgeCards?.find((c: any) => c.id === message.cardAId);
+						const cardB = project.knowledgeCards?.find((c: any) => c.id === message.cardBId);
+						if (!cardA || !cardB) {
+							vscode.window.showWarningMessage('Could not find one or both cards to merge.');
+							break;
+						}
+
+						const mergedTitle = `${cardA.title} + ${cardB.title}`.substring(0, 100);
+						const allTags = [...new Set([...(cardA.tags || []), ...(cardB.tags || [])])];
+						const mergedContent = `## ${cardA.title}\n\n${cardA.content}\n\n---\n\n## ${cardB.title}\n\n${cardB.content}`;
+
+						const data = {
+							isQueue: false,
+							title: mergedTitle,
+							category: cardA.category || cardB.category || 'note',
+							content: mergedContent,
+							tags: allTags,
+							toolCallsHtml: '',
+							sourceHtml: '',
+							anchorsHtml: '',
+						};
+						ctx.postMessage({ command: 'populateEditor', data });
+
+						// Switch to the workbench subtab so the editor is visible
+						ctx.postMessage({ command: 'switchToSubtab', subtab: 'workbench' });
+					} catch (err: any) {
+						vscode.window.showErrorMessage(`Error merging duplicate cards: ${err.message}`);
+					}
+					break;
+				}
+
+			case 'setPromptInjection': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject) { break; }
+				await projectManager.setPromptInjection(activeProject.id, {
+					customInstruction: typeof message.customInstruction === 'string' ? message.customInstruction : '',
+					includeFullContent: !!message.includeFullContent,
+				});
+				ctx.update();
+				break;
+			}
+
+			case 'clearPromptInjection': {
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject) { break; }
+				await projectManager.clearPromptInjection(activeProject.id);
+				ctx.update();
+				break;
+			}
+
 	}
 }
