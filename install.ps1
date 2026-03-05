@@ -21,10 +21,8 @@ try {
     Write-Host "   Webview script OK" -ForegroundColor Green
 
     Write-Host ">> Packaging VSIX..." -ForegroundColor Cyan
-    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-        throw "npx not found - ensure Node.js is on PATH"
-    }
-    npx @vscode/vsce package --allow-missing-repository --allow-star-activation --out context-manager.vsix
+    # Use node directly — npx output gets swallowed in VS Code integrated terminals
+    node node_modules/@vscode/vsce/vsce package --allow-missing-repository --allow-star-activation --out context-manager.vsix
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
 
     $vsix = Resolve-Path "context-manager.vsix"
