@@ -1,4 +1,4 @@
-# cm-version: 7
+# cm-version: 8
 # ContextManager Agent Hook Script — Windows PowerShell
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.ps1
@@ -26,8 +26,9 @@ if (-not $stdinText) { Write-Output '{}'; exit 0 }
 
 try { $data = $stdinText | ConvertFrom-Json } catch { Write-Output '{}'; exit 0 }
 
-$hookType  = $data.hookEventName
-$sessionId = $data.sessionId
+# Support both camelCase (Copilot Chat ≤0.37) and snake_case (≥0.38)
+$hookType  = if ($data.hook_event_name) { $data.hook_event_name } else { $data.hookEventName }
+$sessionId = if ($data.session_id)     { $data.session_id }     else { $data.sessionId }
 $ts        = [long]([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
 
 # ── Helper: extract last user + assistant turn from a JSONL transcript ──────
@@ -266,12 +267,7 @@ switch ($hookType) {
         }
 
         if ($ctx) {
-            @{
-                hookSpecificOutput = @{
-                    hookEventName = "UserPromptSubmit"
-                    systemMessage = $ctx
-                }
-            } | ConvertTo-Json -Compress -Depth 3 | Write-Output
+            @{ systemMessage = $ctx } | ConvertTo-Json -Compress -Depth 3 | Write-Output
         } else { Write-Output '{}' }
         exit 0
     }
@@ -299,30 +295,31 @@ switch ($hookType) {
 
         # Also scan Copilot transcript for any completed user+assistant turns
         # (Stop hook never fires for VS Code Copilot; we harvest here with ID-based dedup)
-        if ($sessionId) {
+        $txPath = $data.transcript_path
+        if (-not $txPath -and $sessionId) {
             $txPath = Find-CopilotTranscript $sessionId
-            if ($txPath) {
-                $turn = Get-LastCompletedTurn $txPath
-                if ($turn -and $turn.userId) {
-                    # Only queue if this user message hasn't been queued before
-                    $seenFile = "$cmDir\seen-turn-$sessionId"
-                    $lastSeen = if (Test-Path $seenFile) { (Get-Content $seenFile -Raw).Trim() } else { '' }
-                    if ($turn.userId -ne $lastSeen) {
-                        $p = if ($turn.user)      { $turn.user }      else { '' }
-                        $r = if ($turn.assistant) { $turn.assistant } else { '' }
-                        if ($p -or $r) {
-                            $tc = if ($turn.toolCalls -and $turn.toolCalls.Count -gt 0) { $turn.toolCalls } else { @() }
-                            Append-Queue @{
-                                hookType    = "Stop"
-                                prompt      = $p
-                                response    = $r
-                                toolCalls   = $tc
-                                participant = "copilot"
-                                sessionId   = $sessionId
-                                timestamp   = $ts
-                            }
-                            Set-Content $seenFile $turn.userId -Encoding UTF8
+        }
+        if ($txPath) {
+            $turn = Get-LastCompletedTurn $txPath
+            if ($turn -and $turn.userId) {
+                # Only queue if this user message hasn't been queued before
+                $seenFile = "$cmDir\seen-turn-$sessionId"
+                $lastSeen = if (Test-Path $seenFile) { (Get-Content $seenFile -Raw).Trim() } else { '' }
+                if ($turn.userId -ne $lastSeen) {
+                    $p = if ($turn.user)      { $turn.user }      else { '' }
+                    $r = if ($turn.assistant) { $turn.assistant } else { '' }
+                    if ($p -or $r) {
+                        $tc = if ($turn.toolCalls -and $turn.toolCalls.Count -gt 0) { $turn.toolCalls } else { @() }
+                        Append-Queue @{
+                            hookType    = "Stop"
+                            prompt      = $p
+                            response    = $r
+                            toolCalls   = $tc
+                            participant = "copilot"
+                            sessionId   = $sessionId
+                            timestamp   = $ts
                         }
+                        Set-Content $seenFile $turn.userId -Encoding UTF8
                     }
                 }
             }
@@ -375,24 +372,16 @@ switch ($hookType) {
     }
 
     "Stop" {
-        $dbgKeys = $data.PSObject.Properties.Name -join ','
-        $dbgTxp  = $data.transcript_path
-        Add-Content "$cmDir\stop-debug.log" "[$ts] Stop fired keys=$dbgKeys transcript_path=$dbgTxp sessionId=$sessionId" -Encoding UTF8
         $transcriptPath = $data.transcript_path
         # Auto-discover VS Code Copilot transcript when transcript_path not provided
         if (-not $transcriptPath -and $sessionId) {
             $transcriptPath = Find-CopilotTranscript $sessionId
-            Add-Content "$cmDir\stop-debug.log" "[$ts] Auto-discovered transcript: $transcriptPath" -Encoding UTF8
         }
         if (-not $transcriptPath) {
-            Add-Content "$cmDir\stop-debug.log" "[$ts] No transcript found - exiting" -Encoding UTF8
             Write-Output '{}'; exit 0
         }
 
         $exchange = Get-LastExchange($transcriptPath)
-        $dbgU = if ($exchange -and $exchange.user)      { $exchange.user.Substring(0, [Math]::Min(80, $exchange.user.Length)) }      else { 'null' }
-        $dbgA = if ($exchange -and $exchange.assistant) { $exchange.assistant.Substring(0, [Math]::Min(80, $exchange.assistant.Length)) } else { 'null' }
-        Add-Content "$cmDir\stop-debug.log" "[$ts] Exchange user=$dbgU assistant=$dbgA" -Encoding UTF8
         if ($exchange -and ($exchange.user -or $exchange.assistant)) {
             $prompt   = if ($exchange.user)      { $exchange.user }      else { '' }
             $response = if ($exchange.assistant) { $exchange.assistant } else { '' }

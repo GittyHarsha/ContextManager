@@ -66,6 +66,13 @@ export class HookWatcher implements vscode.Disposable {
 		// Re-write session-context.txt when project changes
 		projectManager.onDidChangeActiveProject(() => this._syncSessionContext());
 		projectManager.onDidChangeProjects(() => this._syncSessionContext());
+
+		// Re-sync when the injection toggle changes
+		vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('contextManager.hooks.sessionStart')) {
+				this._syncSessionContext();
+			}
+		});
 	}
 
 	// ── Public ─────────────────────────────────────────────────
@@ -343,6 +350,13 @@ export class HookWatcher implements vscode.Disposable {
 
 	/** Write the current project's intelligence/session context so the SessionStart hook can inject it. */
 	private _syncSessionContext(): void {
+		// Check if injection is enabled (dashboard toggle)
+		const injectionEnabled = vscode.workspace.getConfiguration('contextManager').get<boolean>('hooks.sessionStart', true);
+		if (!injectionEnabled) {
+			try { fs.writeFileSync(SESSION_CTX, ''); } catch {}
+			return;
+		}
+
 		const project = this.projectManager.getActiveProject();
 		if (!project) {
 			try { fs.writeFileSync(SESSION_CTX, ''); } catch {}

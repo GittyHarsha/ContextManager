@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cm-version: 5
+# cm-version: 8
 # ContextManager Agent Hook Script — Linux/macOS
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.sh
@@ -16,8 +16,9 @@ mkdir -p "$CM_DIR"
 STDIN=$(cat)
 if [ -z "$STDIN" ]; then echo '{}'; exit 0; fi
 
-HOOK_TYPE=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hookEventName',''))" 2>/dev/null || echo "")
-SESSION_ID=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sessionId',''))" 2>/dev/null || echo "")
+# Support both camelCase (Copilot Chat <=0.37) and snake_case (>=0.38)
+HOOK_TYPE=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hook_event_name','') or d.get('hookEventName',''))" 2>/dev/null || echo "")
+SESSION_ID=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('session_id','') or d.get('sessionId',''))" 2>/dev/null || echo "")
 TRANSCRIPT=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('transcript_path',''))" 2>/dev/null || echo "")
 TS=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || date +%s000)
 

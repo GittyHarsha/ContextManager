@@ -5,6 +5,26 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-03-05
+
+### Fixed
+- **UserPromptSubmit hook injection** — Fixed output format to use top-level `systemMessage` per VS Code docs (was incorrectly nested inside `hookSpecificOutput`). "Inject into Every Prompt" now works in agent mode.
+- **Inject Memory toggle** — The dashboard "UserPromptSubmit — Inject Memory" checkbox now actually controls injection. Previously the setting was written but never read.
+
+## [2.5.0] - 2026-03-05
+
+### Added
+- **Custom AI Workflows** — User-defined pipelines with template variables, 7 trigger types, and 3 output actions.
+- **Workflow entity data sources** — Access cards, conventions, working notes, tool hints, and queue items in workflow templates.
+- **Workflow event triggers** — Auto-run workflows on observation-created, convention-learned, queue-item-added, and more.
+- **Global cards** — Share knowledge cards across all projects.
+- **maxItems cap** — Limit collection variable expansion in workflow prompts.
+
+### Fixed
+- **Hook compatibility with Copilot Chat 0.38.0** — Capture scripts now handle both snake_case (`hook_event_name`, `session_id`) and camelCase field names in hook stdin JSON. Fixes "Inject into Every Prompt" silently failing after VS Code update.
+- Dashboard suppression stuck when user switches panels.
+- 5s safety timeout for dashboard suppression.
+
 ## [2.3.0] - 2026-03-04
 
 ### Changed
