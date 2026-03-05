@@ -1809,6 +1809,8 @@ Return ONLY valid JSON:
 					message.outputAction || 'create-card',
 					message.targetCardId || undefined,
 					message.maxItems ?? 20,
+					message.skipPattern || undefined,
+					message.triggerFilter || undefined,
 				);
 				await projectManager.addWorkflow(activeProject.id, wf);
 				ctx.update();
@@ -1825,6 +1827,8 @@ Return ONLY valid JSON:
 				if (message.outputAction !== undefined) { updates.outputAction = message.outputAction; }
 				if (message.targetCardId !== undefined) { updates.targetCardId = message.targetCardId || undefined; }
 				if (message.maxItems !== undefined) { updates.maxItems = message.maxItems; }
+				if (message.skipPattern !== undefined) { updates.skipPattern = message.skipPattern || undefined; }
+				if (message.triggerFilter !== undefined) { updates.triggerFilter = message.triggerFilter || undefined; }
 				await projectManager.updateWorkflow(activeProject.id, message.workflowId, updates);
 				ctx.update();
 				break;
@@ -1857,11 +1861,12 @@ Return ONLY valid JSON:
 					break;
 				}
 
-				// Build context based on what input is available
-				const { WorkflowEngine } = await import('../workflows/WorkflowEngine.js');
-				const engine = new WorkflowEngine(projectManager);
-				// Give the engine access to AutoCaptureService for observations.recent
-				if (ctx.autoCapture) { engine.setAutoCapture(ctx.autoCapture); }
+				// Use singleton engine from ProjectManager (shared re-entrancy guard)
+				const engine = projectManager.getWorkflowEngine();
+				if (!engine) {
+					vscode.window.showErrorMessage('Workflow engine not available.');
+					break;
+				}
 				const wfCtx: import('../workflows/WorkflowEngine').WorkflowContext = {
 					projectId: activeProject.id,
 				};

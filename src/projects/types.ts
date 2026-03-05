@@ -54,6 +54,13 @@ export interface Project {
 export type WorkflowTrigger = 'auto-queue' | 'manual' | 'both' | 'convention-learned' | 'card-created' | 'card-updated' | 'observation-created';
 export type WorkflowOutputAction = 'update-card' | 'create-card' | 'append-collector';
 
+export interface WorkflowRunRecord {
+	timestamp: number;
+	status: 'success' | 'error' | 'skipped';
+	outputPreview?: string;               // First 200 chars of AI output
+	error?: string;
+}
+
 export interface CustomWorkflow {
 	id: string;
 	name: string;
@@ -62,12 +69,15 @@ export interface CustomWorkflow {
 	outputAction: WorkflowOutputAction;   // What to do with AI result
 	targetCardId?: string;                // For 'update-card' & 'append-collector'
 	maxItems?: number;                    // Max items per collection variable (default 20)
+	skipPattern?: string;                 // Regex — if AI output matches, skip the output action
+	triggerFilter?: string;               // Regex — auto-triggers only fire if prompt+response matches
 	enabled: boolean;
 	created: number;
 	lastRun?: number;
-	lastRunStatus?: 'success' | 'error';
+	lastRunStatus?: 'success' | 'error' | 'skipped';
 	lastRunError?: string;
 	runCount: number;
+	runHistory?: WorkflowRunRecord[];     // Last N execution records
 }
 
 export function createWorkflow(
@@ -77,6 +87,8 @@ export function createWorkflow(
 	outputAction: WorkflowOutputAction,
 	targetCardId?: string,
 	maxItems?: number,
+	skipPattern?: string,
+	triggerFilter?: string,
 ): CustomWorkflow {
 	return {
 		id: generateId(),
@@ -86,9 +98,12 @@ export function createWorkflow(
 		outputAction,
 		targetCardId,
 		maxItems: maxItems ?? 20,
+		skipPattern: skipPattern || undefined,
+		triggerFilter: triggerFilter || undefined,
 		enabled: true,
 		created: Date.now(),
 		runCount: 0,
+		runHistory: [],
 	};
 }
 

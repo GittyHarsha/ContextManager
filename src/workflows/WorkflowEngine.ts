@@ -12,12 +12,13 @@
 
 import * as vscode from 'vscode';
 import type { ProjectManager } from '../projects/ProjectManager';
-import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard, Convention } from '../projects/types';
+import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard, Convention, WorkflowRunRecord } from '../projects/types';
 import type { AutoCaptureService, Observation } from '../autoCapture';
 import { ConfigurationManager } from '../config';
 
 const WORKFLOW_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_ITEMS = 20;
+const MAX_RUN_HISTORY = 15;
 
 // ── Context passed to a workflow run ────────────────────────────
 
@@ -154,6 +155,12 @@ export class WorkflowEngine {
 		const { projectId } = ctx;
 
 		try {
+			// 0. Auto-resolve target card into ctx.card when template uses {{card.}} vars
+			if (!ctx.card && workflow.targetCardId && workflow.promptTemplate.includes('{{card.')) {
+				const cards = this.projectManager.getKnowledgeCards(projectId);
+				ctx.card = cards.find(c => c.id === workflow.targetCardId);
+			}
+
 			// 1. Resolve prompt template
 			const maxItems = workflow.maxItems ?? DEFAULT_MAX_ITEMS;
 			const prompt = resolveTemplate(workflow.promptTemplate, ctx, this.projectManager, this._autoCapture, maxItems);
@@ -200,6 +207,19 @@ export class WorkflowEngine {
 				return this._fail(workflow, projectId, 'Model returned empty response.');
 			}
 
+			// 4b. Check skip pattern — if output matches, skip the output action
+			if (workflow.skipPattern) {
+				try {
+					const skipRe = new RegExp(workflow.skipPattern, 'i');
+					if (skipRe.test(text)) {
+						console.log(`[WorkflowEngine] Workflow "${workflow.name}" output matched skip pattern — skipping output action.`);
+						return this._recordRun(workflow, projectId, 'skipped', text, undefined);
+					}
+				} catch {
+					console.warn(`[WorkflowEngine] Invalid skipPattern regex: ${workflow.skipPattern}`);
+				}
+			}
+
 			// 5. Execute output action (with re-entrancy guard)
 			this._isExecuting = true;
 			let result: WorkflowResult;
@@ -210,14 +230,7 @@ export class WorkflowEngine {
 			}
 
 			// 6. Record success
-			await this.projectManager.updateWorkflow(projectId, workflow.id, {
-				lastRun: Date.now(),
-				lastRunStatus: 'success',
-				lastRunError: undefined,
-				runCount: (workflow.runCount || 0) + 1,
-			});
-
-			return result;
+			return this._recordRun(workflow, projectId, 'success', text, result.cardId);
 		} catch (err: any) {
 			return this._fail(workflow, projectId, err?.message || String(err));
 		}
@@ -233,8 +246,10 @@ export class WorkflowEngine {
 		);
 		if (!eligible.length) { return; }
 
+		const matchText = `${queueItem.prompt ?? ''} ${queueItem.response ?? ''}`;
 		console.log(`[WorkflowEngine] Firing ${eligible.length} auto-queue workflow(s)`);
 		for (const wf of eligible) {
+			if (!this._matchesTriggerFilter(wf, matchText)) { continue; }
 			try {
 				await this.execute(wf, { projectId, queueItem });
 			} catch (err) {
@@ -253,8 +268,10 @@ export class WorkflowEngine {
 		);
 		if (!eligible.length) { return; }
 
+		const matchText = `${convention.title ?? ''} ${convention.content ?? ''}`;
 		console.log(`[WorkflowEngine] Firing ${eligible.length} convention-learned workflow(s)`);
 		for (const wf of eligible) {
+			if (!this._matchesTriggerFilter(wf, matchText)) { continue; }
 			try {
 				await this.execute(wf, { projectId, convention });
 			} catch (err) {
@@ -273,8 +290,10 @@ export class WorkflowEngine {
 		);
 		if (!eligible.length) { return; }
 
+		const matchText = `${card.title ?? ''} ${card.content ?? ''}`;
 		console.log(`[WorkflowEngine] Firing ${eligible.length} card-created workflow(s)`);
 		for (const wf of eligible) {
+			if (!this._matchesTriggerFilter(wf, matchText)) { continue; }
 			try {
 				await this.execute(wf, { projectId, card });
 			} catch (err) {
@@ -293,8 +312,10 @@ export class WorkflowEngine {
 		);
 		if (!eligible.length) { return; }
 
+		const matchText = `${card.title ?? ''} ${card.content ?? ''}`;
 		console.log(`[WorkflowEngine] Firing ${eligible.length} card-updated workflow(s)`);
 		for (const wf of eligible) {
+			if (!this._matchesTriggerFilter(wf, matchText)) { continue; }
 			try {
 				await this.execute(wf, { projectId, card });
 			} catch (err) {
@@ -313,8 +334,10 @@ export class WorkflowEngine {
 		);
 		if (!eligible.length) { return; }
 
+		const matchText = `${observation.prompt ?? ''} ${observation.responseSummary ?? ''}`;
 		console.log(`[WorkflowEngine] Firing ${eligible.length} observation-created workflow(s)`);
 		for (const wf of eligible) {
+			if (!this._matchesTriggerFilter(wf, matchText)) { continue; }
 			try {
 				await this.execute(wf, { projectId, observation });
 			} catch (err) {
@@ -394,6 +417,43 @@ export class WorkflowEngine {
 		return `${fallback} — ${new Date().toLocaleDateString()}`;
 	}
 
+	/** Check if the workflow's triggerFilter regex matches the input text. */
+	private _matchesTriggerFilter(workflow: CustomWorkflow, text: string): boolean {
+		if (!workflow.triggerFilter) { return true; }
+		try {
+			return new RegExp(workflow.triggerFilter, 'i').test(text);
+		} catch {
+			console.warn(`[WorkflowEngine] Invalid triggerFilter regex: ${workflow.triggerFilter}`);
+			return true; // Don't block on bad regex
+		}
+	}
+
+	/** Record a successful or skipped run with history. */
+	private async _recordRun(
+		workflow: CustomWorkflow,
+		projectId: string,
+		status: 'success' | 'skipped',
+		output: string,
+		cardId?: string,
+	): Promise<WorkflowResult> {
+		const record: WorkflowRunRecord = {
+			timestamp: Date.now(),
+			status,
+			outputPreview: output.substring(0, 200),
+		};
+		const history = [...(workflow.runHistory || []), record].slice(-MAX_RUN_HISTORY);
+
+		await this.projectManager.updateWorkflow(projectId, workflow.id, {
+			lastRun: Date.now(),
+			lastRunStatus: status,
+			lastRunError: undefined,
+			runCount: (workflow.runCount || 0) + 1,
+			runHistory: history,
+		});
+
+		return { success: status === 'success', cardId, output };
+	}
+
 	/** Record a failure on the workflow and return an error result. */
 	private async _fail(
 		workflow: CustomWorkflow,
@@ -401,10 +461,18 @@ export class WorkflowEngine {
 		error: string,
 	): Promise<WorkflowResult> {
 		console.warn(`[WorkflowEngine] Workflow "${workflow.name}" failed: ${error}`);
+		const record: WorkflowRunRecord = {
+			timestamp: Date.now(),
+			status: 'error',
+			error,
+		};
+		const history = [...(workflow.runHistory || []), record].slice(-MAX_RUN_HISTORY);
+
 		await this.projectManager.updateWorkflow(projectId, workflow.id, {
 			lastRun: Date.now(),
 			lastRunStatus: 'error',
 			lastRunError: error,
+			runHistory: history,
 		}).catch(() => {});
 		return { success: false, error };
 	}

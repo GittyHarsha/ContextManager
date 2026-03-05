@@ -5,6 +5,17 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-03-05
+
+### Added
+- **Skip Pattern** — Optional per-workflow regex field. When the LLM output matches the pattern, the output action is skipped entirely and the run is recorded as "skipped" (⏭️). Useful for filtering out low-value AI responses before they create or pollute cards.
+- **Trigger Filter** — Optional per-workflow regex field. Auto-triggered workflows only fire when the event content (queue item text, convention content, card content, or observation summary) matches the filter pattern. Lets you scope event triggers to relevant content without disabling the workflow.
+- **Execution history** — Each workflow now tracks its last 15 runs with timestamps and status (success / skipped / error). The dashboard displays aggregated run counts (✅ / ⏭️ / ❌) under each workflow for at-a-glance health monitoring.
+- **Target card auto-resolution on auto-triggers** — Event-triggered workflows that use `{{card.content}}`, `{{card.title}}`, or `{{card.tags}}` in their prompt template now automatically resolve the target card's data before execution. Previously these variables were empty on auto-triggers; now the AI can see existing card content for intelligent merging.
+
+### Fixed
+- **Manual workflow run re-entrancy** — The `runWorkflow` dashboard handler now reuses the singleton `WorkflowEngine` instead of creating a new instance, preserving the re-entrancy guard that prevents infinite loops.
+
 ## [2.6.0] - 2026-03-05
 
 ### Fixed

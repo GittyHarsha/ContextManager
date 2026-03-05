@@ -458,11 +458,12 @@ export class DashboardPanel {
 					const outputBadge = wf.outputAction === 'create-card' ? '📄 create'
 						: wf.outputAction === 'update-card' ? '✏️ update'
 						: '📎 append';
-					const statusIcon = !wf.lastRun ? '' : wf.lastRunStatus === 'success' ? '✅' : '❌';
+					const statusIcon = !wf.lastRun ? '' : wf.lastRunStatus === 'success' ? '✅' : wf.lastRunStatus === 'skipped' ? '⏭️' : '❌';
 					const lastRunInfo = wf.lastRun ? `Last: ${formatAge(wf.lastRun)} ${statusIcon}` : 'Never run';
+					const historyInfo = (wf.runHistory?.length || 0) > 0 ? ` · ${wf.runHistory!.filter(r => r.status === 'success').length}✅ ${wf.runHistory!.filter(r => r.status === 'skipped').length}⏭️ ${wf.runHistory!.filter(r => r.status === 'error').length}❌` : '';
 					const targetName = wf.targetCardId ? (cards.find(c => c.id === wf.targetCardId)?.title || 'Unknown card') : '';
 					return `
-				<div class="workflow-item${!wf.enabled ? ' workflow-disabled' : ''}" data-workflow-id="${wf.id}" data-wf-name="${escapeHtml(wf.name)}" data-wf-prompt="${escapeHtml(wf.promptTemplate)}" data-wf-trigger="${wf.trigger}" data-wf-output="${wf.outputAction}" data-wf-target="${wf.targetCardId || ''}" data-wf-maxitems="${wf.maxItems ?? 20}">
+				<div class="workflow-item${!wf.enabled ? ' workflow-disabled' : ''}" data-workflow-id="${wf.id}" data-wf-name="${escapeHtml(wf.name)}" data-wf-prompt="${escapeHtml(wf.promptTemplate)}" data-wf-trigger="${wf.trigger}" data-wf-output="${wf.outputAction}" data-wf-target="${wf.targetCardId || ''}" data-wf-maxitems="${wf.maxItems ?? 20}" data-wf-skip="${escapeHtml(wf.skipPattern || '')}" data-wf-filter="${escapeHtml(wf.triggerFilter || '')}">
 					<div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
 						<label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
 							<input type="checkbox" ${wf.enabled ? 'checked' : ''} onchange="toggleWorkflow('${wf.id}', this.checked)">
@@ -472,7 +473,7 @@ export class DashboardPanel {
 						<span style="opacity:0.6;font-size:0.82em;flex-shrink:0;">${outputBadge}${targetName ? ` → ${escapeHtml(targetName)}` : ''}</span>
 					</div>
 					<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-						<span style="opacity:0.5;font-size:0.78em;">${lastRunInfo} · ${wf.runCount || 0} runs</span>
+						<span style="opacity:0.5;font-size:0.78em;">${lastRunInfo} · ${wf.runCount || 0} runs${historyInfo}</span>
 						<button onclick="runWorkflow('${wf.id}')" title="Run now" style="font-size:0.8em;padding:2px 8px;">▶</button>
 						<button onclick="editWorkflow('${wf.id}')" title="Edit" style="font-size:0.8em;padding:2px 8px;">✏️</button>
 						<button onclick="deleteWorkflow('${wf.id}')" title="Delete" style="font-size:0.8em;padding:2px 8px;opacity:0.6;">🗑</button>
@@ -549,6 +550,16 @@ export class DashboardPanel {
 					<label style="font-weight:600;font-size:0.85em;">Max items per collection variable</label>
 					<input type="number" id="wf-maxitems" min="1" max="100" value="20" style="width:80px;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
 					<span style="opacity:0.5;font-size:0.78em;margin-left:6px;">Caps {{cards.all}}, {{toolHints.all}}, etc.</span>
+				</div>
+				<div class="form-group" style="margin-bottom:10px;">
+					<label style="font-weight:600;font-size:0.85em;">Skip Pattern <span style="font-weight:normal;opacity:0.6;">(optional regex)</span></label>
+					<input type="text" id="wf-skip" placeholder="e.g. ^SKIP$|^N\\/A$|^no\\s+match" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;font-family:var(--vscode-editor-font-family);font-size:0.9em;">
+					<span style="opacity:0.5;font-size:0.78em;">If AI output matches this regex, skip the output action (no card created/updated).</span>
+				</div>
+				<div class="form-group" style="margin-bottom:10px;">
+					<label style="font-weight:600;font-size:0.85em;">Trigger Filter <span style="font-weight:normal;opacity:0.6;">(optional regex)</span></label>
+					<input type="text" id="wf-filter" placeholder="e.g. PR comment|review|pull request" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;font-family:var(--vscode-editor-font-family);font-size:0.9em;">
+					<span style="opacity:0.5;font-size:0.78em;">Auto-trigger only fires if prompt+response matches this regex. Leave empty to fire always.</span>
 				</div>
 				<div style="display:flex;gap:8px;justify-content:flex-end;">
 					<button class="secondary" onclick="hideWorkflowForm()">Cancel</button>

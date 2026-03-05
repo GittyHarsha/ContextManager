@@ -40,6 +40,8 @@ Open the Dashboard → **Intelligence** tab → scroll to the **Custom AI Workfl
 | **Output Action** | What to do with the LLM response |
 | **Target Card** | Which card to update (for update/append actions) |
 | **Max Items** | Maximum number of items when rendering collection variables (default: 20) |
+| **Skip Pattern** | Optional regex. If the LLM output matches, the output action is skipped and the run is recorded as "skipped" |
+| **Trigger Filter** | Optional regex. For auto-triggered workflows, only fires when event content matches this pattern |
 
 ---
 
@@ -64,6 +66,9 @@ Prompt templates use `{% raw %}{{namespace.field}}{% endraw %}` syntax to inject
 | `{% raw %}{{card.title}}{% endraw %}` | Title of the target card |
 | `{% raw %}{{card.content}}{% endraw %}` | Content of the target card |
 | `{% raw %}{{card.tags}}{% endraw %}` | Comma-separated tags of the target card |
+
+{: .tip }
+> For auto-triggered workflows with an **update-card** or **append-collector** output action, ContextManager automatically resolves the target card's data into `{% raw %}{{card.title}}{% endraw %}`, `{% raw %}{{card.content}}{% endraw %}`, and `{% raw %}{{card.tags}}{% endraw %}` — even when triggered by events. This lets your prompt template reference existing card content for intelligent merging.
 
 ### Project Variables
 
@@ -117,6 +122,9 @@ Triggers control when a workflow runs automatically:
 {: .tip }
 > Event triggers (convention-learned, card-created, card-updated, observation-created) fire automatically in the background. The triggering entity's data is available via the corresponding event variables.
 
+{: .note }
+> You can add a **Trigger Filter** regex to any auto-triggered workflow. The workflow only fires when the event content (queue item text, convention content, card content, or observation summary) matches the filter pattern. Leave blank to fire on all events.
+
 ---
 
 ## Output Actions
@@ -129,9 +137,23 @@ Triggers control when a workflow runs automatically:
 
 ---
 
+## Skip Pattern
+
+A workflow can define an optional **Skip Pattern** — a regex tested against the LLM output after generation but before the output action executes. If the pattern matches, the output action is skipped entirely and the run is recorded with a ⏭️ "skipped" status.
+
+This is useful when auto-triggered workflows sometimes produce low-value or placeholder responses. For example, setting the skip pattern to `no relevant content|nothing to report` prevents the workflow from creating or updating cards when the AI has nothing meaningful to say.
+
+---
+
 ## Re-Entrancy Protection
 
 Workflows that output to cards (create or update) could theoretically trigger other workflows listening for card-created or card-updated events, creating an infinite loop. ContextManager prevents this with a re-entrancy guard: while a workflow's output action is executing, all other workflow triggers are suppressed.
+
+---
+
+## Execution History
+
+Each workflow tracks its last 15 runs with a timestamp and status: **success** (✅), **skipped** (⏭️), or **error** (❌). The dashboard displays aggregated run counts under each workflow so you can monitor health at a glance — for example, "8✅ 3⏭️ 1❌" tells you the workflow is mostly succeeding but occasionally skipping or failing. Error runs also record the failure reason for debugging.
 
 ---
 
@@ -144,6 +166,8 @@ The workflows section appears in the **Intelligence** tab of the Dashboard:
 - **Run button** (▶) — Manually execute any workflow
 - **Edit/Delete** — Modify or remove workflows
 - **Enable/Disable** toggle — Pause a workflow without deleting it
+- **Run history summary** — Each workflow shows aggregated success/skipped/error counts from recent runs
+- **Skipped status** (⏭️) — Shown when the skip pattern matched the LLM output
 - **Add form** — Clickable variable insertion buttons grouped by category (Queue, Card, Project, Collections, Event)
 
 ---
@@ -186,6 +210,8 @@ The workflows section appears in the **Intelligence** tab of the Dashboard:
 | Setting | Default | Description |
 |:--------|:--------|:------------|
 | Max Items | `20` | Per-workflow cap on collection variable expansion |
+| Skip Pattern | _(empty)_ | Per-workflow regex; if the LLM output matches, the output action is skipped |
+| Trigger Filter | _(empty)_ | Per-workflow regex; auto-trigger only fires when event content matches |
 
 Workflows are stored per-project and persist across sessions.
 

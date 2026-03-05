@@ -39,6 +39,11 @@ export class ProjectManager extends vscode.Disposable {
 		this._workflowEngine = engine;
 	}
 
+	/** Get the centralized WorkflowEngine instance. */
+	getWorkflowEngine(): WorkflowEngine | undefined {
+		return this._workflowEngine;
+	}
+
 	// ============ Projects ============
 
 	getAllProjects(): Project[] {

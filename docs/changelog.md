@@ -12,6 +12,19 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.7.0] - 2026-03-05
+
+### Added
+- **Skip Pattern** — Per-workflow regex; if the LLM output matches, the output action is skipped (⏭️ status). Filters out low-value AI responses before they reach cards.
+- **Trigger Filter** — Per-workflow regex; auto-triggered workflows only fire when event content matches. Scope event triggers to relevant content without disabling the workflow.
+- **Execution history** — Last 15 runs tracked per workflow with success/skipped/error counts shown in the dashboard.
+- **Card variable resolution for auto-triggers** — `{{card.content}}`, `{{card.title}}`, and `{{card.tags}}` now auto-resolve from the target card on event-triggered workflows.
+
+### Fixed
+- **Manual run re-entrancy** — Dashboard "Run" button now reuses the singleton WorkflowEngine, preserving the re-entrancy guard.
+
+---
+
 ## [2.3.0] - 2026-03-05
 
 ### Added
