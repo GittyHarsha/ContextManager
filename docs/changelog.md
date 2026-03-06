@@ -12,6 +12,16 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.8.0] - 2026-03-06
+
+### Changed
+- **esbuild bundling** — VSIX reduced from 34.6 MB to 3.3 MB via single-file bundling.
+
+### Fixed
+- **Per-prompt context injection** — "Inject into Every Prompt" now correctly provides project knowledge on every message, not just at session start.
+
+---
+
 ## [2.7.0] - 2026-03-05
 
 ### Added

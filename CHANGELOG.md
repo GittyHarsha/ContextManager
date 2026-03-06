@@ -5,6 +5,14 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-03-06
+
+### Changed
+- **esbuild bundling** — Extension is now bundled with esbuild into a single file. VSIX size reduced from 34.6 MB to 3.3 MB, dramatically improving install and update speed.
+
+### Fixed
+- **Per-prompt context injection** — `UserPromptSubmit` hook now uses `additionalContext` (injected into model conversation) instead of `systemMessage` (UI-only warning). "Inject into Every Prompt" now correctly provides project knowledge on every message, not just at session start.
+
 ## [2.7.0] - 2026-03-05
 
 ### Added

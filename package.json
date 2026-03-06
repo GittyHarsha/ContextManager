@@ -2,7 +2,7 @@
 	"name": "context-manager",
 	"publisher": "local-dev",
 	"displayName": "ContextManager - AI Project Memory",
-	"version": "2.7.0",
+	"version": "2.8.0",
 	"description": "Give Copilot persistent project memory — knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, file-based staleness detection, customizable distiller prompts, data import/export, and a full dashboard. Works with @ctx chat, #ctx, #searchCards, and #getCard.",
 	"icon": "ContextManager.png",
 	"galleryBanner": {
