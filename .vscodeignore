@@ -2,24 +2,16 @@
 .vscode
 .vscode-test
 .vscode-test.mjs
+esbuild.js
+vitest.config.ts
 
-# node_modules is in .gitignore; force-include it here, then strip dev-only parts
-!node_modules
-node_modules/@types
-node_modules/typescript
+# Everything is bundled into dist/ — no need for node_modules or source
+node_modules
+out
+src
 
-# sql.js: only keep sql-wasm.js (Node entry); exclude all asm/browser/debug/worker variants and .wasm (bundled in out/)
-node_modules/sql.js/dist/sql-asm*
-node_modules/sql.js/dist/sql-wasm-browser*
-node_modules/sql.js/dist/sql-wasm-debug*
-node_modules/sql.js/dist/worker.*
-node_modules/sql.js/dist/*.wasm
-
-# Source files (we only need compiled output)
-src/**/*.ts
-src/**/*.tsx
-src/**/*.js
-!src/**/*.d.ts
+# Source maps (not needed in production VSIX)
+dist/*.map
 
 # Configuration files
 tsconfig.json
@@ -35,6 +27,17 @@ CONTRIBUTING.md
 ICON_GUIDE.md
 PRODUCTION_READY.md
 PUBLISHING.md
+POSITIONING.md
+docs
+
+# GitHub config (skills, workflows — not needed at runtime)
+.github
+
+# Scripts (not needed at runtime)
+scripts
+
+# Misc build outputs
+publish-output.txt
 
 # Git files
 .git

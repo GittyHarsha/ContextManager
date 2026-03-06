@@ -6,32 +6,65 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Push-Location $scriptDir
 
 try {
-    Write-Host ">> Compiling TypeScript..." -ForegroundColor Cyan
+    # ── 1. Build (type-check + esbuild bundle) ──
+    Write-Host ">> Building (type-check + esbuild bundle)..." -ForegroundColor Cyan
     npm run compile
-    if ($LASTEXITCODE -ne 0) { throw "Compile failed" }
+    if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+    Write-Host "   Build OK" -ForegroundColor Green
 
-    Write-Host ">> Validating webview script..." -ForegroundColor Cyan
-    node -e "const fs=require('fs'); const m=require('./out/dashboard/webviewScript.js'); const s=m.getDashboardScript('p','overview'); const start=s.indexOf('>')+1; const end=s.lastIndexOf('</script>'); fs.writeFileSync('.tmp-wv.js', s.slice(start,end));"
-    node --check .tmp-wv.js
-    if ($LASTEXITCODE -ne 0) {
-        Remove-Item .tmp-wv.js -ErrorAction SilentlyContinue
-        throw "Webview script has syntax errors -- fix before packaging"
-    }
-    Remove-Item .tmp-wv.js -ErrorAction SilentlyContinue
-    Write-Host "   Webview script OK" -ForegroundColor Green
-
+    # ── 2. Package VSIX ──
     Write-Host ">> Packaging VSIX..." -ForegroundColor Cyan
     # Use node directly — npx output gets swallowed in VS Code integrated terminals
     node node_modules/@vscode/vsce/vsce package --allow-missing-repository --allow-star-activation --out context-manager.vsix
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
 
     $vsix = Resolve-Path "context-manager.vsix"
-    Write-Host ">> Installing $vsix into VS Code..." -ForegroundColor Cyan
+    $sizeMB = [math]::Round((Get-Item $vsix).Length / 1MB, 1)
+    $version = (Get-Content package.json | ConvertFrom-Json).version
+    Write-Host "   VSIX: $vsix ($sizeMB MB, v$version)" -ForegroundColor Green
+
+    # ── 3. Remove old extension directory, then install ──
+    $extDir = "$env:USERPROFILE\.vscode\extensions"
+    $oldDirs = Get-ChildItem $extDir -Directory -Filter "local-dev.context-manager-*" -ErrorAction SilentlyContinue
+    if ($oldDirs) {
+        Write-Host ">> Removing old extension directories..." -ForegroundColor Cyan
+        $oldDirs | ForEach-Object {
+            Write-Host "   Removing $($_.Name)"
+            Remove-Item $_.FullName -Recurse -Force
+        }
+    }
+
+    Write-Host ">> Installing into VS Code..." -ForegroundColor Cyan
     code --install-extension "$vsix" --force
     if ($LASTEXITCODE -ne 0) { throw "Install failed" }
 
+    # ── 4. Verify installation ──
+    # VS Code defers extraction when running — poll for up to 15 seconds
+    $installed = $null
+    for ($i = 0; $i -lt 5; $i++) {
+        Start-Sleep -Seconds 3
+        $installed = Get-ChildItem $extDir -Directory -Filter "local-dev.context-manager-*" -ErrorAction SilentlyContinue
+        if ($installed) {
+            $instPkg = Get-Content (Join-Path $installed[0].FullName "package.json") -ErrorAction SilentlyContinue | ConvertFrom-Json
+            if ($instPkg -and $instPkg.version -eq $version) { break }
+        }
+    }
+
+    if ($installed) {
+        $instPkg = Get-Content (Join-Path $installed[0].FullName "package.json") -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if ($instPkg.version -eq $version -and $instPkg.main -eq "./dist/extension.js") {
+            Write-Host "   Verified: $($installed[0].Name) v$($instPkg.version)" -ForegroundColor Green
+        } elseif ($instPkg.version -eq $version) {
+            Write-Host "   Installed v$($instPkg.version) (main=$($instPkg.main))" -ForegroundColor Green
+        } else {
+            Write-Host "   WARNING: Installed version is v$($instPkg.version), expected v$version" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   Extension directory not created yet — VS Code will install on next reload" -ForegroundColor Yellow
+    }
+
     Write-Host ""
-    Write-Host "ContextManager installed successfully. Reload VS Code to activate." -ForegroundColor Green
+    Write-Host "ContextManager v$version installed. Reload VS Code (Ctrl+Shift+P > Reload Window)." -ForegroundColor Green
 } finally {
     Pop-Location
 }

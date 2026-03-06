@@ -3,9 +3,6 @@
 #
 # IMPORTANT: Use `node node_modules/@vscode/vsce/vsce` — NOT npx.
 # npx output gets swallowed in VS Code integrated terminals.
-# Also: run this in a BACKGROUND terminal if invoked by Copilot,
-# because packaging 14k+ files takes ~60s and foreground terminals
-# kill long-running processes.
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot

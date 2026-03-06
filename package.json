@@ -48,7 +48,7 @@
 		"*"
 	],
 	"preview": false,
-	"main": "./out/extension.js",
+	"main": "./dist/extension.js",
 	"contributes": {
 		"viewsContainers": {
 			"activitybar": [
@@ -75,7 +75,7 @@
 				"contents": "No projects yet.\n[Create Project](command:contextManager.createProject)"
 			}
 		],
-		"chatSessions":[
+		"chatSessions": [
 			{
 				"type": "ctx-sessions",
 				"name": "ctx",
@@ -277,20 +277,18 @@
 					"maximum": 20,
 					"description": "Maximum number of knowledge cards injected into AI prompts and returned by Smart Select"
 				},
-
 				"contextManager.explanation.expandContext": {
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically expand code context when explaining symbols"
 				},
-
 				"contextManager.prompts.globalInstructions": {
 					"type": "string",
 					"default": "",
 					"editPresentation": "multilineText",
 					"markdownDescription": "Custom instructions appended to **every** prompt (all commands). Use this for global style or behavior preferences."
 				},
-				"contextManager.prompts.distillObservations":{
+				"contextManager.prompts.distillObservations": {
 					"type": "string",
 					"default": "",
 					"editPresentation": "multilineText",
@@ -327,7 +325,6 @@
 					"maximum": 1000,
 					"markdownDescription": "Token budget for Tier 2 (task-relevant) learnings: working notes and observed conventions matched by prompt keywords."
 				},
-
 				"contextManager.intelligence.injectConventions": {
 					"type": "boolean",
 					"default": true,
@@ -528,7 +525,6 @@
 					"default": true,
 					"markdownDescription": "Enable smart merge detection when saving knowledge cards (checks for semantic overlap with existing cards)."
 				},
-
 				"contextManager.cardQueue.enabled": {
 					"type": "boolean",
 					"default": true,
@@ -596,7 +592,14 @@
 					"properties": {
 						"mode": {
 							"type": "string",
-							"enum": ["search", "list", "learn", "getCard", "fetch", "retrospect"],
+							"enum": [
+								"search",
+								"list",
+								"learn",
+								"getCard",
+								"fetch",
+								"retrospect"
+							],
 							"description": "Operation mode. Default 'search'.",
 							"default": "search"
 						},
@@ -608,7 +611,17 @@
 							"type": "array",
 							"items": {
 								"type": "string",
-								"enum": ["card", "convention", "workingNote", "toolHint", "cache", "observation", "session", "agentMessage", "project"]
+								"enum": [
+									"card",
+									"convention",
+									"workingNote",
+									"toolHint",
+									"cache",
+									"observation",
+									"session",
+									"agentMessage",
+									"project"
+								]
 							},
 							"description": "Filter search to specific entity types."
 						},
@@ -619,12 +632,21 @@
 						},
 						"type": {
 							"type": "string",
-							"enum": ["conventions", "workingNotes", "toolHints", "cards"],
+							"enum": [
+								"conventions",
+								"workingNotes",
+								"toolHints",
+								"cards"
+							],
 							"description": "For mode='list': which type to list."
 						},
 						"learnType": {
 							"type": "string",
-							"enum": ["convention", "toolHint", "workingNote"],
+							"enum": [
+								"convention",
+								"toolHint",
+								"workingNote"
+							],
 							"description": "For mode='learn': what to create."
 						},
 						"id": {
@@ -633,26 +655,154 @@
 						},
 						"category": {
 							"type": "string",
-							"enum": ["architecture", "naming", "patterns", "testing", "tooling", "pitfalls"],
+							"enum": [
+								"architecture",
+								"naming",
+								"patterns",
+								"testing",
+								"tooling",
+								"pitfalls"
+							],
 							"description": "Convention category (for learn convention)."
 						},
-						"title": { "type": "string", "description": "Title (for learn convention)." },
-						"content": { "type": "string", "description": "Content (for learn convention)." },
-						"confidence": { "type": "string", "enum": ["observed", "inferred"], "description": "Confidence level." },
-						"learnedFrom": { "type": "string", "description": "Source of the convention." },
-						"toolName": { "type": "string", "description": "Tool name (for learn toolHint)." },
-						"pattern": { "type": "string", "description": "Search pattern (for learn toolHint)." },
-						"antiPattern": { "type": "string", "description": "Anti-pattern (for learn toolHint)." },
-						"example": { "type": "string", "description": "Example (for learn toolHint)." },
-						"subject": { "type": "string", "description": "Subject (for learn workingNote)." },
-						"insight": { "type": "string", "description": "Insight (for learn workingNote)." },
-						"relatedFiles": { "type": "array", "items": { "type": "string" }, "description": "Related files (for learn workingNote)." },
-						"relatedSymbols": { "type": "array", "items": { "type": "string" }, "description": "Related symbols (for learn workingNote)." },
-						"observationIds": { "type": "array", "items": { "type": "string" }, "description": "Observation IDs for fetch mode." },
-						"taskSummary": { "type": "string", "description": "Task summary (for retrospect)." },
-						"newConventions": { "type": "array", "items": { "type": "object", "properties": { "category": { "type": "string" }, "title": { "type": "string" }, "content": { "type": "string" } }, "required": ["title", "content"] }, "description": "New conventions (for retrospect)." },
-						"newToolHints": { "type": "array", "items": { "type": "object", "properties": { "toolName": { "type": "string" }, "pattern": { "type": "string" }, "antiPattern": { "type": "string" }, "example": { "type": "string" } }, "required": ["toolName", "pattern"] }, "description": "New tool hints (for retrospect)." },
-						"knowledgeCards": { "type": "array", "items": { "type": "object", "properties": { "title": { "type": "string" }, "content": { "type": "string" }, "category": { "type": "string" } }, "required": ["title", "content"] }, "description": "New knowledge cards (for retrospect)." }
+						"title": {
+							"type": "string",
+							"description": "Title (for learn convention)."
+						},
+						"content": {
+							"type": "string",
+							"description": "Content (for learn convention)."
+						},
+						"confidence": {
+							"type": "string",
+							"enum": [
+								"observed",
+								"inferred"
+							],
+							"description": "Confidence level."
+						},
+						"learnedFrom": {
+							"type": "string",
+							"description": "Source of the convention."
+						},
+						"toolName": {
+							"type": "string",
+							"description": "Tool name (for learn toolHint)."
+						},
+						"pattern": {
+							"type": "string",
+							"description": "Search pattern (for learn toolHint)."
+						},
+						"antiPattern": {
+							"type": "string",
+							"description": "Anti-pattern (for learn toolHint)."
+						},
+						"example": {
+							"type": "string",
+							"description": "Example (for learn toolHint)."
+						},
+						"subject": {
+							"type": "string",
+							"description": "Subject (for learn workingNote)."
+						},
+						"insight": {
+							"type": "string",
+							"description": "Insight (for learn workingNote)."
+						},
+						"relatedFiles": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Related files (for learn workingNote)."
+						},
+						"relatedSymbols": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Related symbols (for learn workingNote)."
+						},
+						"observationIds": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Observation IDs for fetch mode."
+						},
+						"taskSummary": {
+							"type": "string",
+							"description": "Task summary (for retrospect)."
+						},
+						"newConventions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"category": {
+										"type": "string"
+									},
+									"title": {
+										"type": "string"
+									},
+									"content": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"title",
+									"content"
+								]
+							},
+							"description": "New conventions (for retrospect)."
+						},
+						"newToolHints": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"toolName": {
+										"type": "string"
+									},
+									"pattern": {
+										"type": "string"
+									},
+									"antiPattern": {
+										"type": "string"
+									},
+									"example": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"toolName",
+									"pattern"
+								]
+							},
+							"description": "New tool hints (for retrospect)."
+						},
+						"knowledgeCards": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "string"
+									},
+									"content": {
+										"type": "string"
+									},
+									"category": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"title",
+									"content"
+								]
+							},
+							"description": "New knowledge cards (for retrospect)."
+						}
 					}
 				}
 			},
@@ -851,9 +1001,14 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./ && node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','out/sql-wasm.wasm')\"",
-		"watch": "tsc -watch -p ./",
+		"vscode:prepublish": "npm run package",
+		"compile": "npm run check-types && node esbuild.js",
+		"check-types": "tsc --noEmit",
+		"watch": "npm-run-all -p watch:*",
+		"watch:esbuild": "node esbuild.js --watch",
+		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+		"package": "npm run check-types && node esbuild.js --production",
+		"compile:tsc": "tsc -p ./ && node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','out/sql-wasm.wasm')\"",
 		"lint": "eslint src",
 		"test": "vitest run"
 	},
@@ -861,6 +1016,9 @@
 		"@types/node": "^22",
 		"@types/sql.js": "^1.4.9",
 		"@types/vscode": "^1.100.0",
+		"@vscode/vsce": "^3.7.1",
+		"esbuild": "^0.27.3",
+		"npm-run-all2": "^8.0.4",
 		"typescript": "^5.9.2",
 		"vitest": "^4.0.18"
 	},

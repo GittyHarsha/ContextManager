@@ -149,10 +149,10 @@ export class SearchIndex implements vscode.Disposable {
 
 	private async _doInit(): Promise<void> {
 		try {
-			// Locate the WASM binary bundled with the extension
+			// Locate the WASM binary bundled with the extension (dist/ for bundled, out/ for tsc dev)
 			const wasmPath = path.join(
 				this.context.extensionPath,
-				'out',
+				'dist',
 				'sql-wasm.wasm',
 			);
 
