@@ -46,7 +46,7 @@ try {
     $zip.Dispose()
 
     if ($inner.publisher -ne $publisherId) {
-        throw "VSIX publisher is '$($inner.publisher)' — expected '$publisherId'"
+        throw "VSIX publisher is '$($inner.publisher)' - expected '$publisherId'"
     }
 
     Write-Host "`n=== Done ==="                                   -ForegroundColor Green
