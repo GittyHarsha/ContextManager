@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cm-version: 8
+# cm-version: 9
 # ContextManager Agent Hook Script — Linux/macOS
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.sh
@@ -151,14 +151,11 @@ case "$HOOK_TYPE" in
     ;;
 
   "UserPromptSubmit")
+    CTX=""
     if [ -f "$SESSION_CTX" ]; then
       CTX=$(cat "$SESSION_CTX")
-      if [ -n "$CTX" ]; then
-        python3 -c "import sys,json; print(json.dumps({'systemMessage':sys.argv[1]}))" "$CTX"
-      else echo '{}'
-      fi
-    else echo '{}'
     fi
+    python3 -c "import sys,json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'UserPromptSubmit','additionalContext':sys.argv[1]}}))" "$CTX"
     exit 0
     ;;
 

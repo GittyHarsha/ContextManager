@@ -1,4 +1,4 @@
-# cm-version: 8
+# cm-version: 9
 # ContextManager Agent Hook Script — Windows PowerShell
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.ps1
@@ -261,14 +261,18 @@ switch ($hookType) {
     }
 
     "UserPromptSubmit" {
-        $ctx = $null
+        $ctx = ""
         if (Test-Path $sessionCtx) {
-            $ctx = (Get-Content $sessionCtx -Raw -Encoding UTF8).Trim()
+            $raw = (Get-Content $sessionCtx -Raw -Encoding UTF8)
+            if ($raw) { $ctx = $raw.Trim() }
         }
 
-        if ($ctx) {
-            @{ systemMessage = $ctx } | ConvertTo-Json -Compress -Depth 3 | Write-Output
-        } else { Write-Output '{}' }
+        @{
+            hookSpecificOutput = @{
+                hookEventName     = "UserPromptSubmit"
+                additionalContext = $ctx
+            }
+        } | ConvertTo-Json -Compress -Depth 3 | Write-Output
         exit 0
     }
 

@@ -32,7 +32,7 @@ Located at `~/.contextmanager/scripts/capture.ps1` (also bundled at `resources/h
 
 | Event | When | What capture.ps1 Does |
 |:------|:-----|:----------------------|
-| `UserPromptSubmit` | Before every prompt | Reads `session-context.txt`, outputs as system message |
+| `UserPromptSubmit` | Before every prompt | Reads `session-context.txt`, injects as additional context |
 | `SubagentStart` | When a sub-agent spawns | Reads `session-context.txt`, injects as additional context |
 | `PostToolUse` | After each tool call | Records tool use; also harvests completed turns from transcript |
 | `PreCompact` | Before context summarization | Extracts all turns since last offset for multi-turn processing |
@@ -200,7 +200,8 @@ The capture script includes a `cm-version` header:
 | 5 | SessionStart → UserPromptSubmit, hookSpecificOutput wrapper |
 | 6 | Added SubagentStart hook for sub-agent context injection |
 | 7 | Input truncation raised to 2000 chars, reasoningText fallback for assistant messages |
-
+| 8 | Input truncation raised to 2000 chars, reasoningText fallback for assistant messages |
+| 9 | UserPromptSubmit: `hookSpecificOutput.additionalContext` instead of `systemMessage` |
 The extension checks the installed version and updates the script if a newer version is bundled.
 
 ---
