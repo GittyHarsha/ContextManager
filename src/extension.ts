@@ -25,6 +25,12 @@ export function activate(context: vscode.ExtensionContext) {
 		outputChannel.appendLine('[ContextManager] Extension activating...');
 		console.log('ContextManager extension is now active');
 
+		// ── Cross-publisher data migration ──────────────────────────
+		// If the current globalStorage is empty but data exists under a
+		// different publisher directory (e.g. local-dev vs HarshaNarayanaP),
+		// copy all data files over so users don't lose their projects.
+		migrateFromAlternatePublisher(context);
+
 		// Initialize project manager
 		const projectManager = new ProjectManager(context);
 
@@ -476,5 +482,57 @@ async function showWelcomeMessageIfNeeded(context: vscode.ExtensionContext, proj
 		}
 
 		await context.globalState.update('contextManager.hasShownWelcome', true);
+	}
+}
+
+/**
+ * Migrate data from an alternate publisher's globalStorage directory.
+ * Handles the case where the extension was installed under a different publisher
+ * (e.g. local-dev vs HarshaNarayanaP) and data lives in the old location.
+ */
+function migrateFromAlternatePublisher(context: vscode.ExtensionContext): void {
+	const fs = require('fs') as typeof import('fs');
+	const pathMod = require('path') as typeof import('path');
+
+	try {
+		const currentDir = context.globalStorageUri.fsPath;
+		const parentDir = pathMod.dirname(currentDir);
+		const extensionName = 'context-manager';
+		const knownPublishers = ['harshananarayanap', 'local-dev'];
+
+		// Check if current storage already has projects.json — if so, no migration needed
+		if (fs.existsSync(pathMod.join(currentDir, 'projects.json'))) {
+			return;
+		}
+
+		// Search for data in alternate publisher directories
+		for (const pub of knownPublishers) {
+			const altDir = pathMod.join(parentDir, `${pub}.${extensionName}`);
+			if (altDir === currentDir) { continue; }
+			if (!fs.existsSync(pathMod.join(altDir, 'projects.json'))) { continue; }
+
+			// Found data in an alternate location — copy all files
+			outputChannel.appendLine(`[ContextManager] Migrating data from ${altDir}`);
+			fs.mkdirSync(currentDir, { recursive: true });
+
+			const files = fs.readdirSync(altDir);
+			let copied = 0;
+			for (const file of files) {
+				const src = pathMod.join(altDir, file);
+				const dest = pathMod.join(currentDir, file);
+				try {
+					const stat = fs.statSync(src);
+					if (stat.isFile()) {
+						fs.copyFileSync(src, dest);
+						copied++;
+					}
+				} catch { /* skip individual file errors */ }
+			}
+			outputChannel.appendLine(`[ContextManager] Migrated ${copied} files from ${pub} publisher storage`);
+			return; // Done — use the first source found
+		}
+	} catch (err) {
+		console.error('[ContextManager] Cross-publisher migration failed:', err);
+		// Non-fatal — extension continues normally
 	}
 }

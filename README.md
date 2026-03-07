@@ -2,9 +2,11 @@
 
 > Give Copilot persistent, structured memory for your codebase. Knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, and a full dashboard — all injected automatically into every AI interaction.
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/GittyHarsha/ContextManager)
+[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.100.0+-007ACC.svg)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+**[📖 Documentation](https://gittyharsha.github.io/ContextManager/)** · **[🐛 Issues](https://github.com/GittyHarsha/ContextManager/issues)** · **[📦 Marketplace](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)**
 
 ---
 

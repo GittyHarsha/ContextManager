@@ -14,13 +14,14 @@ try {
 
     # ── 2. Package VSIX ──
     Write-Host ">> Packaging VSIX..." -ForegroundColor Cyan
+    $version = (Get-Content package.json | ConvertFrom-Json).version
+    $vsixName = "context-manager-$version.vsix"
     # Use node directly — npx output gets swallowed in VS Code integrated terminals
-    node node_modules/@vscode/vsce/vsce package --allow-missing-repository --allow-star-activation --out context-manager.vsix
+    node node_modules/@vscode/vsce/vsce package --allow-missing-repository --allow-star-activation --out $vsixName
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
 
-    $vsix = Resolve-Path "context-manager.vsix"
+    $vsix = Resolve-Path $vsixName
     $sizeMB = [math]::Round((Get-Item $vsix).Length / 1MB, 1)
-    $version = (Get-Content package.json | ConvertFrom-Json).version
     Write-Host "   VSIX: $vsix ($sizeMB MB, v$version)" -ForegroundColor Green
 
     # ── 3. Remove old extension directory, then install ──

@@ -5,6 +5,11 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-03-07
+
+### Fixed
+- **Data migration across publishers** — Users who updated from a previous version with a different publisher ID now automatically recover their projects, observations, and search index. The extension detects data in alternate publisher storage directories and copies it on activation.
+
 ## [2.8.0] - 2026-03-06
 
 ### Changed

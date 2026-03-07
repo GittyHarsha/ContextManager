@@ -12,6 +12,13 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.8.1] - 2026-03-07
+
+### Fixed
+- **Data migration** — Automatic recovery of projects and data when updating across publisher changes.
+
+---
+
 ## [2.8.0] - 2026-03-06
 
 ### Changed
