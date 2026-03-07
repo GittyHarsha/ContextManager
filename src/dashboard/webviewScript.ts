@@ -742,7 +742,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		function saveInjection() {
 			const customInstruction = document.getElementById('injectionInstruction')?.value || '';
 			const includeFullContent = document.getElementById('injectionFullContent')?.checked || false;
-			vscode.postMessage({ command: 'setPromptInjection', customInstruction, includeFullContent });
+			const oneShotMode = document.getElementById('injectionOneShotMode')?.checked || false;
+			vscode.postMessage({ command: 'setPromptInjection', customInstruction, includeFullContent, oneShotMode });
 		}
 
 		function clearInjection() {

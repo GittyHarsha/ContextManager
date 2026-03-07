@@ -12,6 +12,16 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.9.0] - 2026-03-07
+
+### Added
+- **One-shot card injection** — Selected cards auto-deselect after being injected into a prompt. Toggle in Dashboard → Context → Inject into Every Prompt.
+
+### Fixed
+- **Local install reliability** — `install.ps1` no longer relies on `code --install-extension`.
+
+---
+
 ## [2.8.1] - 2026-03-07
 
 ### Fixed

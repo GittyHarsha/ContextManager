@@ -1783,6 +1783,7 @@ Return ONLY valid JSON:
 				await projectManager.setPromptInjection(activeProject.id, {
 					customInstruction: typeof message.customInstruction === 'string' ? message.customInstruction : '',
 					includeFullContent: !!message.includeFullContent,
+					oneShotMode: !!message.oneShotMode,
 				});
 				ctx.update();
 				break;

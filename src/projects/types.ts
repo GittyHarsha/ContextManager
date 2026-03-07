@@ -5,6 +5,7 @@
 export interface PromptInjection {
 	customInstruction: string;   // Custom message prepended to the injected block
 	includeFullContent: boolean; // true = inject full card body; false = title + ID only
+	oneShotMode?: boolean;       // true = deselect cards after they are injected once
 	// Card selection is driven by project.selectedCardIds (Knowledge tab checkboxes)
 }
 

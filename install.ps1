@@ -35,33 +35,62 @@ try {
         }
     }
 
-    Write-Host ">> Installing into VS Code..." -ForegroundColor Cyan
-    code --install-extension "$vsix" --force
-    if ($LASTEXITCODE -ne 0) { throw "Install failed" }
+    # ── 4. Extract VSIX into extensions directory ──
+    # `code --install-extension` silently fails from integrated terminals, so we
+    # extract manually and patch extensions.json ourselves.
+    Write-Host ">> Extracting VSIX into extensions directory..." -ForegroundColor Cyan
+    $targetDir = Join-Path $extDir "local-dev.context-manager-$version"
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 
-    # ── 4. Verify installation ──
-    # VS Code defers extraction when running — poll for up to 15 seconds
-    $installed = $null
-    for ($i = 0; $i -lt 5; $i++) {
-        Start-Sleep -Seconds 3
-        $installed = Get-ChildItem $extDir -Directory -Filter "local-dev.context-manager-*" -ErrorAction SilentlyContinue
-        if ($installed) {
-            $instPkg = Get-Content (Join-Path $installed[0].FullName "package.json") -ErrorAction SilentlyContinue | ConvertFrom-Json
-            if ($instPkg -and $instPkg.version -eq $version) { break }
+    $tmpZip = Join-Path $env:TEMP "ctx-install-$version.zip"
+    $tmpExtract = Join-Path $env:TEMP "ctx-install-extract"
+    if (Test-Path $tmpExtract) { Remove-Item $tmpExtract -Recurse -Force }
+    Copy-Item $vsix $tmpZip -Force
+    Expand-Archive $tmpZip -DestinationPath $tmpExtract -Force
+    Copy-Item (Join-Path $tmpExtract "extension\*") $targetDir -Recurse -Force
+    Remove-Item $tmpExtract -Recurse -Force
+    Remove-Item $tmpZip -Force
+
+    # ── 5. Patch extensions.json so VS Code recognises the extension ──
+    Write-Host ">> Updating extensions.json..." -ForegroundColor Cyan
+    $extJsonPath = Join-Path $extDir "extensions.json"
+    $extJson = Get-Content $extJsonPath -Raw | ConvertFrom-Json
+    $relLoc = "local-dev.context-manager-$version"
+    $extId  = "local-dev.context-manager"
+
+    # Remove any existing entry for this extension
+    $extJson = @($extJson | Where-Object {
+        $_.identifier.id -ne $extId -and $_.relativeLocation -notlike "local-dev.context-manager-*"
+    })
+
+    # Build a new entry
+    $newEntry = [ordered]@{
+        identifier       = [ordered]@{ id = $extId }
+        version          = $version
+        location         = [ordered]@{
+            '$mid'  = 1
+            path    = "/c:/Users/$env:USERNAME/.vscode/extensions/$relLoc"
+            scheme  = "file"
+        }
+        relativeLocation = $relLoc
+        metadata         = [ordered]@{
+            isApplicationScoped = $false
+            isMachineScoped     = $false
+            isBuiltin           = $false
+            installedTimestamp  = [long](Get-Date -UFormat %s) * 1000
+            pinned              = $false
+            source              = "vsix"
         }
     }
+    $extJson += $newEntry
+    $extJson | ConvertTo-Json -Depth 10 | Set-Content $extJsonPath -Encoding UTF8
 
-    if ($installed) {
-        $instPkg = Get-Content (Join-Path $installed[0].FullName "package.json") -ErrorAction SilentlyContinue | ConvertFrom-Json
-        if ($instPkg.version -eq $version -and $instPkg.main -eq "./dist/extension.js") {
-            Write-Host "   Verified: $($installed[0].Name) v$($instPkg.version)" -ForegroundColor Green
-        } elseif ($instPkg.version -eq $version) {
-            Write-Host "   Installed v$($instPkg.version) (main=$($instPkg.main))" -ForegroundColor Green
-        } else {
-            Write-Host "   WARNING: Installed version is v$($instPkg.version), expected v$version" -ForegroundColor Yellow
-        }
+    # ── 6. Verify ──
+    $instPkg = Get-Content (Join-Path $targetDir "package.json") | ConvertFrom-Json
+    if ($instPkg.version -eq $version) {
+        Write-Host "   Verified: $relLoc v$($instPkg.version)" -ForegroundColor Green
     } else {
-        Write-Host "   Extension directory not created yet — VS Code will install on next reload" -ForegroundColor Yellow
+        Write-Host "   WARNING: Extracted version is v$($instPkg.version), expected v$version" -ForegroundColor Yellow
     }
 
     Write-Host ""

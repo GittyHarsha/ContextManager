@@ -93,7 +93,7 @@ export function getAgentTools(): vscode.LanguageModelToolInformation[] {
 
 /**
  * Deselect all selected context (knowledge cards and cache entries) after use,
- * if the auto-deselect setting is enabled.
+ * if one-shot mode is enabled on the active project's prompt injection settings.
  */
 export async function deselectContextAfterUse(
 	projectManager: ProjectManager,
@@ -101,6 +101,10 @@ export async function deselectContextAfterUse(
 ): Promise<void> {
 	const activeProject = projectManager.getActiveProject();
 	if (!activeProject) {
+		return;
+	}
+
+	if (!activeProject.promptInjection?.oneShotMode) {
 		return;
 	}
 

@@ -197,6 +197,8 @@ export class HookWatcher implements vscode.Disposable {
 				await this.autoCapture.onModelResponse(prompt, response, `hook:${participant}`);
 				// Also queue for card distillation (with tool call evidence)
 				this._queueCardCandidate(prompt, response, participant, entry.toolCalls).catch(() => {});
+				// One-shot mode: deselect cards after they've been injected
+				this._deselectIfOneShot();
 				break;
 			}
 
@@ -346,6 +348,28 @@ export class HookWatcher implements vscode.Disposable {
 		} catch (err) {
 			console.warn('[HookWatcher/CardQueue] Error queuing candidate:', err);
 		}
+	}
+
+	/** If one-shot mode is on, deselect all selected cards after a prompt completes. */
+	private _deselectIfOneShot(): void {
+		const project = this.projectManager.getActiveProject();
+		if (!project) { return; }
+		if (!project.promptInjection?.oneShotMode) { return; }
+		const selectedCardIds = project.selectedCardIds || [];
+		if (selectedCardIds.length === 0) { return; }
+
+		// Bump injectionCount on each injected card
+		const allCards = this.projectManager.getKnowledgeCards(project.id);
+		for (const id of selectedCardIds) {
+			const card = allCards.find((c: KnowledgeCard) => c.id === id);
+			if (card) { card.injectionCount = (card.injectionCount || 0) + 1; }
+		}
+
+		// Deselect all and persist updated cards
+		this.projectManager.updateProject(project.id, {
+			selectedCardIds: [],
+			knowledgeCards: allCards,
+		}).catch(err => console.warn('[HookWatcher] one-shot deselect error:', err));
 	}
 
 	/** Write the current project's intelligence/session context so the SessionStart hook can inject it. */

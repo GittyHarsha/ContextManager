@@ -1150,11 +1150,16 @@ export class DashboardPanel {
 						style="width: 100%; box-sizing: border-box; border-radius: 4px; padding: 8px 10px; font-size: 0.88em; resize: vertical;">${escapeHtml(injection?.customInstruction || '')}</textarea>
 				</div>
 
-				<div style="display: flex; gap: 8px; align-items: center;">
+				<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
 					<label style="display: flex; align-items: center; gap: 5px; font-size: 0.8em; cursor: pointer; opacity: 0.75; user-select: none;" title="When checked, full card content is included. Otherwise only titles are listed.">
 						<input type="checkbox" id="injectionFullContent" ${injection?.includeFullContent ? 'checked' : ''}
 							onchange="saveInjection()">
 						Include full card content
+					</label>
+					<label style="display: flex; align-items: center; gap: 5px; font-size: 0.8em; cursor: pointer; opacity: 0.75; user-select: none;" title="When checked, selected cards are automatically unchecked after being injected into a prompt (one-time use).">
+						<input type="checkbox" id="injectionOneShotMode" ${injection?.oneShotMode ? 'checked' : ''}
+							onchange="saveInjection()">
+						One-shot (deselect after use)
 					</label>
 					<span style="flex-grow: 1;"></span>
 					<button class="primary" onclick="saveInjection()">💾 Save</button>

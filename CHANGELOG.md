@@ -5,6 +5,14 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-03-07
+
+### Added
+- **One-shot card injection** — New "One-shot (deselect after use)" toggle in the Inject into Every Prompt section. When enabled, selected knowledge cards are automatically unchecked after being injected into a prompt, so each card is used exactly once. Injection count is tracked per card.
+
+### Fixed
+- **Local install reliability** — `install.ps1` now extracts the VSIX directly and patches `extensions.json` instead of relying on `code --install-extension`, which silently failed from integrated terminals.
+
 ## [2.8.1] - 2026-03-07
 
 ### Fixed
