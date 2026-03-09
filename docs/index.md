@@ -51,8 +51,8 @@ ContextManager was built specifically for this gap - persistent project memory t
     <p>Automatic staging buffer that captures AI responses and synthesizes high-quality knowledge card proposals.</p>
   </div>
   <div class="feature-card">
-    <h4>⚡ Custom AI Workflows</h4>
-    <p>Define reusable AI pipelines with template variables, event triggers, and automatic output actions. Summarize, classify, audit — on autopilot.</p>
+    <h4>⚡ Custom Workflows</h4>
+    <p>Define reusable workflows with template variables, event triggers, and AI or direct-template output actions. Summarize, classify, append, audit.</p>
   </div>
   <div class="feature-card">
     <h4>📊 Dashboard</h4>
@@ -126,7 +126,7 @@ Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover
 
 ## What's New in v2.3
 
-- **Custom AI Workflows** — Define reusable AI pipelines with `{{template}}` variables, 7 trigger types (manual, auto-queue, convention-learned, card-created, card-updated, observation-created), and 3 output actions (create card, update card, append to collector)
+- **Custom Workflows** — Define reusable workflows with `{{template}}` variables, 7 trigger types (manual, auto-queue, convention-learned, card-created, card-updated, observation-created), and 6 output actions across AI and direct-template modes
 - **Entity data sources** — Workflow prompts can reference collection variables: `{{cards.all}}`, `{{conventions.all}}`, `{{toolHints.all}}`, `{{workingNotes.all}}`, `{{observations.recent}}`, each capped by a per-workflow Max Items setting
 - **Event triggers** — Workflows can fire automatically when conventions are learned, cards are created/updated, or observations are captured
 - **Re-entrancy protection** — Prevents infinite loops when workflow output actions create or update entities that would re-trigger other workflows

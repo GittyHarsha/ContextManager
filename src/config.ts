@@ -60,7 +60,7 @@ export class ConfigurationManager {
 		return this.get('search.enableFTS', true);
 	}
 
-	/** Max knowledge cards returned by #searchCards (1–20, default 5). */
+	/** Max knowledge cards returned by #ctx card search results (1–20, default 5). */
 	static get searchMaxCardResults(): number {
 		return this.get('search.maxCardResults', 5);
 	}
@@ -155,6 +155,16 @@ export class ConfigurationManager {
 	/** Preferred model family for auto-learn LLM extraction (empty = use default). */
 	static get autoLearnModelFamily(): string {
 		return this.getString('intelligence.autoLearn.modelFamily');
+	}
+
+	/** Preferred model family for AI workflow actions (empty = use default). */
+	static get workflowModelFamily(): string {
+		return this.getString('workflows.modelFamily');
+	}
+
+	/** Preferred model family for AI Draft / card synthesis (empty = use default). */
+	static get synthesisModelFamily(): string {
+		return this.getString('knowledgeCards.synthesisModelFamily');
 	}
 
 	/** Suppress a signal category after N user discards. 0 = never suppress. */

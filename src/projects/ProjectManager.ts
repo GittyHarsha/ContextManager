@@ -474,7 +474,7 @@ export class ProjectManager extends vscode.Disposable {
 			this.incrementInjectionCounts(projectId, injectedIds).catch(() => {});
 			const skippedCount = selectedCards.length - injectedCards.length;
 
-			parts.push(`## Knowledge Cards (${injectedCards.length} injected${skippedCount > 0 ? `, ${skippedCount} skipped (over limit)` : ''})\nThe following knowledge cards are curated reference material for this project. Cards are ordered by recency. Large cards are summarized; expand with \`#searchCards\` if needed.`);
+			parts.push(`## Knowledge Cards (${injectedCards.length} injected${skippedCount > 0 ? `, ${skippedCount} skipped (over limit)` : ''})\nThe following knowledge cards are curated reference material for this project. Cards are ordered by recency. Large cards are summarized; use \`#ctx\` or \`#getCard\` if you need the full card.`);
 
 			for (let i = 0; i < injectedCards.length; i++) {
 				const card = injectedCards[i];
@@ -491,7 +491,7 @@ export class ProjectManager extends vscode.Disposable {
 				if (i < 3) {
 					// Tier 1: full content, capped at ~8000 chars (~2000 tokens)
 					if (tokenEstimate > 2000) {
-						cardContent = card.content.substring(0, 8000) + '\n\n... (truncated — use `#searchCards` to read full content)';
+						cardContent = card.content.substring(0, 8000) + '\n\n... (truncated — use `#ctx` or `#getCard` to read full content)';
 						tierLabel = 'full, truncated';
 					} else {
 						cardContent = card.content;
@@ -500,7 +500,7 @@ export class ProjectManager extends vscode.Disposable {
 				} else if (i < 7) {
 					// Tier 2: summary — first 500 chars (~125 tokens)
 					if (tokenEstimate > 125) {
-						cardContent = card.content.substring(0, 500).trimEnd() + '\n\n... (summary — use `#searchCards` for full content)';
+						cardContent = card.content.substring(0, 500).trimEnd() + '\n\n... (summary — use `#ctx` or `#getCard` for full content)';
 						tierLabel = 'summary';
 					} else {
 						cardContent = card.content;
@@ -509,7 +509,7 @@ export class ProjectManager extends vscode.Disposable {
 				} else {
 					// Tier 3: metadata only
 					const firstLine = (card.content || '').split('\n').find(l => l.trim())?.substring(0, 120) || '';
-					cardContent = `*${firstLine}${firstLine.length >= 120 ? '...' : ''}*\n\n(metadata only — use \`#searchCards "${card.title}"\` to read full content)`;
+					cardContent = `*${firstLine}${firstLine.length >= 120 ? '...' : ''}*\n\n(metadata only — use \`#ctx\` to find the card or \`#getCard\` to read it)`;
 					tierLabel = 'metadata';
 				}
 

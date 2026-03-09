@@ -13,6 +13,14 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		// Restore previous state
 		const previousState = vscode.getState() || {};
 
+		function getWebviewState() {
+			return vscode.getState() || {};
+		}
+
+		function mergeWebviewState(patch) {
+			vscode.setState({ ...getWebviewState(), ...patch });
+		}
+
 		// ── Scroll position preservation ──
 		// Save scroll position on every scroll so it survives full re-renders
 		let _scrollSaveTimeout;
@@ -229,12 +237,14 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		}
 
 		function showAddTodoForm() {
+			setDraftProtectionReason('addTodoForm', true);
 			document.getElementById('addTodoForm').style.display = 'block';
 			document.getElementById('newTodoTitle').focus();
 			setInteracting(true);
 		}
 
 		function hideAddTodoForm() {
+			setDraftProtectionReason('addTodoForm', false);
 			document.getElementById('addTodoForm').style.display = 'none';
 			document.getElementById('newTodoTitle').value = '';
 			document.getElementById('newTodoDesc').value = '';
@@ -290,6 +300,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const span = document.getElementById('todo-title-' + todoId);
 			const input = document.getElementById('todo-title-edit-' + todoId);
 			if (span && input) {
+				setDraftProtectionReason('todo-title-' + todoId, true);
 				span.style.display = 'none';
 				input.style.display = 'block';
 				input.focus();
@@ -301,6 +312,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const span = document.getElementById('todo-title-' + todoId);
 			const input = document.getElementById('todo-title-edit-' + todoId);
 			if (span && input) {
+				setDraftProtectionReason('todo-title-' + todoId, false);
 				const newTitle = input.value.trim();
 				if (newTitle) {
 					vscode.postMessage({
@@ -319,6 +331,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const span = document.getElementById('todo-title-' + todoId);
 			const input = document.getElementById('todo-title-edit-' + todoId);
 			if (span && input) {
+				setDraftProtectionReason('todo-title-' + todoId, false);
 				input.value = span.textContent.trim();
 				span.style.display = '';
 				input.style.display = 'none';
@@ -330,6 +343,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const textarea = document.getElementById('todo-desc-edit-' + todoId);
 			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
 			if (span && textarea && buttons) {
+				setDraftProtectionReason('todo-desc-' + todoId, true);
 				span.style.display = 'none';
 				textarea.style.display = 'block';
 				buttons.style.display = 'block';
@@ -343,6 +357,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const textarea = document.getElementById('todo-desc-edit-' + todoId);
 			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
 			if (span && textarea && buttons) {
+				setDraftProtectionReason('todo-desc-' + todoId, false);
 				setInteracting(false);
 				vscode.postMessage({
 					command: 'updateTodo',
@@ -361,6 +376,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const textarea = document.getElementById('todo-desc-edit-' + todoId);
 			const buttons = document.getElementById('todo-desc-buttons-' + todoId);
 			if (span && textarea && buttons) {
+				setDraftProtectionReason('todo-desc-' + todoId, false);
 				span.style.display = '';
 				textarea.style.display = 'none';
 				buttons.style.display = 'none';
@@ -502,8 +518,69 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		window.filterSettings = filterSettings;
 
 		// Knowledge Card functions
+		function persistAddCardDraft() {
+			var form = document.getElementById('addCardForm');
+			var titleEl = document.getElementById('newCardTitle');
+			var categoryEl = document.getElementById('newCardCategory');
+			var folderEl = document.getElementById('newCardFolder');
+			var contentEl = document.getElementById('newCardContent');
+			var trackEl = document.getElementById('newCardTrackTools');
+			if (!form || !titleEl || !categoryEl || !contentEl) { return; }
+			mergeWebviewState({
+				addCardDraft: {
+					visible: form.style.display !== 'none',
+					title: titleEl.value || '',
+					category: categoryEl.value || 'note',
+					folderId: folderEl ? folderEl.value || '' : '',
+					content: contentEl.value || '',
+					trackToolUsage: !!trackEl?.checked,
+				}
+			});
+		}
+
+		function clearAddCardDraft() {
+			mergeWebviewState({ addCardDraft: null });
+		}
+
+		function restoreAddCardDraft() {
+			var draft = previousState.addCardDraft;
+			if (!draft) { return; }
+			var form = document.getElementById('addCardForm');
+			var titleEl = document.getElementById('newCardTitle');
+			var categoryEl = document.getElementById('newCardCategory');
+			var folderEl = document.getElementById('newCardFolder');
+			var contentEl = document.getElementById('newCardContent');
+			var trackEl = document.getElementById('newCardTrackTools');
+			if (!form || !titleEl || !categoryEl || !contentEl) { return; }
+			form.style.display = draft.visible ? 'block' : 'none';
+			titleEl.value = draft.title || '';
+			categoryEl.value = draft.category || 'note';
+			if (folderEl) { folderEl.value = draft.folderId || ''; }
+			contentEl.value = draft.content || '';
+			if (trackEl) { trackEl.checked = !!draft.trackToolUsage; }
+			if (draft.visible) {
+				setDraftProtectionReason('addCardForm', true);
+				setInteracting(true);
+			} else {
+				setDraftProtectionReason('addCardForm', false);
+			}
+		}
+
+		function wireAddCardDraftPersistence() {
+			['newCardTitle', 'newCardContent'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) { el.addEventListener('input', persistAddCardDraft); }
+			});
+			['newCardCategory', 'newCardFolder', 'newCardTrackTools'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) { el.addEventListener('change', persistAddCardDraft); }
+			});
+		}
+
 		function showAddCardForm() {
+			setDraftProtectionReason('addCardForm', true);
 			document.getElementById('addCardForm').style.display = 'block';
+			persistAddCardDraft();
 			document.getElementById('newCardTitle').focus();
 			setInteracting(true);
 		}
@@ -513,11 +590,17 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		}
 
 		function hideAddCardForm() {
+			setDraftProtectionReason('addCardForm', false);
 			document.getElementById('addCardForm').style.display = 'none';
 			document.getElementById('newCardTitle').value = '';
 			document.getElementById('newCardContent').value = '';
+			const folderEl = document.getElementById('newCardFolder');
+			if (folderEl) { folderEl.value = ''; }
+			const categoryEl = document.getElementById('newCardCategory');
+			if (categoryEl) { categoryEl.value = 'note'; }
 			const trackEl = document.getElementById('newCardTrackTools');
 			if (trackEl) { trackEl.checked = false; }
+			clearAddCardDraft();
 			setInteracting(false);
 		}
 
@@ -545,6 +628,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 						item.textContent = tmpl.label;
 						item.onclick = function() {
 							contentEl.value = tmpl.value.split('\\\\n').join('\\n');
+							persistAddCardDraft();
 							menu.classList.remove('visible');
 							contentEl.focus();
 						};
@@ -760,6 +844,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const editorEl = document.getElementById('card-editor-' + cardId);
 			const detailsEl = editEl?.closest('details');
 			if (viewEl && editEl && editorEl) {
+				setDraftProtectionReason('inline-card-' + cardId, true);
 				// Save scroll position before switching to edit view
 				const savedScrollTop = document.documentElement.scrollTop;
 				// Ensure the card stays expanded
@@ -808,6 +893,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const contextEl = document.getElementById('card-context-editor-' + cardId);
 			const archivedEl = document.getElementById('card-archived-editor-' + cardId);
 			if (titleEl && editorEl) {
+				setDraftProtectionReason('inline-card-' + cardId, false);
 				const saveBtn = document.querySelector('#card-edit-' + cardId + ' button[onclick*="saveCardEdit"]');
 				setButtonLoading(saveBtn, 'Saving…');
 				setInteracting(false);
@@ -1338,6 +1424,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				viewEl.style.display = 'block';
 				editEl.style.display = 'none';
 			}
+			setDraftProtectionReason('inline-card-' + cardId, false);
 			setInteracting(false);
 		}
 
@@ -1368,11 +1455,29 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		// title edits, notes), tell the extension to suppress full re-renders
 		// so the form state isn't destroyed by background TODO progress updates.
 		let _interacting = false;
+		let _draftProtected = false;
+		const _draftProtectionReasons = new Set();
 		var _aiDraftPending = false; // True while waiting for AI draft response — prevents focusout from releasing suppression
 		function setInteracting(state) {
 			if (state === _interacting) return;
 			_interacting = state;
 			vscode.postMessage({ command: 'webviewInteracting', interacting: state });
+		}
+
+		function setDraftProtection(active) {
+			if (active === _draftProtected) { return; }
+			_draftProtected = active;
+			vscode.postMessage({ command: 'webviewDraftState', hasDraft: active });
+		}
+
+		function setDraftProtectionReason(reason, active) {
+			if (!reason) { return; }
+			if (active) {
+				_draftProtectionReasons.add(reason);
+			} else {
+				_draftProtectionReasons.delete(reason);
+			}
+			setDraftProtection(_draftProtectionReasons.size > 0);
 		}
 
 		// Also suppress during inline title editing and notes editing
@@ -1414,12 +1519,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					// Don't release suppression while waiting for AI draft response
 					if (_aiDraftPending) { return; }
 					const active = document.activeElement;
-					const todoFormVisible = document.getElementById('addTodoForm')?.style.display !== 'none';
-					const cardFormVisible = document.getElementById('addCardForm')?.style.display !== 'none';
-					const cacheEditVisible = document.querySelector('.inline-edit[id^="cache-edit-"][style*="block"]');
-					const cardEditVisible = document.querySelector('.inline-edit[id^="card-edit-"][style*="block"]');
 					const stillEditing = _isTrackedInput(active);
-					if (!stillEditing && !todoFormVisible && !cardFormVisible && !cacheEditVisible && !cardEditVisible) {
+					if (!stillEditing && !_draftProtected) {
 						setInteracting(false);
 					}
 				}, 100);
@@ -2075,7 +2176,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 		// ─── Card Canvas: Tile Selection & Multi-Select ───────────
 		var _tileSelection = new Set();
-		var _editorState = { open: false, tileId: null, tileType: null, mode: null };
+		var _editorState = { open: false, tileId: null, tileType: null, mode: null, baseUpdated: null, pendingSave: false };
 
 		function updateMultiSelectBar() {
 			var bar = document.getElementById('multi-select-bar');
@@ -2131,9 +2232,125 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		// ─── Card Canvas: Rich Editor Panel ───────────────────────
 		var _editorPreviewTimer = null;
 
+		function getEditorTags() {
+			var tagsContainer = document.getElementById('editor-tags');
+			if (!tagsContainer) { return []; }
+			var tags = [];
+			tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) {
+				var text = p.childNodes[0] ? p.childNodes[0].textContent.trim() : '';
+				if (text) { tags.push(text); }
+			});
+			return tags;
+		}
+
+		function persistEditorDraft() {
+			var panel = document.getElementById('card-editor-panel');
+			if (!panel) { return; }
+			if (!_editorState.open && !panel.classList.contains('visible')) {
+				mergeWebviewState({ editorDraft: null });
+				return;
+			}
+			var titleInput = document.getElementById('editor-title');
+			var categorySelect = document.getElementById('editor-category');
+			var contentArea = document.getElementById('editor-content');
+			var promptInput = document.getElementById('editor-custom-prompt');
+			var globalCb = document.getElementById('editor-global-cb');
+			var statusEl = document.getElementById('editor-status');
+			var panelTitle = document.getElementById('editor-panel-title');
+			if (!titleInput || !categorySelect || !contentArea) { return; }
+			mergeWebviewState({
+				editorDraft: {
+					editorState: { ..._editorState },
+					panelTitle: panelTitle ? panelTitle.textContent || '' : '',
+					title: titleInput.value || '',
+					category: categorySelect.value || 'note',
+					content: contentArea.value || '',
+					tags: getEditorTags(),
+					customPrompt: promptInput ? promptInput.value || '' : '',
+					isGlobal: !!globalCb?.checked,
+					status: statusEl ? statusEl.textContent || '' : '',
+				}
+			});
+		}
+
+		function clearEditorDraft() {
+			mergeWebviewState({ editorDraft: null });
+		}
+
+		function restoreEditorDraft() {
+			var draft = previousState.editorDraft;
+			if (!draft || !draft.editorState || !draft.editorState.open) { return; }
+			var panel = document.getElementById('card-editor-panel');
+			var titleInput = document.getElementById('editor-title');
+			var categorySelect = document.getElementById('editor-category');
+			var contentArea = document.getElementById('editor-content');
+			var panelTitle = document.getElementById('editor-panel-title');
+			var statusEl = document.getElementById('editor-status');
+			var promptContainer = document.getElementById('editor-custom-prompt-container');
+			var promptInput = document.getElementById('editor-custom-prompt');
+			var tagsContainer = document.getElementById('editor-tags');
+			var globalToggle = document.getElementById('editor-global-toggle');
+			var globalCb = document.getElementById('editor-global-cb');
+			if (!panel || !titleInput || !categorySelect || !contentArea) { return; }
+
+			_editorState = {
+				open: !!draft.editorState.open,
+				tileId: draft.editorState.tileId || null,
+				tileType: draft.editorState.tileType || null,
+				mode: draft.editorState.mode || null,
+				baseUpdated: draft.editorState.baseUpdated || null,
+				pendingSave: false,
+			};
+
+			titleInput.value = draft.title || '';
+			categorySelect.value = draft.category || 'note';
+			contentArea.value = draft.content || '';
+			if (panelTitle) { panelTitle.textContent = draft.panelTitle || 'Edit Card'; }
+			if (statusEl) { statusEl.textContent = draft.status || ''; }
+			if (promptInput) { promptInput.value = draft.customPrompt || ''; }
+			if (promptContainer) {
+				promptContainer.style.display = _editorState.mode === 'ai-synthesize' ? '' : 'none';
+			}
+			if (tagsContainer) {
+				var tagInput = tagsContainer.querySelector('input');
+				tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) { p.remove(); });
+				(draft.tags || []).forEach(function(tag) { insertTagPill(tagsContainer, tag, tagInput); });
+			}
+			if (globalToggle && globalCb) {
+				if (_editorState.tileType !== 'queue' && _editorState.tileId) {
+					globalToggle.style.display = '';
+					globalCb.checked = !!draft.isGlobal;
+				} else {
+					globalToggle.style.display = 'none';
+				}
+			}
+
+			panel.classList.add('visible');
+			if (_editorState.tileId) {
+				var tile = document.querySelector('.card-tile[data-tile-id="' + _editorState.tileId + '"]');
+				if (tile) { tile.classList.add('editing'); }
+			}
+			setDraftProtectionReason('card-editor-panel', true);
+			setInteracting(true);
+			updateEditorPreview();
+		}
+
+		function wireEditorDraftPersistence() {
+			['editor-title', 'editor-content', 'editor-custom-prompt'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) { el.addEventListener('input', persistEditorDraft); }
+			});
+			['editor-category', 'editor-global-cb'].forEach(function(id) {
+				var el = document.getElementById(id);
+				if (el) { el.addEventListener('change', persistEditorDraft); }
+			});
+		}
+
 		function openTileInEditor(tileId, tileType) {
 			if (!activeProjectId) { return; }
-			_editorState = { open: true, tileId: tileId, tileType: tileType, mode: 'edit' };
+			_editorState = { open: true, tileId: tileId, tileType: tileType, mode: 'edit', baseUpdated: null, pendingSave: false };
+			setDraftProtectionReason('card-editor-panel', true);
+			persistEditorDraft();
 
 			// Highlight the active tile
 			document.querySelectorAll('.card-tile.editing').forEach(function(t) { t.classList.remove('editing'); });
@@ -2159,6 +2376,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var statusEl = document.getElementById('editor-status');
 			var promptContainer = document.getElementById('editor-custom-prompt-container');
 			if (!panel || !titleInput || !categorySelect || !contentArea) { return; }
+
+			_editorState.baseUpdated = data.baseUpdated || null;
+			_editorState.pendingSave = false;
 
 			// Hide custom prompt field for regular edits
 			if (promptContainer && _editorState.mode !== 'ai-synthesize') { promptContainer.style.display = 'none'; }
@@ -2203,11 +2423,14 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 			// Show panel
 			panel.classList.add('visible');
+			setDraftProtectionReason('card-editor-panel', true);
 			updateEditorPreview();
+			persistEditorDraft();
 			titleInput.focus();
 		}
 
 		function closeCardEditor() {
+			setDraftProtectionReason('card-editor-panel', false);
 			var panel = document.getElementById('card-editor-panel');
 			if (panel) { panel.classList.remove('visible'); }
 			document.querySelectorAll('.card-tile.editing').forEach(function(t) { t.classList.remove('editing'); });
@@ -2219,8 +2442,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			// Reset global toggle
 			var globalToggle = document.getElementById('editor-global-toggle');
 			if (globalToggle) { globalToggle.style.display = 'none'; }
-			_editorState = { open: false, tileId: null, tileType: null, mode: null };
+			_editorState = { open: false, tileId: null, tileType: null, mode: null, baseUpdated: null, pendingSave: false };
 			_aiDraftPending = false;
+			clearEditorDraft();
 			setInteracting(false);
 		}
 
@@ -2231,6 +2455,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				var preview = document.getElementById('editor-preview');
 				if (!content || !preview) { return; }
 				preview.innerHTML = renderMarkdownPreview(content.value);
+				persistEditorDraft();
 			}, 300);
 		}
 
@@ -2266,16 +2491,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			var titleInput = document.getElementById('editor-title');
 			var categorySelect = document.getElementById('editor-category');
 			var contentArea = document.getElementById('editor-content');
-			var tagsContainer = document.getElementById('editor-tags');
 			if (!titleInput || !categorySelect || !contentArea) { return; }
 
-			var tags = [];
-			if (tagsContainer) {
-				tagsContainer.querySelectorAll('.tag-pill').forEach(function(p) {
-					var text = p.childNodes[0] ? p.childNodes[0].textContent.trim() : '';
-					if (text) { tags.push(text); }
-				});
-			}
+			var tags = getEditorTags();
 
 			var statusEl = document.getElementById('editor-status');
 			if (statusEl) { statusEl.textContent = 'Saving…'; }
@@ -2290,7 +2508,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					category: categorySelect.value,
 					tags: tags
 				});
-				_editorState = { open: false, tileId: null, tileType: null, mode: 'view' };
+				clearEditorDraft();
+				_editorState = { open: false, tileId: null, tileType: null, mode: 'view', baseUpdated: null, pendingSave: false };
 				var panel = document.getElementById('card-editor-panel');
 				if (panel) { panel.classList.remove('visible'); }
 				return;
@@ -2308,7 +2527,10 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					content: contentArea.value,
 					tags: tags
 				});
+				closeCardEditor();
 			} else {
+				_editorState.pendingSave = true;
+				persistEditorDraft();
 				vscode.postMessage({
 					command: 'editKnowledgeCard',
 					projectId: activeProjectId,
@@ -2316,10 +2538,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					title: titleInput.value,
 					category: categorySelect.value,
 					content: contentArea.value,
-					tags: tags
+					tags: tags,
+					baseUpdated: _editorState.baseUpdated || undefined
 				});
+				return;
 			}
-			closeCardEditor();
 		}
 
 		function aiDraftFromEditor() {
@@ -2336,6 +2559,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			if (promptContainer) { promptContainer.style.display = ''; }
 
 			var selectedIds = Array.from(_tileSelection);
+			persistEditorDraft();
 			vscode.postMessage({
 				command: 'synthesizeCard',
 				projectId: activeProjectId,
@@ -2360,19 +2584,29 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			});
 			if (existing.includes(tag.toLowerCase())) { return; }
 			insertTagPill(container, tag, input);
+			persistEditorDraft();
 		}
 
 		function insertTagPill(container, tag, beforeEl) {
 			var pill = document.createElement('span');
 			pill.className = 'tag-pill';
-			pill.innerHTML = tag + '<span class="tag-remove" onclick="this.parentElement.remove()">×</span>';
+			pill.innerHTML = tag + '<span class="tag-remove" onclick="removeEditorTag(this)">×</span>';
 			container.insertBefore(pill, beforeEl);
+		}
+
+		function removeEditorTag(el) {
+			if (el && el.parentElement) {
+				el.parentElement.remove();
+				persistEditorDraft();
+			}
 		}
 
 		// ─── Card Canvas: Multi-Select Actions ────────────────────
 		function composeFromSelected() {
 			if (_tileSelection.size === 0) { return; }
-			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'compose' };
+			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'compose', baseUpdated: null, pendingSave: false };
+			setDraftProtectionReason('card-editor-panel', true);
+			persistEditorDraft();
 			vscode.postMessage({
 				command: 'getCompositionData',
 				projectId: activeProjectId,
@@ -2383,7 +2617,8 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		function aiSynthesizeSelected() {
 			if (_tileSelection.size === 0 || !activeProjectId) { return; }
 			// Open editor panel with prompt input — don't fire LLM yet, let user type a prompt first
-			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'ai-synthesize' };
+			_editorState = { open: true, tileId: null, tileType: 'compose', mode: 'ai-synthesize', baseUpdated: null, pendingSave: false };
+			setDraftProtectionReason('card-editor-panel', true);
 			var panel = document.getElementById('card-editor-panel');
 			if (panel) { panel.classList.add('visible'); }
 			var titleInput = document.getElementById('editor-title');
@@ -2399,6 +2634,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			if (promptContainer) { promptContainer.style.display = ''; }
 			if (statusEl) { statusEl.textContent = 'Enter a custom prompt (optional) then click ✨ AI Draft to generate'; }
 			updateEditorPreview();
+			persistEditorDraft();
 		}
 
 		function dismissSelected() {
@@ -2491,6 +2727,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 						}
 					}
 					updateEditorPreview();
+					persistEditorDraft();
 				}
 				if (statusEl) {
 					if (msg.data) {
@@ -2499,6 +2736,20 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 						statusEl.textContent = '⚠ AI draft failed' + (msg.error ? ': ' + msg.error : '');
 					}
 				}
+			}
+			if (msg.command === 'knowledgeCardSaveResult') {
+				var statusEl = document.getElementById('editor-status');
+				_editorState.pendingSave = false;
+				if (msg.success) {
+					if (typeof msg.updated === 'number') { _editorState.baseUpdated = msg.updated; }
+					closeCardEditor();
+					return;
+				}
+				if (statusEl) {
+					statusEl.textContent = msg.message || (msg.conflict ? 'Card changed in the background. Review and save again.' : 'Save failed.');
+				}
+				persistEditorDraft();
+				setInteracting(true);
 			}
 		});
 
@@ -2542,6 +2793,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		window.dismissSelected = dismissSelected;
 		window.bulkQuickSave = bulkQuickSave;
 		window.clearTileSelection = clearTileSelection;
+		window.removeEditorTag = removeEditorTag;
 		// Workbench globals
 		window.switchKnowledgeSubtab = switchKnowledgeSubtab;
 		window.applyWorkbenchFilter = applyWorkbenchFilter;
@@ -2622,11 +2874,30 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			setInteracting(false);
 		}
 
+		function workflowOutputNeedsTarget(outputAction) {
+			return outputAction === 'update-card'
+				|| outputAction === 'append-collector'
+				|| outputAction === 'update-card-template'
+				|| outputAction === 'append-collector-template';
+		}
+
+		function workflowOutputUsesAi(outputAction) {
+			return outputAction === 'create-card'
+				|| outputAction === 'update-card'
+				|| outputAction === 'append-collector';
+		}
+
 		function wfOutputChanged() {
 			var output = document.getElementById('wf-output').value;
 			var targetRow = document.getElementById('wf-target-row');
 			if (targetRow) {
-				targetRow.style.display = (output === 'update-card' || output === 'append-collector') ? 'block' : 'none';
+				targetRow.style.display = workflowOutputNeedsTarget(output) ? 'block' : 'none';
+			}
+			var helpEl = document.getElementById('wf-output-help');
+			if (helpEl) {
+				helpEl.textContent = workflowOutputUsesAi(output)
+					? 'AI actions send the resolved template to the model. Template actions save the rendered template directly.'
+					: 'Template actions skip the model call and save the resolved template directly. Update and append actions require a target card.';
 			}
 		}
 
@@ -2658,7 +2929,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 			if (!name) { alert('Please enter a workflow name.'); return; }
 			if (!promptTemplate) { alert('Please enter a prompt template.'); return; }
-			if ((outputAction === 'update-card' || outputAction === 'append-collector') && !targetCardId) {
+			if (workflowOutputNeedsTarget(outputAction) && !targetCardId) {
 				alert('Please select a target card for this output action.'); return;
 			}
 
@@ -2753,6 +3024,11 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				if (filterEl) filterEl.value = wf.triggerFilter || '';
 			}
 		});
+
+		wireAddCardDraftPersistence();
+		wireEditorDraftPersistence();
+		restoreAddCardDraft();
+		restoreEditorDraft();
 
 		// ─── Context menu on knowledge card text selection ──────────
 		(function setupCardContextMenu() {

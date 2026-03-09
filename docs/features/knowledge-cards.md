@@ -55,7 +55,7 @@ Click **Generate with AI** in the Knowledge tab to create a card from a topic pr
 3. A cancellable progress notification tracks generation
 4. The resulting card is saved directly to your knowledge base
 
-Uses the same model configured in **Extraction Model** (`intelligence.autoLearn.modelFamily`).
+Uses the active Copilot Chat model for that chat session.
 
 ### AI Synthesis with Custom Prompt
 
@@ -66,6 +66,8 @@ Select one or more items in the card queue and click **✨ AI Synthesize**. The 
 
 If no custom prompt is provided, the default synthesis prompt is used. Custom prompts are injected as a `## User's Custom Instructions` section in the LLM prompt, between the system instructions and the source material.
 
+AI Draft / Synthesize uses the dedicated **Card Synthesis Model** setting (`knowledgeCards.synthesisModelFamily`) when set.
+
 ### From Copilot Chat with Tools
 
 Use Language Model Tools when you want to create a card immediately from a chat session:
@@ -73,6 +75,13 @@ Use Language Model Tools when you want to create a card immediately from a chat 
 **Save a new card — `#saveCard`**
 ```
 #saveCard title:"Authentication Flow" content:"The auth system uses JWT..." category:"architecture"
+```
+
+**List or create folders from chat — `#saveCard`**
+```
+#saveCard action:"listFolders"
+#saveCard action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
+#saveCard title:"Authentication Flow" content:"# Authentication Flow\nThe auth system uses JWT..." folderMode:"named-folder" folderName:"Security"
 ```
 
 **Edit an existing card — `#editCard`**
@@ -132,14 +141,14 @@ Not all cards are injected equally. ContextManager uses a 3-tier system to optim
 | **Summary** | Cards 4–7 | 125-token summary + search pointer | ~125 each |
 | **Metadata** | Cards 8+ | Title + category only | ~20 each |
 
-This keeps prompt tokens under control while preserving access to all knowledge. The AI can always ask for the full content of any card via `#getCard` or `#searchCards`.
+This keeps prompt tokens under control while preserving access to all knowledge. The AI can always find a card with `#ctx` and then open the full content with `#getCard`.
 
 ### copilot-instructions.md Managed Block
 
 Cards marked **Pinned** have their titles listed in the auto-managed block inside `copilot-instructions.md`. This block also includes `#ctx` tool usage instructions, so agents know how to search for more:
 
 - **Pinned cards** — titles listed in the managed block (always visible to all agents)
-- **On demand** — any card is accessible via `#getCard` or `#searchCards` — agents can request full content when needed
+- **On demand** — any card is accessible via `#ctx` and `#getCard` — agents can request full content when needed
 - **Search** — `#ctx query:"topic"` searches across all cards, conventions, notes, and more
 
 ### Hook Injection via Knowledge Tab Selection
@@ -159,6 +168,8 @@ Cards can be organized into a hierarchical folder structure:
 
 {: .note }
 New cards auto-assign to the best-matching folder based on content similarity.
+
+You can also list folders, create folders, or save directly into a named folder from Copilot Chat with `#saveCard`.
 
 ---
 

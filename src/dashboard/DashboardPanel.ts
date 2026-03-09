@@ -22,11 +22,12 @@ export class DashboardPanel {
 	private readonly _panel: vscode.WebviewPanel;
 	private readonly _extensionUri: vscode.Uri;
 	private _disposables: vscode.Disposable[] = [];
-	private _suppressUpdate = false;
+	private _interactionSuppressed = false;
+	private _draftProtection = false;
 	private _pendingUpdate = false;
 	private _updateTimer: ReturnType<typeof setTimeout> | undefined;
-	private _suppressTimer: ReturnType<typeof setTimeout> | undefined;
-	private static readonly MAX_SUPPRESS_MS = 5000;
+	private _interactionTimer: ReturnType<typeof setTimeout> | undefined;
+	private static readonly MAX_INTERACTION_SUPPRESS_MS = 5000;
 
 	// Host-side active tab — survives full HTML re-renders; updated via webview message
 	private _currentTab: string = 'intelligence';
@@ -82,7 +83,7 @@ export class DashboardPanel {
 		// webview-side focusout handler from releasing suppression. When the user comes
 		// back, _endSuppression flushes any queued updates (e.g. new queue items).
 		this._panel.onDidChangeViewState(() => {
-			if (!this._panel.active && this._suppressUpdate) {
+			if (!this._panel.active && this._interactionSuppressed && !this._draftProtection) {
 				this._endSuppression();
 			}
 		}, null, this._disposables);
@@ -111,6 +112,7 @@ export class DashboardPanel {
 			postMessage: (msg: any) => this._panel.webview.postMessage(msg),
 			update: () => this._update(),
 			setSuppressUpdate: (v: boolean) => { this._setSuppressUpdate(v); },
+			setDraftProtection: (v: boolean) => { this._setDraftProtection(v); },
 			endSuppression: () => this._endSuppression(),
 		};
 		this._panel.webview.onDidReceiveMessage(
@@ -179,8 +181,8 @@ export class DashboardPanel {
 		if (this._updateTimer) {
 			clearTimeout(this._updateTimer);
 		}
-		if (this._suppressTimer) {
-			clearTimeout(this._suppressTimer);
+		if (this._interactionTimer) {
+			clearTimeout(this._interactionTimer);
 		}
 
 		this._panel.dispose();
@@ -198,42 +200,72 @@ export class DashboardPanel {
 	 * When suppressed, queue a pending update that fires when suppression ends.
 	 */
 	private _guardedUpdate() {
-		if (!this._suppressUpdate) {
+		if (!this._isUpdateSuppressed()) {
 			this._update();
 		} else {
 			this._pendingUpdate = true;
 		}
 	}
 
+	private _isUpdateSuppressed(): boolean {
+		return this._interactionSuppressed || this._draftProtection;
+	}
+
+	private _clearInteractionTimer() {
+		if (this._interactionTimer) {
+			clearTimeout(this._interactionTimer);
+			this._interactionTimer = undefined;
+		}
+	}
+
+	private _flushPendingUpdateIfPossible() {
+		if (!this._isUpdateSuppressed() && this._pendingUpdate) {
+			this._pendingUpdate = false;
+			this._update();
+		}
+	}
+
 	/**
-	 * Set or clear suppression. When suppressing, start a safety timer that
-	 * auto-releases after MAX_SUPPRESS_MS to avoid permanently stuck state.
+	 * Set or clear transient interaction suppression. A short safety timer clears
+	 * stale focus-based suppression, but draft protection remains until the webview
+	 * explicitly releases it.
 	 */
 	private _setSuppressUpdate(value: boolean) {
-		this._suppressUpdate = value;
+		this._interactionSuppressed = value;
 		if (value) {
-			if (this._suppressTimer) { clearTimeout(this._suppressTimer); }
-			this._suppressTimer = setTimeout(() => {
-				if (this._suppressUpdate) {
-					console.log('[DashboardPanel] Auto-releasing stale suppression after timeout');
-					this._endSuppression();
-				}
-			}, DashboardPanel.MAX_SUPPRESS_MS);
+			this._clearInteractionTimer();
+			if (!this._draftProtection) {
+				this._interactionTimer = setTimeout(() => {
+					if (this._interactionSuppressed) {
+						console.log('[DashboardPanel] Auto-releasing stale interaction suppression after timeout');
+						this._interactionSuppressed = false;
+						this._flushPendingUpdateIfPossible();
+					}
+				}, DashboardPanel.MAX_INTERACTION_SUPPRESS_MS);
+			}
 		} else {
-			if (this._suppressTimer) { clearTimeout(this._suppressTimer); this._suppressTimer = undefined; }
+			this._clearInteractionTimer();
+			this._flushPendingUpdateIfPossible();
 		}
+	}
+
+	private _setDraftProtection(value: boolean) {
+		this._draftProtection = value;
+		if (value) {
+			this._clearInteractionTimer();
+		} else if (this._interactionSuppressed) {
+			this._setSuppressUpdate(true);
+		}
+		this._flushPendingUpdateIfPossible();
 	}
 
 	/**
 	 * End suppression and flush any queued update.
 	 */
 	private _endSuppression() {
-		this._suppressUpdate = false;
-		if (this._suppressTimer) { clearTimeout(this._suppressTimer); this._suppressTimer = undefined; }
-		if (this._pendingUpdate) {
-			this._pendingUpdate = false;
-			this._update();
-		}
+		this._interactionSuppressed = false;
+		this._clearInteractionTimer();
+		this._flushPendingUpdateIfPossible();
 	}
 
 	/**
@@ -246,7 +278,7 @@ export class DashboardPanel {
 		}
 		this._updateTimer = setTimeout(() => {
 			this._updateTimer = undefined;
-			if (this._suppressUpdate) {
+			if (this._isUpdateSuppressed()) {
 				this._pendingUpdate = true;
 				return;
 			}
@@ -438,10 +470,10 @@ export class DashboardPanel {
 			<details${workflows.length > 0 ? ' open' : ''}>
 			<summary style="cursor: pointer; user-select: none;">
 				<h3 style="display: inline; margin: 0;">⚡ Custom Workflows (${workflows.length})</h3>
-				<span style="opacity: 0.6; font-size: 0.82em; margin-left: 8px;">User-defined AI pipelines</span>
+				<span style="opacity: 0.6; font-size: 0.82em; margin-left: 8px;">AI or template-driven automations</span>
 			</summary>
 			<p style="opacity: 0.6; font-size: 0.85em; margin: 8px 0 12px 0;">
-				Create AI workflows that fire on events (queue add, convention learned, card created/updated, observation) or run manually. Use <code>{{cards.all}}</code>, <code>{{conventions.all}}</code>, <code>{{queue.response}}</code> and more in your prompt template.
+				Create workflows that fire on events (queue add, convention learned, card created/updated, observation) or run manually. AI actions send the resolved template to the model; template actions save the rendered markdown directly.
 			</p>
 
 			<!-- Existing workflows list -->
@@ -455,9 +487,12 @@ export class DashboardPanel {
 						: wf.trigger === 'card-updated' ? '<span class="wf-badge wf-badge-event">on card update</span>'
 						: wf.trigger === 'observation-created' ? '<span class="wf-badge wf-badge-event">on observation</span>'
 						: '<span class="wf-badge wf-badge-manual">manual</span>';
-					const outputBadge = wf.outputAction === 'create-card' ? '📄 create'
-						: wf.outputAction === 'update-card' ? '✏️ update'
-						: '📎 append';
+					const outputBadge = wf.outputAction === 'create-card' ? 'AI create'
+						: wf.outputAction === 'update-card' ? 'AI update'
+						: wf.outputAction === 'append-collector' ? 'AI append'
+						: wf.outputAction === 'create-card-template' ? 'Template create'
+						: wf.outputAction === 'update-card-template' ? 'Template update'
+						: 'Template append';
 					const statusIcon = !wf.lastRun ? '' : wf.lastRunStatus === 'success' ? '✅' : wf.lastRunStatus === 'skipped' ? '⏭️' : '❌';
 					const lastRunInfo = wf.lastRun ? `Last: ${formatAge(wf.lastRun)} ${statusIcon}` : 'Never run';
 					const historyInfo = (wf.runHistory?.length || 0) > 0 ? ` · ${wf.runHistory!.filter(r => r.status === 'success').length}✅ ${wf.runHistory!.filter(r => r.status === 'skipped').length}⏭️ ${wf.runHistory!.filter(r => r.status === 'error').length}❌` : '';
@@ -533,10 +568,14 @@ export class DashboardPanel {
 					<div class="form-group" style="flex:1;">
 						<label style="font-weight:600;font-size:0.85em;">Output Action</label>
 						<select id="wf-output" onchange="wfOutputChanged()" style="width:100%;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;">
-							<option value="create-card">Create new card</option>
-							<option value="update-card">Update existing card</option>
-							<option value="append-collector">Append to collector card</option>
+							<option value="create-card">AI: Create new card</option>
+							<option value="update-card">AI: Update existing card</option>
+							<option value="append-collector">AI: Append to collector card</option>
+							<option value="create-card-template">Template: Create new card</option>
+							<option value="update-card-template">Template: Update existing card</option>
+							<option value="append-collector-template">Template: Append to collector card</option>
 						</select>
+						<span id="wf-output-help" style="display:block;opacity:0.5;font-size:0.78em;margin-top:4px;">AI actions send the resolved template to the model. Template actions save the rendered template directly.</span>
 					</div>
 				</div>
 				<div id="wf-target-row" class="form-group" style="margin-bottom:10px;display:none;">
@@ -1363,6 +1402,32 @@ export class DashboardPanel {
 						<option value="" ${!(cfg.get('intelligence.autoLearn.modelFamily', '') as string) ? 'selected' : ''}>Default</option>
 						${this._availableModelFamilies.map(f =>
 							`<option value="${f}" ${(cfg.get('intelligence.autoLearn.modelFamily', '') as string) === f ? 'selected' : ''}>${escapeHtml(f)}</option>`
+						).join('')}
+					</select>
+				</div>
+				<div class="setting-row">
+					<div class="setting-info">
+						<strong>Workflow Model</strong>
+						<div class="setting-desc">Model family for AI workflow actions. Template-only workflow actions ignore this setting.</div>
+					</div>
+					<select class="dashboard-input-narrow-140"
+						onchange="updateSetting('workflows.modelFamily', this.value)">
+						<option value="" ${!(cfg.get('workflows.modelFamily', '') as string) ? 'selected' : ''}>Default</option>
+						${this._availableModelFamilies.map(f =>
+							`<option value="${f}" ${(cfg.get('workflows.modelFamily', '') as string) === f ? 'selected' : ''}>${escapeHtml(f)}</option>`
+						).join('')}
+					</select>
+				</div>
+				<div class="setting-row">
+					<div class="setting-info">
+						<strong>Card Synthesis Model</strong>
+						<div class="setting-desc">Model family for AI Draft / Synthesize Card in the dashboard editor.</div>
+					</div>
+					<select class="dashboard-input-narrow-140"
+						onchange="updateSetting('knowledgeCards.synthesisModelFamily', this.value)">
+						<option value="" ${!(cfg.get('knowledgeCards.synthesisModelFamily', '') as string) ? 'selected' : ''}>Default</option>
+						${this._availableModelFamilies.map(f =>
+							`<option value="${f}" ${(cfg.get('knowledgeCards.synthesisModelFamily', '') as string) === f ? 'selected' : ''}>${escapeHtml(f)}</option>`
 						).join('')}
 					</select>
 				</div>

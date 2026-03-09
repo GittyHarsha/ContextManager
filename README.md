@@ -2,7 +2,7 @@
 
 > Give Copilot persistent, structured memory for your codebase. Knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, and a full dashboard — all injected automatically into every AI interaction.
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
+[![Version](https://img.shields.io/badge/version-2.10.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.100.0+-007ACC.svg)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
@@ -18,10 +18,21 @@ Create, curate, and inject expert knowledge into every AI interaction. Knowledge
 
 - **Create cards** from the dashboard, via `#saveCard` tool, or from the Card Queue
 - **Tag and categorize** (architecture, pattern, convention, explanation, note)
+- **Folder-aware chat saves** — `#saveCard` can list folders, create folders, and save directly into a named folder
 - **Folder organization** — organize cards into folders manually or with `#organizeCards` auto-organize
 - **Code anchors** — cards track referenced files and flag staleness when code changes
 - **Search and filter** — find cards by keyword or BM25 full-text search
 - **Smart merge** — when saving a card similar to an existing one, a merge picker appears automatically
+
+### ⚡ Custom Workflows
+
+Build reusable automations on top of your project memory. Workflow templates can render project data into markdown, then either send it through the model or save the rendered output directly.
+
+- **AI-backed actions** — generate markdown and create, update, or append cards
+- **Template actions** — skip the model call and write rendered templates directly
+- **7 triggers** — manual, queue, convention learned, card created, card updated, observation created
+- **Target-aware updates** — workflows can resolve target card content into template variables before updating
+- **Run history and skip patterns** — track success/skipped/error runs and suppress low-value output
 
 ### 🔄 Auto-Capture & Card Queue
 
@@ -85,7 +96,7 @@ These tools are registered via `vscode.lm.registerTool` and available to **all a
 |------|-----------|---------|  
 | `contextManager_ctx` | `#ctx` | Unified project memory — search, list, learn, getCard, retrospect |
 | `contextManager_getCard` | `#getCard` | Read a specific knowledge card by ID |
-| `contextManager_saveKnowledgeCard` | `#saveCard` | Save a new knowledge card (runs silently) |
+| `contextManager_saveKnowledgeCard` | `#saveCard` | Save a card, list folders, or create folders from chat |
 | `contextManager_editKnowledgeCard` | `#editCard` | Edit an existing knowledge card |
 | `contextManager_organizeKnowledgeCards` | `#organizeCards` | Organize cards into folders |
 
@@ -120,6 +131,14 @@ Type `#ctx` in any Copilot Chat to search your project memory:
 #ctx query:"error handling"
 #ctx mode:list type:conventions
 #ctx mode:learn learnType:convention title:"Error handling" content:"Always use Result<T>"
+```
+
+You can also save and organize cards directly from chat:
+
+```
+#saveCard action:"listFolders"
+#saveCard action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
+#saveCard title:"Authentication Flow" content:"# Authentication Flow\nUses JWT for session auth." folderMode:"named-folder" folderName:"Security"
 ```
 
 ### Step 5 — Context Everywhere
@@ -208,13 +227,19 @@ copilot-instructions.md (auto-synced managed block)
 5 Language Model Tools (available to ALL agents)
   ├── #ctx — unified project memory (search, list, learn, getCard, retrospect)
   ├── #getCard — read a specific card by ID
-  └── #saveCard / #editCard / #organizeCards — knowledge card CRUD
+  └── #saveCard / #editCard / #organizeCards — knowledge card CRUD and folder flows
 
 Auto-Capture Pipeline
   ├── Observation capture from all chat participants
   ├── Auto-learn: conventions, tool hints, working notes
   ├── Card Queue: card-worthy responses staged for review
   └── Auto-distill: periodic observation compaction
+
+Workflow Engine
+  ├── Template resolution with project, queue, card, and observation variables
+  ├── AI actions: create / update / append markdown cards
+  ├── Template actions: create / update / append without model calls
+  └── Re-entrancy guard + run history + skip patterns
 
 Dashboard (WebView, 4 tabs)
   ├── Intelligence — conventions, tool hints, working notes

@@ -1,9 +1,8 @@
 /**
  * WorkflowEngine — executes user-defined CustomWorkflow definitions.
  *
- * Resolves {{template}} variables in the prompt, calls the vscode.lm API,
- * and performs the configured output action (create card, update card, or
- * append to a collector card).
+ * Resolves {{template}} variables in the prompt, optionally calls the vscode.lm API,
+ * and performs the configured output action (create, update, or append).
  *
  * Supports collection variables ({{cards.all}}, {{toolHints.all}}, etc.)
  * with a per-workflow maxItems cap, plus event-specific variables for
@@ -12,13 +11,18 @@
 
 import * as vscode from 'vscode';
 import type { ProjectManager } from '../projects/ProjectManager';
-import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard, Convention, WorkflowRunRecord } from '../projects/types';
+import type { CustomWorkflow, QueuedCardCandidate, KnowledgeCard, Convention, WorkflowRunRecord, WorkflowOutputAction } from '../projects/types';
 import type { AutoCaptureService, Observation } from '../autoCapture';
 import { ConfigurationManager } from '../config';
 
 const WORKFLOW_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_ITEMS = 20;
 const MAX_RUN_HISTORY = 15;
+const TEMPLATE_ONLY_ACTIONS = new Set<WorkflowOutputAction>([
+	'create-card-template',
+	'update-card-template',
+	'append-collector-template',
+]);
 
 // ── Context passed to a workflow run ────────────────────────────
 
@@ -168,43 +172,18 @@ export class WorkflowEngine {
 				return this._fail(workflow, projectId, 'Resolved prompt is empty — check your template variables.');
 			}
 
-			// 2. Select model
-			const modelFamily = ConfigurationManager.autoLearnModelFamily;
-			const selector: vscode.LanguageModelChatSelector = modelFamily ? { family: modelFamily } : {};
-			const models = await vscode.lm.selectChatModels(selector);
-			if (!models.length) {
-				return this._fail(workflow, projectId, 'No language model available.');
-			}
-
-			// 3. Send request
-			const messages = [
-				vscode.LanguageModelChatMessage.User(
-					'You are executing a user-defined workflow for a project knowledge manager. ' +
-					'Follow the instructions precisely. Return ONLY plain text output — no markdown fences, no JSON wrapper unless the user prompt specifically asks for structured output.'
-				),
-				vscode.LanguageModelChatMessage.User(prompt),
-			];
-
-			const cts = new vscode.CancellationTokenSource();
-			const response = await Promise.race([
-				models[0].sendRequest(messages, {}, cts.token),
-				new Promise<null>((_, reject) =>
-					setTimeout(() => { cts.cancel(); reject(new Error('Workflow LLM timeout')); }, WORKFLOW_TIMEOUT_MS)
-				),
-			]);
-			if (!response) {
-				return this._fail(workflow, projectId, 'No response from model.');
-			}
-
-			// 4. Stream response text
-			let text = '';
-			for await (const part of (response as any).stream ?? (response as any).text ?? []) {
-				if (typeof part === 'string') { text += part; }
-				else if (part?.value) { text += part.value; }
-			}
-			text = text.trim();
+			// 2. Produce output text — either direct template expansion or AI output.
+			const text = TEMPLATE_ONLY_ACTIONS.has(workflow.outputAction)
+				? prompt.trim()
+				: await this._generateAiOutput(prompt);
 			if (!text) {
-				return this._fail(workflow, projectId, 'Model returned empty response.');
+				return this._fail(
+					workflow,
+					projectId,
+					TEMPLATE_ONLY_ACTIONS.has(workflow.outputAction)
+						? 'Resolved template output is empty.'
+						: 'Model returned empty response.'
+				);
 			}
 
 			// 4b. Check skip pattern — if output matches, skip the output action
@@ -234,6 +213,44 @@ export class WorkflowEngine {
 		} catch (err: any) {
 			return this._fail(workflow, projectId, err?.message || String(err));
 		}
+	}
+
+	private async _generateAiOutput(prompt: string): Promise<string> {
+		const modelFamily = ConfigurationManager.workflowModelFamily;
+		const selector: vscode.LanguageModelChatSelector = modelFamily ? { family: modelFamily } : {};
+		const models = await vscode.lm.selectChatModels(selector);
+		if (!models.length) {
+			throw new Error(`No language model available${modelFamily ? ` (requested family: "${modelFamily}")` : ''}.`);
+		}
+
+		const messages = [
+			vscode.LanguageModelChatMessage.User(
+				'You are executing a user-defined workflow for a project knowledge manager. ' +
+				'Follow the instructions precisely. Return the final card-ready content only. ' +
+				'Markdown headings, lists, tables, and code blocks are allowed and preferred when they improve readability. ' +
+				'Do not wrap the entire response in a JSON object or in outer markdown fences unless the prompt explicitly asks for that format.'
+			),
+			vscode.LanguageModelChatMessage.User(prompt),
+		];
+
+		const cts = new vscode.CancellationTokenSource();
+		const response = await Promise.race([
+			models[0].sendRequest(messages, {}, cts.token),
+			new Promise<null>((_, reject) =>
+				setTimeout(() => { cts.cancel(); reject(new Error('Workflow LLM timeout')); }, WORKFLOW_TIMEOUT_MS)
+			),
+		]);
+		if (!response) {
+			throw new Error('No response from model.');
+		}
+
+		let text = '';
+		for await (const part of (response as any).stream ?? (response as any).text ?? []) {
+			if (typeof part === 'string') { text += part; }
+			else if (part?.value) { text += part.value; }
+		}
+
+		return text.trim();
 	}
 
 	// ── Auto-trigger: Queue item added ──────────────────────────
@@ -351,22 +368,24 @@ export class WorkflowEngine {
 	private async _executeOutput(
 		workflow: CustomWorkflow,
 		ctx: WorkflowContext,
-		aiOutput: string,
+		outputText: string,
 	): Promise<WorkflowResult> {
 		const { projectId } = ctx;
 
 		switch (workflow.outputAction) {
-			case 'create-card': {
-				const title = this._extractTitle(aiOutput, workflow.name);
+			case 'create-card':
+			case 'create-card-template': {
+				const title = this._extractTitle(outputText, workflow.name);
 				const tags = ['workflow', workflow.name.toLowerCase().replace(/\s+/g, '-')];
-				const source = `Workflow: ${workflow.name}`;
+				const source = `Workflow: ${workflow.name}${workflow.outputAction.endsWith('-template') ? ' (template-only)' : ''}`;
 				const card = await this.projectManager.addKnowledgeCard(
-					projectId, title, aiOutput, 'note', tags, source,
+					projectId, title, outputText, 'note', tags, source,
 				);
-				return { success: true, cardId: card?.id, output: aiOutput };
+				return { success: true, cardId: card?.id, output: outputText };
 			}
 
-			case 'update-card': {
+			case 'update-card':
+			case 'update-card-template': {
 				if (!workflow.targetCardId) {
 					return { success: false, error: 'No target card specified for update.' };
 				}
@@ -376,13 +395,14 @@ export class WorkflowEngine {
 					return { success: false, error: `Target card not found: ${workflow.targetCardId}` };
 				}
 				await this.projectManager.updateKnowledgeCard(projectId, workflow.targetCardId, {
-					content: aiOutput,
+					content: outputText,
 					updated: Date.now(),
 				});
-				return { success: true, cardId: workflow.targetCardId, output: aiOutput };
+				return { success: true, cardId: workflow.targetCardId, output: outputText };
 			}
 
-			case 'append-collector': {
+			case 'append-collector':
+			case 'append-collector-template': {
 				if (!workflow.targetCardId) {
 					return { success: false, error: 'No collector card specified.' };
 				}
@@ -392,15 +412,16 @@ export class WorkflowEngine {
 					return { success: false, error: `Collector card not found: ${workflow.targetCardId}` };
 				}
 				const timestamp = new Date().toLocaleString();
-				const separator = `\n\n---\n_Workflow run: ${timestamp}_\n\n`;
+				const modeLabel = workflow.outputAction.endsWith('-template') ? 'template run' : 'Workflow run';
+				const separator = `\n\n---\n_${modeLabel}: ${timestamp}_\n\n`;
 				const newContent = collector.content
-					? collector.content + separator + aiOutput
-					: aiOutput;
+					? collector.content + separator + outputText
+					: outputText;
 				await this.projectManager.updateKnowledgeCard(projectId, workflow.targetCardId, {
 					content: newContent,
 					updated: Date.now(),
 				});
-				return { success: true, cardId: workflow.targetCardId, output: aiOutput };
+				return { success: true, cardId: workflow.targetCardId, output: outputText };
 			}
 
 			default:

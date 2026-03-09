@@ -2,8 +2,8 @@
 	"name": "context-manager",
 	"publisher": "local-dev",
 	"displayName": "ContextManager - AI Project Memory",
-	"version": "2.9.0",
-	"description": "Give Copilot persistent project memory — knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, file-based staleness detection, customizable distiller prompts, data import/export, and a full dashboard. Works with @ctx chat, #ctx, #searchCards, and #getCard.",
+	"version": "2.10.0",
+	"description": "Give Copilot persistent project memory — knowledge cards, folder-aware #saveCard flows, custom AI/template workflows, conventions, working notes, BM25 search, auto-capture, and a full dashboard. Works with @ctx chat, #ctx, #saveCard, and #getCard.",
 	"icon": "ContextManager.png",
 	"galleryBanner": {
 		"color": "#1e1e1e",
@@ -384,6 +384,16 @@
 					"default": "",
 					"markdownDescription": "Preferred language model family for auto-learn LLM extraction. This runs in the background after each chat interaction. Leave empty to use the default available model. Use the dashboard for a dropdown of available models."
 				},
+				"contextManager.workflows.modelFamily": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Preferred language model family for **AI workflow actions**. Applies to create/update/append workflow actions that call the model. Template-only workflow actions ignore this setting. Leave empty to use the default available model."
+				},
+				"contextManager.knowledgeCards.synthesisModelFamily": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Preferred language model family for **AI Draft / Synthesize Card** in the dashboard editor. Leave empty to use the default available model."
+				},
 				"contextManager.intelligence.autoLearn.maxWorkingNotes": {
 					"type": "integer",
 					"default": 30,
@@ -465,6 +475,26 @@
 					"maximum": 200,
 					"markdownDescription": "Maximum number of observations to store in the circular buffer. Older observations are evicted when the buffer is full."
 				},
+				"contextManager.hooks.sessionStart": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable the UserPromptSubmit hook path that injects selected cards and custom prompt instructions into each prompt."
+				},
+				"contextManager.hooks.postToolUse": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable hook-based capture of tool calls during agent sessions."
+				},
+				"contextManager.hooks.preCompact": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Capture session state before VS Code compacts conversation history."
+				},
+				"contextManager.hooks.stop": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Capture the final session transcript when an agent session ends."
+				},
 				"contextManager.tools.backgroundMode": {
 					"type": "boolean",
 					"default": true,
@@ -480,7 +510,7 @@
 					"default": 5,
 					"minimum": 1,
 					"maximum": 20,
-					"markdownDescription": "Maximum number of knowledge cards returned by `#searchCards`. Higher values provide more context but consume more tokens."
+					"markdownDescription": "Maximum number of card results returned by `#ctx` card searches. Higher values provide more context but consume more tokens."
 				},
 				"contextManager.search.maxSearchResults": {
 					"type": "integer",
@@ -813,27 +843,34 @@
 					"card",
 					"save",
 					"background",
-					"memory"
+					"memory",
+					"folder"
 				],
 				"toolReferenceName": "saveCard",
 				"displayName": "Save Knowledge Card",
-				"modelDescription": "Silently saves a knowledge card to the active project without interrupting the chat session. No confirmation required — runs in background. Provide a title, content (markdown), optional category ('architecture'|'pattern'|'convention'|'explanation'|'note'|'other'), optional tags, and optional source reference.",
+				"modelDescription": "Silently saves a knowledge card to the active project without interrupting the chat session. No confirmation required — runs in background. The same tool can also list folders or create a folder before saving. For saving, provide title, content (markdown), optional category ('architecture'|'pattern'|'convention'|'explanation'|'note'|'other'), optional tags, optional source, and optional folder controls.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(notebook-edit)",
 				"inputSchema": {
 					"type": "object",
-					"required": [
-						"title",
-						"content"
-					],
 					"properties": {
+						"action": {
+							"type": "string",
+							"description": "Action to perform. Use 'save' to save a card, 'listFolders' to inspect available folders, or 'createFolder' to create a folder without saving a card.",
+							"enum": [
+								"save",
+								"listFolders",
+								"createFolder"
+							],
+							"default": "save"
+						},
 						"title": {
 							"type": "string",
-							"description": "Title of the knowledge card."
+							"description": "Title of the knowledge card. Required when action='save'."
 						},
 						"content": {
 							"type": "string",
-							"description": "Full markdown content of the card."
+							"description": "Full markdown content of the card. Required when action='save'."
 						},
 						"category": {
 							"type": "string",
@@ -858,9 +895,28 @@
 							"type": "string",
 							"description": "Optional source reference (e.g. doc URL or file path)."
 						},
+						"folderMode": {
+							"type": "string",
+							"description": "For action='save': auto-pick a folder, force root, or use/create a named folder.",
+							"enum": [
+								"auto",
+								"root",
+								"named-folder"
+							],
+							"default": "auto"
+						},
 						"folderName": {
 							"type": "string",
-							"description": "Optional folder name to place the card into. If omitted, auto-assigns to the best matching folder."
+							"description": "Folder name to place the card into or create. Use with action='createFolder' or folderMode='named-folder'."
+						},
+						"parentFolderName": {
+							"type": "string",
+							"description": "Optional parent folder name when creating or resolving a nested folder."
+						},
+						"createFolderIfMissing": {
+							"type": "boolean",
+							"description": "When saving to a named folder, create the folder if it does not already exist.",
+							"default": true
 						}
 					}
 				}
@@ -876,7 +932,7 @@
 				],
 				"toolReferenceName": "getCard",
 				"displayName": "Get Knowledge Card",
-				"modelDescription": "Reads the full content of a knowledge card by its ID. Returns title, content, category, tags, anchors (code stubs that ground the card), and staleness warnings if anchor files have changed. Use this tool after finding a card via #ctx or #searchCards. Always prefer this over re-searching when you already have a card ID.",
+				"modelDescription": "Reads the full content of a knowledge card by its ID. Returns title, content, category, tags, anchors (code stubs that ground the card), and staleness warnings if anchor files have changed. Use this tool after finding a card via #ctx. Always prefer this over re-searching when you already have a card ID.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(open-preview)",
 				"inputSchema": {
@@ -903,7 +959,7 @@
 				],
 				"toolReferenceName": "editCard",
 				"displayName": "Edit Knowledge Card",
-				"modelDescription": "Updates fields on an existing knowledge card in the active project. Only the fields you supply are changed — omitted fields are left as-is. Use #ctx or #searchCards to find the card ID first.",
+				"modelDescription": "Updates fields on an existing knowledge card in the active project. Only the fields you supply are changed — omitted fields are left as-is. Use #ctx to find the card ID first.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(edit)",
 				"inputSchema": {

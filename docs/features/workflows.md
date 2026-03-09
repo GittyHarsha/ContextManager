@@ -1,34 +1,38 @@
 ---
 layout: default
-title: Custom AI Workflows
+title: Custom Workflows
 parent: Features
 nav_order: 5
 ---
 
-# Custom AI Workflows
+# Custom Workflows
 {: .fs-8 }
 
-User-defined AI pipelines that execute custom prompts against your project knowledge and take action on the results.
+User-defined workflow pipelines that render templates against your project knowledge, then either ask the model for markdown output or save the rendered template directly.
 {: .fs-5 .fw-300 }
 
 ---
 
 ## Overview
 
-Workflows let you define reusable AI operations that combine your project data with a custom prompt template, send it to the LLM, and automatically create or update knowledge cards with the result.
+Workflows let you define reusable operations that combine your project data with a custom template and then either:
+
+- send the rendered template to the LLM and store the markdown result
+- save the rendered template directly with no model call
 
 Use cases:
 - **Summarize recent observations** into a daily digest card
 - **Generate onboarding guides** from your conventions and working notes
 - **Auto-classify queue items** into themed knowledge cards
 - **Audit selected cards** for staleness or gaps
+- **Append raw change logs** or structured runbooks without using AI
 - **Extract action items** from new queue captures
 
 ---
 
 ## Creating a Workflow
 
-Open the Dashboard → **Intelligence** tab → scroll to the **Custom AI Workflows** section → click **+ New Workflow**.
+Open the Dashboard → **Intelligence** tab → scroll to the **Custom Workflows** section → click **+ New Workflow**.
 
 ### Workflow Fields
 
@@ -36,8 +40,8 @@ Open the Dashboard → **Intelligence** tab → scroll to the **Custom AI Workfl
 |:------|:------------|
 | **Name** | Display name for the workflow |
 | **Trigger** | When the workflow runs automatically (see [Triggers](#triggers)) |
-| **Prompt Template** | The prompt sent to the LLM, using `{% raw %}{{variable}}{% endraw %}` placeholders |
-| **Output Action** | What to do with the LLM response |
+| **Prompt Template** | The template rendered with `{% raw %}{{variable}}{% endraw %}` placeholders. AI actions send this to the model; template actions save it directly. |
+| **Output Action** | Whether to use AI output or the rendered template, and what to do with it |
 | **Target Card** | Which card to update (for update/append actions) |
 | **Max Items** | Maximum number of items when rendering collection variables (default: 20) |
 | **Skip Pattern** | Optional regex. If the LLM output matches, the output action is skipped and the run is recorded as "skipped" |
@@ -68,7 +72,7 @@ Prompt templates use `{% raw %}{{namespace.field}}{% endraw %}` syntax to inject
 | `{% raw %}{{card.tags}}{% endraw %}` | Comma-separated tags of the target card |
 
 {: .tip }
-> For auto-triggered workflows with an **update-card** or **append-collector** output action, ContextManager automatically resolves the target card's data into `{% raw %}{{card.title}}{% endraw %}`, `{% raw %}{{card.content}}{% endraw %}`, and `{% raw %}{{card.tags}}{% endraw %}` — even when triggered by events. This lets your prompt template reference existing card content for intelligent merging.
+> For auto-triggered workflows with an update or append action, ContextManager automatically resolves the target card's data into `{% raw %}{{card.title}}{% endraw %}`, `{% raw %}{{card.content}}{% endraw %}`, and `{% raw %}{{card.tags}}{% endraw %}` — even when triggered by events. This lets your template reference existing card content for intelligent merging or direct appends.
 
 ### Project Variables
 
@@ -131,15 +135,21 @@ Triggers control when a workflow runs automatically:
 
 | Action | Behavior |
 |:-------|:---------|
-| **Create Card** | Creates a new knowledge card from the LLM output. Title is extracted from the first heading or generated from the workflow name. Tags `workflow` and the workflow name are auto-added. |
-| **Update Card** | Replaces the content of the target card with the LLM output. Requires a target card to be selected. |
-| **Append to Collector** | Appends the LLM output (with a dated separator) to the target card. Useful for running logs, digests, and accumulators. |
+| **AI: Create Card** | Sends the rendered template to the LLM, then creates a new knowledge card from the markdown response. Title is extracted from the first heading or generated from the workflow name. Tags `workflow` and the workflow name are auto-added. |
+| **AI: Update Card** | Sends the rendered template to the LLM, then replaces the target card content with the markdown response. Requires a target card. |
+| **AI: Append to Collector** | Sends the rendered template to the LLM, then appends the markdown response with a dated separator to the target card. Useful for digests and accumulators. Requires a target card. |
+| **Template: Create Card** | Skips the model call and creates a new card from the rendered template exactly as written. |
+| **Template: Update Card** | Skips the model call and replaces the target card with the rendered template. Requires a target card. |
+| **Template: Append to Collector** | Skips the model call and appends the rendered template with a dated separator to the target card. Requires a target card. |
+
+{: .note }
+> AI workflow output is stored as markdown. Headings, lists, tables, and code blocks are preserved when cards are created or updated.
 
 ---
 
 ## Skip Pattern
 
-A workflow can define an optional **Skip Pattern** — a regex tested against the LLM output after generation but before the output action executes. If the pattern matches, the output action is skipped entirely and the run is recorded with a ⏭️ "skipped" status.
+A workflow can define an optional **Skip Pattern** — a regex tested against the final rendered output before the output action executes. For AI actions this means the model response; for template actions it means the resolved template text. If the pattern matches, the output action is skipped entirely and the run is recorded with a ⏭️ "skipped" status.
 
 This is useful when auto-triggered workflows sometimes produce low-value or placeholder responses. For example, setting the skip pattern to `no relevant content|nothing to report` prevents the workflow from creating or updating cards when the AI has nothing meaningful to say.
 
@@ -161,14 +171,14 @@ Each workflow tracks its last 15 runs with a timestamp and status: **success** (
 
 The workflows section appears in the **Intelligence** tab of the Dashboard:
 
-- **Workflow list** — Each workflow shows its name, trigger badge, output action, and run status
+- **Workflow list** — Each workflow shows its name, trigger badge, output action type (`AI` or `Template`), and run status
 - **Trigger badges** — Color-coded: blue for auto-queue, gray for manual, purple for event triggers
 - **Run button** (▶) — Manually execute any workflow
 - **Edit/Delete** — Modify or remove workflows
 - **Enable/Disable** toggle — Pause a workflow without deleting it
 - **Run history summary** — Each workflow shows aggregated success/skipped/error counts from recent runs
 - **Skipped status** (⏭️) — Shown when the skip pattern matched the LLM output
-- **Add form** — Clickable variable insertion buttons grouped by category (Queue, Card, Project, Collections, Event)
+- **Add form** — Clickable variable insertion buttons grouped by category (Queue, Card, Project, Collections, Event), plus output modes for AI-backed or direct template actions
 
 ---
 
@@ -199,8 +209,8 @@ The workflows section appears in the **Intelligence** tab of the Dashboard:
 |:--------|:------|
 | Name | Convention Change Log |
 | Trigger | Convention Learned |
-| Prompt | `A new convention was learned: "{% raw %}{{convention.title}}{% endraw %}": {% raw %}{{convention.content}}{% endraw %}. Write a brief changelog entry explaining what changed and why.` |
-| Output | Append to Collector |
+| Prompt | `## {% raw %}{{convention.title}}{% endraw %}\n\n{% raw %}{{convention.content}}{% endraw %}` |
+| Output | Template: Append to Collector |
 | Target Card | (select your changelog card) |
 
 ---
@@ -209,6 +219,7 @@ The workflows section appears in the **Intelligence** tab of the Dashboard:
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
+| Model Family | _(default)_ | Preferred model family for AI workflow actions. Template-only actions ignore this setting. |
 | Max Items | `20` | Per-workflow cap on collection variable expansion |
 | Skip Pattern | _(empty)_ | Per-workflow regex; if the LLM output matches, the output action is skipped |
 | Trigger Filter | _(empty)_ | Per-workflow regex; auto-trigger only fires when event content matches |

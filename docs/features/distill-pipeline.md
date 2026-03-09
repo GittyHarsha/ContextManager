@@ -5,7 +5,7 @@ parent: Features
 nav_order: 6
 prev_page:
   url: /features/workflows/
-  title: Custom AI Workflows
+   title: Custom Workflows
 ---
 
 # Distill Pipeline

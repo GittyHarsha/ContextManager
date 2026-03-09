@@ -12,6 +12,19 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.10.0] - 2026-03-09
+
+### Added
+- **Folder-aware `#saveCard`** — Chat can now list folders, create folders, and save cards directly into named folders.
+- **Custom Workflow upgrades** — Workflows now support AI and direct-template create, update, and append actions.
+- **Dedicated model selectors** — Separate model settings are available for AI workflows and AI Draft / Synthesize Card.
+
+### Fixed
+- **Workflow markdown preservation** — AI workflow output now keeps markdown structure when written to cards.
+- **Dashboard draft resilience** — Open card drafts survive background updates instead of being replaced mid-edit.
+
+---
+
 ## [2.9.0] - 2026-03-07
 
 ### Added
@@ -55,7 +68,7 @@ All notable changes to ContextManager.
 ## [2.3.0] - 2026-03-05
 
 ### Added
-- **Custom AI Workflows** — User-defined pipelines with custom prompt templates using `{{variable}}` syntax. Define workflows in the Dashboard Intelligence tab with clickable variable insertion buttons.
+- **Custom Workflows** — User-defined pipelines with custom prompt templates using `{{variable}}` syntax. Define workflows in the Dashboard Intelligence tab with clickable variable insertion buttons.
 - **7 trigger types** — Manual, auto-queue, both, convention-learned, card-created, card-updated, observation-created. Event triggers fire automatically in the background.
 - **3 output actions** — Create card, update card, append to collector card (with dated separator).
 - **Collection template variables** — `{{cards.all}}`, `{{cards.selected}}`, `{{conventions.all}}`, `{{toolHints.all}}`, `{{workingNotes.all}}`, `{{observations.recent}}` — each capped by a per-workflow Max Items setting (default 20).

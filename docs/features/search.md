@@ -15,7 +15,7 @@ Fast, ranked search across your entire project memory using SQLite FTS4 via WebA
 
 ## Overview
 
-ContextManager provides search via `#ctx` (mode: search) — a unified tool that ranks results using the BM25 algorithm, the same ranking function used by modern search engines. `#searchCards` remains as a convenience for card-specific search. All search is local, running via sql.js (WebAssembly) with zero native binary dependencies.
+ContextManager provides search via `#ctx` (mode: search) — a unified tool that ranks results using the BM25 algorithm, the same ranking function used by modern search engines. Use `entityTypes:["card"]` when you want card-specific results. All search is local, running via sql.js (WebAssembly) with zero native binary dependencies.
 
 ---
 

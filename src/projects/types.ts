@@ -53,7 +53,13 @@ export interface Project {
 // ─── Custom Workflow Types ─────────────────────────────────────
 
 export type WorkflowTrigger = 'auto-queue' | 'manual' | 'both' | 'convention-learned' | 'card-created' | 'card-updated' | 'observation-created';
-export type WorkflowOutputAction = 'update-card' | 'create-card' | 'append-collector';
+export type WorkflowOutputAction =
+	| 'update-card'
+	| 'create-card'
+	| 'append-collector'
+	| 'update-card-template'
+	| 'create-card-template'
+	| 'append-collector-template';
 
 export interface WorkflowRunRecord {
 	timestamp: number;
@@ -67,8 +73,8 @@ export interface CustomWorkflow {
 	name: string;
 	promptTemplate: string;               // Supports {{variable}} placeholders
 	trigger: WorkflowTrigger;             // When the workflow fires
-	outputAction: WorkflowOutputAction;   // What to do with AI result
-	targetCardId?: string;                // For 'update-card' & 'append-collector'
+	outputAction: WorkflowOutputAction;   // What to do with AI result or resolved template
+	targetCardId?: string;                // For update/append actions
 	maxItems?: number;                    // Max items per collection variable (default 20)
 	skipPattern?: string;                 // Regex — if AI output matches, skip the output action
 	triggerFilter?: string;               // Regex — auto-triggers only fire if prompt+response matches

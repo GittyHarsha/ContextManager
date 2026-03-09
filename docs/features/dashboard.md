@@ -28,7 +28,7 @@ Centralized management for all ContextManager features — 4 tabs, one WebView.
 | **🧠 Intelligence** | Auto-Capture/Auto-Learn controls, observations feed, AI Distill |
 | **Knowledge** | All cards with search, filter, folders, select/deselect (drives hook injection), inline editing, card health, card queue |
 | **Context** | Project goals, conventions, tool hints, working notes, key files |
-| **⚙ Settings** | All extension settings editable in-dashboard, data import/export |
+| **⚙ Settings** | Core extension settings, hook controls, and data import/export |
 
 ---
 
@@ -47,13 +47,14 @@ The command center for the intelligence pipeline:
 - Type badges (bugfix, feature, change, etc.) shown as summary counts in the header
 - Actions: Delete (✕), Distill with AI (🧠)
 
-### Custom AI Workflows
-- **+ New Workflow** — define name, trigger, prompt template, output action, target card, and max items
+### Custom Workflows
+- **+ New Workflow** — define name, trigger, prompt template, output mode, target card, and max items
 - **Template variable buttons** — grouped by category (Queue, Card, Project, Collections, Event) for easy insertion into prompts
+- **AI and Template modes** — choose whether the rendered template goes through the model or is saved directly
 - **Trigger badges** — color-coded: blue (auto-queue), gray (manual), purple (event triggers like convention-learned, card-created, card-updated, observation-created)
 - **▶ Run** — manually execute any workflow
 - **Enable/Disable** toggle, Edit, Delete actions
-- See [Custom AI Workflows]({% link features/workflows.md %}) for full documentation
+- See [Custom Workflows]({% link features/workflows.md %}) for full documentation
 
 ---
 
@@ -123,7 +124,9 @@ Replace, Delete, Refine with AI, Create Card from Selection, Ask Question
 
 ## Settings Tab
 
-All extension settings editable directly in the dashboard - no need to open VS Code settings JSON.
+The most commonly used extension settings are editable directly in the dashboard, alongside hook controls and data management.
+
+- **Dedicated AI model selectors** — choose separate model families for background extraction, AI workflows, and AI Draft / Synthesize Card
 
 ### Data Management
 - **📦 Export All Data** / **Import Data** - full dump/restore

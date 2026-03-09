@@ -37,7 +37,7 @@ There's no hard limit on the number of cards. The `maxKnowledgeCardsInContext` s
 
 ### Do all cards go into every prompt?
 
-No. **Selected cards** (checked in the Knowledge tab) are injected into every prompt via the agent hook system. **Pinned cards** also have their titles in the `copilot-instructions.md` managed block. For additional cards, agents can search on demand via `#ctx` or `#searchCards`. Archived cards are automatically excluded from injection.
+No. **Selected cards** (checked in the Knowledge tab) are injected into every prompt via the agent hook system. **Pinned cards** also have their titles in the `copilot-instructions.md` managed block. For additional cards, agents can search on demand via `#ctx`, then open the exact card with `#getCard`. Archived cards are automatically excluded from injection.
 
 ### How do I share cards with my team?
 

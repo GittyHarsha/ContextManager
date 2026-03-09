@@ -8,19 +8,30 @@ import { ProjectManager } from '../projects/ProjectManager';
 
 // ─── Interfaces ─────────────────────────────────────────────────
 
+type SaveKnowledgeCardAction = 'save' | 'listFolders' | 'createFolder';
+type SaveKnowledgeCardFolderMode = 'auto' | 'root' | 'named-folder';
+
 interface ISaveKnowledgeCardParams {
-	/** Title of the knowledge card. */
-	title: string;
-	/** Full markdown content of the card. */
-	content: string;
+	/** Action to perform. Defaults to 'save'. */
+	action?: SaveKnowledgeCardAction;
+	/** Title of the knowledge card. Required for action='save'. */
+	title?: string;
+	/** Full markdown content of the card. Required for action='save'. */
+	content?: string;
 	/** Category for the card. Default: 'note'. */
 	category?: 'architecture' | 'pattern' | 'convention' | 'explanation' | 'note' | 'other';
 	/** Optional list of tags for discovery. */
 	tags?: string[];
 	/** Optional source reference (e.g. doc URL, file path). */
 	source?: string;
-	/** Optional folder name to place card into. If omitted, auto-assigns to best matching folder. */
+	/** How to place the card: auto-pick folder, force root, or use/create a named folder. */
+	folderMode?: SaveKnowledgeCardFolderMode;
+	/** Optional folder name to place card into or create. */
 	folderName?: string;
+	/** Optional parent folder name when creating or resolving a nested folder. */
+	parentFolderName?: string;
+	/** When saving to a named folder, create it if missing. Default: true. */
+	createFolderIfMissing?: boolean;
 }
 
 interface IEditKnowledgeCardParams {
@@ -47,6 +58,123 @@ interface IEditKnowledgeCardParams {
 export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnowledgeCardParams> {
 	constructor(private readonly projectManager: ProjectManager) {}
 
+	private _buildFolderTree(projectId: string): string {
+		const folders = this.projectManager.getKnowledgeFolders(projectId);
+		const cards = this.projectManager.getKnowledgeCards(projectId);
+		if (folders.length === 0) {
+			return 'No folders exist yet. Use action="createFolder" or save with folderMode="named-folder" to create one.';
+		}
+
+		const rootKey = '__root__';
+		const folderIds = new Set(folders.map(folder => folder.id));
+		const children = new Map<string, typeof folders>();
+		const pushChild = (key: string, folder: typeof folders[number]) => {
+			if (!children.has(key)) {
+				children.set(key, []);
+			}
+			children.get(key)!.push(folder);
+		};
+
+		for (const folder of folders) {
+			const parentKey = folder.parentFolderId && folderIds.has(folder.parentFolderId)
+				? folder.parentFolderId
+				: rootKey;
+			pushChild(parentKey, folder);
+		}
+
+		for (const [, siblings] of children) {
+			siblings.sort((left, right) => left.name.localeCompare(right.name));
+		}
+
+		const render = (parentId: string, depth: number): string[] => {
+			return (children.get(parentId) || []).flatMap(folder => {
+				const descendantIds = new Set<string>([folder.id]);
+				const pending = [folder.id];
+				while (pending.length > 0) {
+					const current = pending.pop()!;
+					for (const child of children.get(current) || []) {
+						if (!descendantIds.has(child.id)) {
+							descendantIds.add(child.id);
+							pending.push(child.id);
+						}
+					}
+				}
+
+				const directCards = cards.filter(card => card.folderId === folder.id).length;
+				const totalCards = cards.filter(card => card.folderId && descendantIds.has(card.folderId)).length;
+				const label = `${'  '.repeat(depth)}- ${folder.name} (${directCards} direct, ${totalCards} total cards)`;
+				return [label, ...render(folder.id, depth + 1)];
+			});
+		};
+
+		const uncategorized = cards.filter(card => !card.folderId || !folderIds.has(card.folderId)).length;
+		return ['Knowledge folders:', ...render(rootKey, 0), `- Root / Uncategorized (${uncategorized} cards)`].join('\n');
+	}
+
+	private _findFolderByName(projectId: string, folderName: string, parentFolderName?: string) {
+		const folders = this.projectManager.getKnowledgeFolders(projectId);
+		const normalizedFolder = folderName.trim().toLowerCase();
+		const normalizedParent = parentFolderName?.trim().toLowerCase();
+		if (!normalizedFolder) {
+			return undefined;
+		}
+
+		if (normalizedParent) {
+			const parent = folders.find(folder => folder.name.toLowerCase() === normalizedParent);
+			if (!parent) {
+				return undefined;
+			}
+			return folders.find(folder =>
+				folder.name.toLowerCase() === normalizedFolder && folder.parentFolderId === parent.id
+			);
+		}
+
+		return folders.find(folder => folder.name.toLowerCase() === normalizedFolder);
+	}
+
+	private async _resolveNamedFolder(
+		projectId: string,
+		folderName: string,
+		parentFolderName: string | undefined,
+		createFolderIfMissing: boolean,
+	) {
+		const existing = this._findFolderByName(projectId, folderName, parentFolderName);
+		if (existing) {
+			return existing;
+		}
+
+		if (!createFolderIfMissing) {
+			return undefined;
+		}
+
+		let parentFolderId: string | undefined;
+		if (parentFolderName?.trim()) {
+			const parent = this._findFolderByName(projectId, parentFolderName);
+			if (!parent) {
+				return undefined;
+			}
+			parentFolderId = parent.id;
+		}
+
+		return this.projectManager.addKnowledgeFolder(projectId, folderName.trim(), parentFolderId);
+	}
+
+	private _formatFolderPath(projectId: string, folderId: string | undefined): string {
+		if (!folderId) {
+			return 'Root';
+		}
+
+		const folders = this.projectManager.getKnowledgeFolders(projectId);
+		const byId = new Map(folders.map(folder => [folder.id, folder]));
+		const path: string[] = [];
+		let current = byId.get(folderId);
+		while (current) {
+			path.unshift(current.name);
+			current = current.parentFolderId ? byId.get(current.parentFolderId) : undefined;
+		}
+		return path.length > 0 ? path.join(' / ') : 'Root';
+	}
+
 	async invoke(
 		options: vscode.LanguageModelToolInvocationOptions<ISaveKnowledgeCardParams>,
 		_token: vscode.CancellationToken,
@@ -58,7 +186,49 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 			)]);
 		}
 
-		const { title, content, category = 'note', tags = [], source, folderName } = options.input;
+		const {
+			action = 'save',
+			title,
+			content,
+			category = 'note',
+			tags = [],
+			source,
+			folderMode = 'auto',
+			folderName,
+			parentFolderName,
+			createFolderIfMissing = true,
+		} = options.input;
+
+		if (action === 'listFolders') {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(this._buildFolderTree(project.id)),
+			]);
+		}
+
+		if (action === 'createFolder') {
+			if (!folderName?.trim()) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart('folderName is required when action="createFolder".'),
+				]);
+			}
+
+			const created = await this._resolveNamedFolder(project.id, folderName, parentFolderName, true);
+			if (!created) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart(
+						parentFolderName?.trim()
+							? `Failed to create folder "${folderName}" because parent folder "${parentFolderName}" was not found.`
+							: `Failed to create folder "${folderName}".`
+					),
+				]);
+			}
+
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(
+					`Folder ready: "${this._formatFolderPath(project.id, created.id)}" (ID: ${created.id})`
+				),
+			]);
+		}
 
 		if (!title?.trim()) {
 			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart('title is required.')]);
@@ -67,17 +237,32 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart('content is required.')]);
 		}
 
-		// Resolve folder: explicit name → find/create, else auto-match
 		let folderId: string | undefined;
-		if (folderName?.trim()) {
-			const folders = this.projectManager.getKnowledgeFolders(project.id);
-			const match = folders.find(f => f.name.toLowerCase() === folderName.trim().toLowerCase());
-			if (match) {
-				folderId = match.id;
-			} else {
-				const created = await this.projectManager.addKnowledgeFolder(project.id, folderName.trim());
-				folderId = created?.id;
+		if (folderMode === 'root') {
+			folderId = undefined;
+		} else if (folderMode === 'named-folder') {
+			if (!folderName?.trim()) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart('folderName is required when folderMode="named-folder".'),
+				]);
 			}
+
+			const resolvedFolder = await this._resolveNamedFolder(
+				project.id,
+				folderName,
+				parentFolderName,
+				createFolderIfMissing,
+			);
+			if (!resolvedFolder) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart(
+						createFolderIfMissing
+							? `Failed to resolve folder "${folderName}"${parentFolderName?.trim() ? ` under parent "${parentFolderName}"` : ''}.`
+							: `Folder "${folderName}"${parentFolderName?.trim() ? ` under parent "${parentFolderName}"` : ''} was not found. Use action="listFolders" to inspect available folders or set createFolderIfMissing=true.`
+					),
+				]);
+			}
+			folderId = resolvedFolder.id;
 		} else {
 			folderId = this.projectManager.findBestFolder(project.id, title, category, tags);
 		}
@@ -91,7 +276,7 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 		}
 
 		return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-			`Knowledge card saved: "${card.title}" (ID: ${card.id})\nProject: ${project.name} | Category: ${card.category}${card.tags?.length ? ` | Tags: ${card.tags.join(', ')}` : ''}`
+			`Knowledge card saved: "${card.title}" (ID: ${card.id})\nProject: ${project.name} | Category: ${card.category} | Folder: ${this._formatFolderPath(project.id, card.folderId)}${card.tags?.length ? ` | Tags: ${card.tags.join(', ')}` : ''}`
 		)]);
 	}
 
@@ -99,16 +284,28 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 		options: vscode.LanguageModelToolInvocationPrepareOptions<ISaveKnowledgeCardParams>,
 		_token: vscode.CancellationToken,
 	) {
+		const action = options.input?.action ?? 'save';
+		const folderName = options.input?.folderName?.trim();
 		const title = options.input?.title ?? 'knowledge card';
-		const msg = `Saving knowledge card: "${title}"...`;
+		const msg = action === 'listFolders'
+			? 'Listing knowledge card folders...'
+			: action === 'createFolder'
+				? `Preparing knowledge folder${folderName ? `: "${folderName}"` : ''}...`
+				: `Saving knowledge card: "${title}"...`;
 		if (ConfigurationManager.toolsBackgroundMode) {
 			return { invocationMessage: msg };
 		}
 		return {
 			invocationMessage: msg,
 			confirmationMessages: {
-				title: 'Save Knowledge Card',
-				message: new vscode.MarkdownString(`Save knowledge card **"${title}"** to the active project?`),
+				title: action === 'createFolder' ? 'Create Knowledge Folder' : 'Save Knowledge Card',
+				message: new vscode.MarkdownString(
+					action === 'listFolders'
+						? 'List knowledge card folders in the active project?'
+						: action === 'createFolder'
+							? `Create knowledge folder **"${folderName || 'new folder'}"** in the active project?`
+							: `Save knowledge card **"${title}"** to the active project?`
+				),
 			},
 		};
 	}

@@ -16,7 +16,7 @@ import { exportCardsToFilesystem, importCardsFromDirectory } from '../fileSync';
 /** Explicit allowlist of valid webview message commands. */
 const ALLOWED_COMMANDS = new Set([
 	'setActiveProject', 'createProject', 'deleteProject', 'updateProjectContext',
-	'webviewInteracting', 'setToolSharingConfig', 'updateSetting',
+	'webviewInteracting', 'webviewDraftState', 'setToolSharingConfig', 'updateSetting',
 	'addTodo', 'updateTodo', 'deleteTodo', 'runTodoAgent',
 	'continueWithPrompt', 'resumeTodo', 'viewTodoDetails', 'viewTodoHistory',
 	'clearCacheEntry', 'editCacheEntry', 'clearAllCache', 'reexplain',
@@ -53,7 +53,7 @@ const SETTING_ALLOWLIST = new Set([
 	'showStatusBar', 'confirmDelete', 'maxKnowledgeCardsInContext',
 	'prompts.globalInstructions',
 	'prompts.distillObservations', 'prompts.distillQueue', 'prompts.synthesizeCard',
-	'autoDistill.intervalMinutes', 'autoDistill.dedupThreshold',
+	'autoDistill.enabled', 'autoDistill.intervalMinutes', 'autoDistill.dedupThreshold',
 	'saveAsCard.smartMerge',
 	'intelligence.enableTieredInjection',
 	'intelligence.tier1MaxTokens', 'intelligence.tier2MaxTokens',
@@ -61,6 +61,7 @@ const SETTING_ALLOWLIST = new Set([
 	'intelligence.autoLearn', 'intelligence.autoLearn.useLLM',
 	'intelligence.autoLearn.discardThreshold', 'intelligence.autoLearn.showInChat',
 	'intelligence.autoLearn.modelFamily',
+	'workflows.modelFamily', 'knowledgeCards.synthesisModelFamily',
 	'intelligence.autoLearn.maxWorkingNotes', 'intelligence.autoLearn.maxToolHints',
 	'intelligence.autoLearn.maxConventions',
 	'intelligence.autoLearn.extractToolHints', 'intelligence.autoLearn.extractWorkingNotes',
@@ -72,6 +73,7 @@ const SETTING_ALLOWLIST = new Set([
 	'search.maxSearchResults', 'search.snippetTokens',
 	'autoCapture.enabled', 'autoCapture.learnFromAllParticipants',
 	'autoCapture.maxObservations',
+	'hooks.sessionStart', 'hooks.postToolUse', 'hooks.preCompact', 'hooks.stop',
 ]);
 
 /**
@@ -95,6 +97,7 @@ export interface DashboardContext {
 	postMessage(message: any): Thenable<boolean>;
 	update(): void;
 	setSuppressUpdate(value: boolean): void;
+	setDraftProtection(value: boolean): void;
 	endSuppression(): void;
 }
 
@@ -245,6 +248,9 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						} else {
 							ctx.endSuppression();
 						}
+						break;
+					case 'webviewDraftState':
+						ctx.setDraftProtection(!!message.hasDraft);
 						break;
 					case 'setToolSharingConfig':
 						await projectManager.setToolSharingConfig(message.projectId, message.config);
@@ -761,6 +767,30 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						}
 						break;
 					case 'editKnowledgeCard': {
+						if (!message.projectId || !message.cardId) { break; }
+						const existingCard = projectManager.getProject(message.projectId)?.knowledgeCards?.find((c: any) => c.id === message.cardId);
+						if (!existingCard) {
+							ctx.postMessage({ command: 'knowledgeCardSaveResult', success: false, message: 'Knowledge card not found.' });
+							break;
+						}
+						if (typeof message.baseUpdated === 'number' && existingCard.updated !== message.baseUpdated) {
+							const overwrite = await vscode.window.showWarningMessage(
+								'This knowledge card changed in the background while you were editing. Overwrite it with your current draft?',
+								{ modal: true },
+								'Overwrite'
+							);
+							if (overwrite !== 'Overwrite') {
+								ctx.postMessage({
+									command: 'knowledgeCardSaveResult',
+									success: false,
+									conflict: true,
+									updated: existingCard.updated,
+									message: 'Card changed in the background. Your draft is still open.'
+								});
+								break;
+							}
+						}
+
 						const cardUpdates: Record<string, any> = {};
 						// Canvas editor sends title/content/category/tags directly
 						if (message.title !== undefined) { cardUpdates.title = message.title; }
@@ -777,12 +807,19 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 						if (message.includeInContext !== undefined) { cardUpdates.includeInContext = message.includeInContext === true; }
 						if (message.isGlobal !== undefined) { cardUpdates.isGlobal = message.isGlobal === true; }
 						if (Object.keys(cardUpdates).length > 0) {
-							await projectManager.updateKnowledgeCard(
+							const updatedCard = await projectManager.updateKnowledgeCard(
 								message.projectId,
 								message.cardId,
 								cardUpdates
 							);
-							ctx.update();
+							ctx.postMessage({
+								command: 'knowledgeCardSaveResult',
+								success: !!updatedCard,
+								updated: updatedCard?.updated,
+								message: updatedCard ? 'Saved.' : 'Save failed.'
+							});
+						} else {
+							ctx.postMessage({ command: 'knowledgeCardSaveResult', success: false, message: 'No changes to save.' });
 						}
 						break;
 					}
@@ -1348,6 +1385,7 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 								title: card.title,
 								category: card.category,
 								content: card.content,
+								baseUpdated: card.updated,
 								tags: card.tags || [],
 								isGlobal: !!card.isGlobal,
 								toolCallsHtml: '',
@@ -1581,7 +1619,7 @@ Return ONLY valid JSON:
 						const synthInstructions = ConfigurationManager.getEffectivePrompt('synthesizeCard', defaultSynthPrompt);
 						const llmPrompt = `${synthInstructions}\n${customDirective}\nSOURCE MATERIAL (${items.length} item${items.length !== 1 ? 's' : ''}):\n${sourceMaterial}\n${userHint}`;
 
-						const modelFamily = ConfigurationManager.autoLearnModelFamily;
+						const modelFamily = ConfigurationManager.synthesisModelFamily;
 						const selector: vscode.LanguageModelChatSelector = modelFamily ? { family: modelFamily } : {};
 						const models = await vscode.lm.selectChatModels(selector);
 						if (!models.length) {

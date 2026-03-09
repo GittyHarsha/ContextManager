@@ -5,6 +5,19 @@ All notable changes to the "ContextManager" extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.10.0] - 2026-03-09
+
+### Added
+- **Folder-aware `#saveCard` flow** — The save-card tool can now list existing knowledge folders, create folders, and save directly into a named folder from a single tool contract.
+- **Template workflow actions** — Custom workflows now support direct template-based create, update, and append actions that skip the model call and save the rendered template verbatim.
+- **Dedicated AI model selectors** — AI workflows and AI Draft / Synthesize Card can now use their own model family settings instead of sharing the background extraction model.
+
+### Fixed
+- **Workflow markdown preservation** — AI-backed workflow outputs now preserve markdown structure when cards are created or updated.
+- **Dashboard draft resilience** — Card editor and add-card drafts now survive dashboard refreshes, and saved-card edits warn before overwriting newer background changes.
+
 ## [2.9.0] - 2026-03-07
 
 ### Added
