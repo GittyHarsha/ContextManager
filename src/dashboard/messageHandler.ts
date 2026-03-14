@@ -21,6 +21,7 @@ const ALLOWED_COMMANDS = new Set([
 	'continueWithPrompt', 'resumeTodo', 'viewTodoDetails', 'viewTodoHistory',
 	'clearCacheEntry', 'editCacheEntry', 'clearAllCache', 'reexplain',
 	'addKnowledgeCard', 'generateCardWithAI',
+	'bindTrackedSession', 'rebindTrackedSession', 'dismissTrackedSession', 'forgetTrackedSession',
 	'addKnowledgeFolder', 'renameKnowledgeFolder', 'deleteKnowledgeFolder', 'moveKnowledgeCard',
 	'toggleCardSelection', 'toggleCacheSelection',
 	'deselectAllCards', 'smartSelectCards', 'deselectAllCacheEntries',
@@ -177,6 +178,48 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 
 	const { projectManager, cache } = ctx;
 	switch (message.command) {
+					case 'bindTrackedSession': {
+						if (!ctx.hookWatcher || typeof message.sessionId !== 'string' || typeof message.projectId !== 'string') { break; }
+						const result = await ctx.hookWatcher.bindPendingSessionToProject(message.sessionId, message.projectId);
+						const project = projectManager.getProject(message.projectId);
+						if (project) {
+							vscode.window.showInformationMessage(`Bound session to ${project.name} and backfilled ${result.backfilled} pending capture(s).`);
+						}
+						ctx.update();
+						break;
+					}
+
+					case 'rebindTrackedSession': {
+						if (!ctx.hookWatcher || typeof message.sessionId !== 'string' || typeof message.projectId !== 'string') { break; }
+						await ctx.hookWatcher.rebindSessionToProjectFromNow(message.sessionId, message.projectId);
+						const project = projectManager.getProject(message.projectId);
+						if (project) {
+							vscode.window.showInformationMessage(`Rebound session. New captures will route to ${project.name}.`);
+						}
+						ctx.update();
+						break;
+					}
+
+					case 'dismissTrackedSession': {
+						if (typeof message.sessionId !== 'string') { break; }
+						await projectManager.dismissTrackedSession(message.sessionId);
+						ctx.update();
+						break;
+					}
+
+					case 'forgetTrackedSession': {
+						if (typeof message.sessionId !== 'string') { break; }
+						const choice = await vscode.window.showWarningMessage(
+							'Forget this tracked session and remove any pending unassigned captures?',
+							{ modal: true },
+							'Forget Session',
+						);
+						if (choice !== 'Forget Session') { break; }
+						await projectManager.forgetTrackedSession(message.sessionId, { removePendingEvents: true });
+						ctx.update();
+						break;
+					}
+
 					case 'runVscodeCommand':
 						if (typeof message.commandId === 'string' && message.commandId.startsWith('contextManager.')) {
 							await vscode.commands.executeCommand(message.commandId, ...(message.args || []));
@@ -1821,6 +1864,7 @@ Return ONLY valid JSON:
 				await projectManager.setPromptInjection(activeProject.id, {
 					customInstruction: typeof message.customInstruction === 'string' ? message.customInstruction : '',
 					includeFullContent: !!message.includeFullContent,
+					includeProjectContext: !!message.includeProjectContext,
 					oneShotMode: !!message.oneShotMode,
 				});
 				ctx.update();

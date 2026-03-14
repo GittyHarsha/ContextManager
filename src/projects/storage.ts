@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Project, CachedExplanation } from './types';
+import { Project, CachedExplanation, SessionRoutingState, createSessionRoutingState } from './types';
 
 // Legacy globalState keys — only used during one-time migration
 const PROJECTS_KEY = 'codeExplainer.projects';
@@ -15,10 +15,12 @@ const CACHE_KEY = 'codeExplainer.explanationCache';
 
 // Disk file names under globalStorageUri
 const PROJECTS_FILE = 'projects.json';
+const SESSION_ROUTING_FILE = 'session-routing.json';
 
 export class Storage {
 	// In-memory cache — populated on first read, kept in sync on every write
 	private _projectsCache: Project[] | null = null;
+	private _sessionRoutingCache: SessionRoutingState | null = null;
 
 	constructor(private context: vscode.ExtensionContext) {}
 
@@ -80,6 +82,34 @@ export class Storage {
 		this.writeDiskFile(PROJECTS_FILE, projects);
 		// Clear legacy globalState entry (no-op after first migration)
 		return this.context.globalState.update(PROJECTS_KEY, undefined);
+	}
+
+	getSessionRoutingState(): SessionRoutingState {
+		if (this._sessionRoutingCache !== null) {
+			return this._sessionRoutingCache;
+		}
+
+		const state = this.readDiskFile<SessionRoutingState>(
+			SESSION_ROUTING_FILE,
+			createSessionRoutingState(),
+		);
+		this._sessionRoutingCache = {
+			...createSessionRoutingState(),
+			...state,
+			trackedSessions: Array.isArray(state.trackedSessions) ? state.trackedSessions : [],
+			pendingHookEvents: Array.isArray(state.pendingHookEvents) ? state.pendingHookEvents : [],
+			nextSequence: typeof state.nextSequence === 'number' && state.nextSequence > 0 ? state.nextSequence : 1,
+			updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
+		};
+		return this._sessionRoutingCache;
+	}
+
+	saveSessionRoutingState(state: SessionRoutingState): void {
+		this._sessionRoutingCache = {
+			...state,
+			updatedAt: Date.now(),
+		};
+		this.writeDiskFile(SESSION_ROUTING_FILE, this._sessionRoutingCache);
 	}
 
 	getActiveProjectId(): string | undefined {

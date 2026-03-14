@@ -38,6 +38,31 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			});
 		}
 
+		function getCardViewScrollTops() {
+			return getWebviewState().cardViewScrollTops || {};
+		}
+
+		function saveCardViewScrollTop(cardId, scrollTop) {
+			if (!cardId) { return; }
+			mergeWebviewState({
+				cardViewScrollTops: {
+					...getCardViewScrollTops(),
+					[cardId]: scrollTop,
+				}
+			});
+		}
+
+		function restoreCardViewScrollTops() {
+			var saved = previousState.cardViewScrollTops || {};
+			Object.keys(saved).forEach(function(cardId) {
+				var viewEl = document.getElementById('card-view-' + cardId);
+				if (!viewEl) { return; }
+				var scrollTop = Number(saved[cardId]);
+				if (!Number.isFinite(scrollTop) || scrollTop <= 0) { return; }
+				viewEl.scrollTop = scrollTop;
+			});
+		}
+
 		function escapeHtml(text) {
 			const div = document.createElement('div');
 			div.textContent = text;
@@ -81,6 +106,10 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 
 		// Ensure global availability for inline onclick handlers
 		window.switchTab = switchTab;
+		window.bindTrackedSession = bindTrackedSession;
+		window.rebindTrackedSession = rebindTrackedSession;
+		window.dismissTrackedSession = dismissTrackedSession;
+		window.forgetTrackedSession = forgetTrackedSession;
 
 		// Keyboard navigation for tab bar (ArrowLeft/Right, Home/End)
 		document.addEventListener('keydown', function(e) {
@@ -215,6 +244,12 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			}
 		});
 
+		document.addEventListener('scroll', function(event) {
+			var target = event.target;
+			if (!target || !target.id || !target.id.startsWith('card-view-')) { return; }
+			saveCardViewScrollTop(target.id.substring('card-view-'.length), target.scrollTop);
+		}, true);
+
 		function selectProject(projectId) {
 			vscode.postMessage({ command: 'setActiveProject', projectId });
 		}
@@ -234,6 +269,31 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				vscode.postMessage({ command: 'createProject', name });
 				hideNewProjectForm();
 			}
+		}
+
+		function getTrackedSessionProjectId(sessionId) {
+			const select = document.getElementById('session-project-' + sessionId);
+			return select ? select.value : '';
+		}
+
+		function bindTrackedSession(sessionId) {
+			const projectId = getTrackedSessionProjectId(sessionId);
+			if (!projectId) { return; }
+			vscode.postMessage({ command: 'bindTrackedSession', sessionId, projectId });
+		}
+
+		function rebindTrackedSession(sessionId) {
+			const projectId = getTrackedSessionProjectId(sessionId);
+			if (!projectId) { return; }
+			vscode.postMessage({ command: 'rebindTrackedSession', sessionId, projectId });
+		}
+
+		function dismissTrackedSession(sessionId) {
+			vscode.postMessage({ command: 'dismissTrackedSession', sessionId });
+		}
+
+		function forgetTrackedSession(sessionId) {
+			vscode.postMessage({ command: 'forgetTrackedSession', sessionId });
 		}
 
 		function showAddTodoForm() {
@@ -826,8 +886,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		function saveInjection() {
 			const customInstruction = document.getElementById('injectionInstruction')?.value || '';
 			const includeFullContent = document.getElementById('injectionFullContent')?.checked || false;
+			const includeProjectContext = document.getElementById('injectionProjectContext')?.checked || false;
 			const oneShotMode = document.getElementById('injectionOneShotMode')?.checked || false;
-			vscode.postMessage({ command: 'setPromptInjection', customInstruction, includeFullContent, oneShotMode });
+			vscode.postMessage({ command: 'setPromptInjection', customInstruction, includeFullContent, includeProjectContext, oneShotMode });
 		}
 
 		function clearInjection() {
@@ -865,6 +926,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 					var len = editorEl.value.length;
 					editorEl.setSelectionRange(len, len);
 				});
+				persistInlineCardDraft(cardId);
 			}
 		}
 
@@ -893,6 +955,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			const contextEl = document.getElementById('card-context-editor-' + cardId);
 			const archivedEl = document.getElementById('card-archived-editor-' + cardId);
 			if (titleEl && editorEl) {
+				clearInlineCardDraft(cardId);
 				setDraftProtectionReason('inline-card-' + cardId, false);
 				const saveBtn = document.querySelector('#card-edit-' + cardId + ' button[onclick*="saveCardEdit"]');
 				setButtonLoading(saveBtn, 'Saving…');
@@ -1424,6 +1487,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				viewEl.style.display = 'block';
 				editEl.style.display = 'none';
 			}
+			clearInlineCardDraft(cardId);
 			setDraftProtectionReason('inline-card-' + cardId, false);
 			setInteracting(false);
 		}
@@ -1480,6 +1544,105 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 			setDraftProtection(_draftProtectionReasons.size > 0);
 		}
 
+		function getInlineCardDrafts() {
+			return getWebviewState().inlineCardDrafts || {};
+		}
+
+		function clearInlineCardDraft(cardId) {
+			var drafts = { ...getInlineCardDrafts() };
+			delete drafts[cardId];
+			mergeWebviewState({ inlineCardDrafts: Object.keys(drafts).length ? drafts : null });
+		}
+
+		function persistInlineCardDraft(cardId) {
+			if (!cardId) { return; }
+			var viewEl = document.getElementById('card-view-' + cardId);
+			var editEl = document.getElementById('card-edit-' + cardId);
+			var titleEl = document.getElementById('card-title-editor-' + cardId);
+			var editorEl = document.getElementById('card-editor-' + cardId);
+			if (!viewEl || !editEl || !titleEl || !editorEl) { return; }
+			var isVisible = editEl.style.display !== 'none';
+			if (!isVisible) {
+				clearInlineCardDraft(cardId);
+				return;
+			}
+			var trackEl = document.getElementById('card-track-editor-' + cardId);
+			var pinnedEl = document.getElementById('card-pinned-editor-' + cardId);
+			var contextEl = document.getElementById('card-context-editor-' + cardId);
+			var archivedEl = document.getElementById('card-archived-editor-' + cardId);
+			var detailsEl = editEl.closest('details');
+			var drafts = {
+				...getInlineCardDrafts(),
+				[cardId]: {
+					title: titleEl.value || '',
+					content: editorEl.value || '',
+					trackToolUsage: !!trackEl?.checked,
+					pinned: !!pinnedEl?.checked,
+					includeInContext: !!contextEl?.checked,
+					archived: !!archivedEl?.checked,
+					detailsOpen: !!detailsEl?.open,
+				}
+			};
+			mergeWebviewState({ inlineCardDrafts: drafts });
+		}
+
+		function restoreInlineCardDrafts() {
+			var drafts = previousState.inlineCardDrafts || {};
+			var restored = false;
+			Object.keys(drafts).forEach(function(cardId) {
+				var draft = drafts[cardId];
+				if (!draft) { return; }
+				var viewEl = document.getElementById('card-view-' + cardId);
+				var editEl = document.getElementById('card-edit-' + cardId);
+				var titleEl = document.getElementById('card-title-editor-' + cardId);
+				var editorEl = document.getElementById('card-editor-' + cardId);
+				if (!viewEl || !editEl || !titleEl || !editorEl) { return; }
+				var detailsEl = editEl.closest('details');
+				if (detailsEl && draft.detailsOpen) {
+					detailsEl.setAttribute('open', '');
+				}
+				viewEl.style.display = 'none';
+				editEl.style.display = 'block';
+				titleEl.value = draft.title || '';
+				editorEl.value = draft.content || '';
+				var trackEl = document.getElementById('card-track-editor-' + cardId);
+				var pinnedEl = document.getElementById('card-pinned-editor-' + cardId);
+				var contextEl = document.getElementById('card-context-editor-' + cardId);
+				var archivedEl = document.getElementById('card-archived-editor-' + cardId);
+				if (trackEl) { trackEl.checked = !!draft.trackToolUsage; }
+				if (pinnedEl) { pinnedEl.checked = !!draft.pinned; }
+				if (contextEl) { contextEl.checked = !!draft.includeInContext; }
+				if (archivedEl) { archivedEl.checked = !!draft.archived; }
+				editorEl.style.height = 'auto';
+				var contentHeight = Math.max(300, editorEl.scrollHeight + 24);
+				editorEl.style.height = Math.min(contentHeight, window.innerHeight * 0.8) + 'px';
+				setDraftProtectionReason('inline-card-' + cardId, true);
+				restored = true;
+			});
+			if (restored) {
+				setInteracting(true);
+			}
+		}
+
+		function getInlineCardDraftId(target) {
+			var id = target && target.id;
+			if (!id) { return null; }
+			var prefixes = [
+				'card-title-editor-',
+				'card-editor-',
+				'card-track-editor-',
+				'card-pinned-editor-',
+				'card-context-editor-',
+				'card-archived-editor-',
+			];
+			for (var i = 0; i < prefixes.length; i++) {
+				if (id.startsWith(prefixes[i])) {
+					return id.substring(prefixes[i].length);
+				}
+			}
+			return null;
+		}
+
 		// Also suppress during inline title editing and notes editing
 		function _isTrackedInput(el) {
 			if (!el || !el.id) { return false; }
@@ -1526,6 +1689,18 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				}, 100);
 			}
 		});
+		document.addEventListener('input', function(e) {
+			var cardId = getInlineCardDraftId(e.target);
+			if (cardId) {
+				persistInlineCardDraft(cardId);
+			}
+		});
+		document.addEventListener('change', function(e) {
+			var cardId = getInlineCardDraftId(e.target);
+			if (cardId) {
+				persistInlineCardDraft(cardId);
+			}
+		});
 
 		// Initialize tab from saved state or URL param
 		const initialTab = previousState.currentTab || '${initialTab}';
@@ -1569,11 +1744,25 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				}
 				if (this.open) {
 					expandedItems.add(id);
+					if (id && id.startsWith('card-')) {
+						var cardId = id.substring('card-'.length);
+						var saved = previousState.cardViewScrollTops || {};
+						var scrollTop = Number(saved[cardId]);
+						if (Number.isFinite(scrollTop) && scrollTop > 0) {
+							requestAnimationFrame(function() {
+								var viewEl = document.getElementById('card-view-' + cardId);
+								if (viewEl) { viewEl.scrollTop = scrollTop; }
+							});
+						}
+					}
 				} else {
 					expandedItems.delete(id);
 				}
 				saveExpandedState();
 			});
+		});
+		requestAnimationFrame(function() {
+			restoreCardViewScrollTops();
 		});
 
 		// ─── Inline modal for input (shared across context menu and card buttons) ──────────
@@ -2832,9 +3021,9 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 				}
 			}
 
-			// 1-4 → switch tabs (when no modifier)
+			// 1-5 → switch tabs (when no modifier)
 			if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-				var tabMap = { '1': 'intelligence', '2': 'knowledge', '3': 'context', '4': 'settings' };
+				var tabMap = { '1': 'intelligence', '2': 'knowledge', '3': 'sessions', '4': 'context', '5': 'settings' };
 				if (tabMap[e.key]) {
 					e.preventDefault();
 					switchTab(tabMap[e.key]);
@@ -3029,6 +3218,7 @@ export function getDashboardScript(activeProjectId: string, initialTab: string, 
 		wireEditorDraftPersistence();
 		restoreAddCardDraft();
 		restoreEditorDraft();
+		restoreInlineCardDrafts();
 
 		// ─── Context menu on knowledge card text selection ──────────
 		(function setupCardContextMenu() {

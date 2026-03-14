@@ -4,12 +4,27 @@
  */
 
 import * as vscode from 'vscode';
-import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId, PromptInjection, CustomWorkflow } from './types';
+import { Project, Todo, KnowledgeCard, KnowledgeFolder, KnowledgeToolUsage, AgentRun, createProject, createTodo, createKnowledgeCard, createAgentRun, ProjectContext, ToolSharingConfig, DEFAULT_TOOL_SHARING_CONFIG, Convention, ToolHint, WorkingNote, createConvention, createToolHint, createWorkingNote, generateId, PromptInjection, CustomWorkflow, SessionRoutingState, TrackedSession, PendingHookEvent, SessionOrigin, SessionBindingReason, createTrackedSession, createPendingHookEvent, createSessionBindingSegment } from './types';
 import { Storage } from './storage';
 import { ExplanationCache } from '../cache';
 import { ConfigurationManager } from '../config';
 import type { SearchIndex } from '../search/SearchIndex';
 import type { WorkflowEngine } from '../workflows/WorkflowEngine';
+
+type ProjectResolutionMatch = 'id' | 'name' | 'rootPath';
+
+export type ProjectResolutionResult =
+	| { status: 'resolved'; project: Project; matchedBy: ProjectResolutionMatch }
+	| { status: 'ambiguous'; candidates: Project[]; matchedBy: Exclude<ProjectResolutionMatch, 'id'> }
+	| { status: 'not-found' };
+
+function normalizeProjectLookupText(value: string): string {
+	return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function normalizeProjectRootPath(value: string): string {
+	return value.trim().replace(/[\\/]+/g, '/').toLowerCase();
+}
 
 export class ProjectManager extends vscode.Disposable {
 	private storage: Storage;
@@ -17,6 +32,8 @@ export class ProjectManager extends vscode.Disposable {
 	private _workflowEngine: WorkflowEngine | undefined;
 	private _onDidChangeProjects = new vscode.EventEmitter<void>();
 	readonly onDidChangeProjects = this._onDidChangeProjects.event;
+	private _onDidChangeSessionTracking = new vscode.EventEmitter<void>();
+	readonly onDidChangeSessionTracking = this._onDidChangeSessionTracking.event;
 
 	private _onDidChangeActiveProject = new vscode.EventEmitter<Project | undefined>();
 	readonly onDidChangeActiveProject = this._onDidChangeActiveProject.event;
@@ -24,6 +41,7 @@ export class ProjectManager extends vscode.Disposable {
 	constructor(context: vscode.ExtensionContext) {
 		super(() => {
 			this._onDidChangeProjects.dispose();
+			this._onDidChangeSessionTracking.dispose();
 			this._onDidChangeActiveProject.dispose();
 		});
 		this.storage = new Storage(context);
@@ -54,12 +72,439 @@ export class ProjectManager extends vscode.Disposable {
 		return this.getAllProjects().find(p => p.id === projectId);
 	}
 
+	resolveProjectTarget(target: string): ProjectResolutionResult {
+		const trimmed = target.trim();
+		if (!trimmed) {
+			return { status: 'not-found' };
+		}
+
+		const direct = this.getProject(trimmed);
+		if (direct) {
+			return { status: 'resolved', project: direct, matchedBy: 'id' };
+		}
+
+		const normalized = normalizeProjectLookupText(trimmed);
+		const nameMatches = this.getAllProjects().filter(project => normalizeProjectLookupText(project.name) === normalized);
+		if (nameMatches.length === 1) {
+			return { status: 'resolved', project: nameMatches[0], matchedBy: 'name' };
+		}
+		if (nameMatches.length > 1) {
+			return { status: 'ambiguous', candidates: nameMatches, matchedBy: 'name' };
+		}
+
+		const normalizedRoot = normalizeProjectRootPath(trimmed);
+		const rootMatches = this.getAllProjects().filter(project =>
+			(project.rootPaths || []).some(rootPath => normalizeProjectRootPath(rootPath) === normalizedRoot)
+		);
+		if (rootMatches.length === 1) {
+			return { status: 'resolved', project: rootMatches[0], matchedBy: 'rootPath' };
+		}
+		if (rootMatches.length > 1) {
+			return { status: 'ambiguous', candidates: rootMatches, matchedBy: 'rootPath' };
+		}
+
+		return { status: 'not-found' };
+	}
+
 	getActiveProject(): Project | undefined {
 		const activeId = this.storage.getActiveProjectId();
 		if (!activeId) {
 			return undefined;
 		}
 		return this.getProject(activeId);
+	}
+
+	private async _touchProjectLastAccessed(projectId: string): Promise<void> {
+		const projects = this.getAllProjects();
+		const index = projects.findIndex(project => project.id === projectId);
+		if (index < 0) {
+			return;
+		}
+
+		projects[index] = {
+			...projects[index],
+			lastAccessed: Date.now(),
+		};
+
+		await this.storage.saveProjects(projects);
+	}
+
+	private _getSessionRoutingState(): SessionRoutingState {
+		return this.storage.getSessionRoutingState();
+	}
+
+	private _saveSessionRoutingState(state: SessionRoutingState): void {
+		state.updatedAt = Date.now();
+		this.storage.saveSessionRoutingState(state);
+	}
+
+	private _emitSessionTrackingChanged(): void {
+		this._onDidChangeSessionTracking.fire();
+	}
+
+	private _restoreTrackedSessionStatusForActivity(session: TrackedSession): void {
+		if (session.status !== 'dismissed') {
+			return;
+		}
+
+		const hasOpenBinding = session.bindingSegments.some(segment => segment.endSequence === undefined);
+		session.status = hasOpenBinding ? 'bound' : 'pending';
+		session.dismissedAt = undefined;
+	}
+
+	getTrackedSessions(): TrackedSession[] {
+		return [...this._getSessionRoutingState().trackedSessions]
+			.filter(session => session.status !== 'dismissed')
+			.sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+	}
+
+	getTrackedSession(sessionId: string): TrackedSession | undefined {
+		return this._getSessionRoutingState().trackedSessions.find(session => session.sessionId === sessionId);
+	}
+
+	async reserveSessionEventSequence(
+		sessionId: string,
+		options: {
+			origin?: SessionOrigin;
+			label?: string;
+			bindingToken?: string;
+			firstPromptSnippet?: string;
+			rootHint?: string;
+			cwd?: string;
+			metadata?: Record<string, string | number | boolean>;
+			lastActivityAt?: number;
+		} = {},
+	): Promise<number> {
+		const state = this._getSessionRoutingState();
+		const now = options.lastActivityAt ?? Date.now();
+		let session = state.trackedSessions.find(item => item.sessionId === sessionId);
+
+		if (!session) {
+			session = createTrackedSession(
+				sessionId,
+				options.label || `Session ${sessionId.slice(0, 8)}`,
+				options.origin || 'unknown',
+				{
+					bindingToken: options.bindingToken,
+					firstPromptSnippet: options.firstPromptSnippet,
+					rootHint: options.rootHint,
+					cwd: options.cwd,
+					metadata: options.metadata,
+				},
+			);
+			session.lastActivityAt = now;
+			session.updatedAt = now;
+			state.trackedSessions.push(session);
+		} else {
+			this._restoreTrackedSessionStatusForActivity(session);
+			session.origin = options.origin || session.origin;
+			session.label = options.label || session.label;
+			session.bindingToken = options.bindingToken ?? session.bindingToken;
+			session.firstPromptSnippet = options.firstPromptSnippet ?? session.firstPromptSnippet;
+			session.rootHint = options.rootHint ?? session.rootHint;
+			session.cwd = options.cwd ?? session.cwd;
+			session.lastActivityAt = now;
+			session.updatedAt = Date.now();
+			session.metadata = options.metadata ? { ...(session.metadata || {}), ...options.metadata } : session.metadata;
+		}
+
+		const sequence = state.nextSequence;
+		state.nextSequence += 1;
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return sequence;
+	}
+
+	async ensureTrackedSession(
+		sessionId: string,
+		options: {
+			origin?: SessionOrigin;
+			label?: string;
+			bindingToken?: string;
+			firstPromptSnippet?: string;
+			rootHint?: string;
+			cwd?: string;
+			metadata?: Record<string, string | number | boolean>;
+			lastActivityAt?: number;
+		} = {},
+	): Promise<TrackedSession> {
+		const state = this._getSessionRoutingState();
+		const existing = state.trackedSessions.find(session => session.sessionId === sessionId);
+		const now = options.lastActivityAt ?? Date.now();
+
+		if (existing) {
+			this._restoreTrackedSessionStatusForActivity(existing);
+			existing.origin = options.origin || existing.origin;
+			existing.label = options.label || existing.label;
+			existing.bindingToken = options.bindingToken ?? existing.bindingToken;
+			existing.firstPromptSnippet = options.firstPromptSnippet ?? existing.firstPromptSnippet;
+			existing.rootHint = options.rootHint ?? existing.rootHint;
+			existing.cwd = options.cwd ?? existing.cwd;
+			existing.lastActivityAt = now;
+			existing.updatedAt = Date.now();
+			existing.metadata = options.metadata ? { ...(existing.metadata || {}), ...options.metadata } : existing.metadata;
+			this._saveSessionRoutingState(state);
+			this._emitSessionTrackingChanged();
+			return existing;
+		}
+
+		const label = options.label || `Session ${sessionId.slice(0, 8)}`;
+		const created = createTrackedSession(sessionId, label, options.origin || 'unknown', {
+			bindingToken: options.bindingToken,
+			firstPromptSnippet: options.firstPromptSnippet,
+			rootHint: options.rootHint,
+			cwd: options.cwd,
+			metadata: options.metadata,
+		});
+		created.lastActivityAt = now;
+		created.updatedAt = now;
+		state.trackedSessions.push(created);
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return created;
+	}
+
+	async updateTrackedSession(
+		sessionId: string,
+		updates: Partial<Omit<TrackedSession, 'sessionId' | 'createdAt'>>,
+	): Promise<TrackedSession | undefined> {
+		const state = this._getSessionRoutingState();
+		const session = state.trackedSessions.find(item => item.sessionId === sessionId);
+		if (!session) {
+			return undefined;
+		}
+
+		Object.assign(session, updates, { updatedAt: Date.now() });
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return session;
+	}
+
+	async dismissTrackedSession(sessionId: string): Promise<void> {
+		await this.updateTrackedSession(sessionId, {
+			status: 'dismissed',
+			dismissedAt: Date.now(),
+		});
+	}
+
+	async forgetTrackedSession(sessionId: string, options: { removePendingEvents?: boolean } = {}): Promise<void> {
+		const state = this._getSessionRoutingState();
+		state.trackedSessions = state.trackedSessions.filter(session => session.sessionId !== sessionId);
+		if (options.removePendingEvents ?? true) {
+			state.pendingHookEvents = state.pendingHookEvents.filter(event => event.sessionId !== sessionId);
+		}
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+	}
+
+	getPendingHookEvents(sessionId?: string): PendingHookEvent[] {
+		const events = this._getSessionRoutingState().pendingHookEvents;
+		const filtered = sessionId ? events.filter(event => event.sessionId === sessionId) : events;
+		return [...filtered].sort((left, right) => left.sequence - right.sequence);
+	}
+
+	async addPendingHookEvent(input: {
+		sessionId: string;
+		eventType: string;
+		payload: unknown;
+		sequence?: number;
+		origin?: SessionOrigin;
+		projectIdHint?: string;
+		rootHint?: string;
+		label?: string;
+		firstPromptSnippet?: string;
+		cwd?: string;
+		bindingToken?: string;
+		metadata?: Record<string, string | number | boolean>;
+		lastActivityAt?: number;
+	}): Promise<PendingHookEvent> {
+		const state = this._getSessionRoutingState();
+		const sequence = input.sequence ?? state.nextSequence;
+		if (input.sequence === undefined) {
+			state.nextSequence += 1;
+		}
+		const lastActivityAt = input.lastActivityAt ?? Date.now();
+
+		const event = createPendingHookEvent(
+			input.sessionId,
+			input.eventType,
+			input.payload,
+			sequence,
+			input.origin || 'unknown',
+			{
+				projectIdHint: input.projectIdHint,
+				rootHint: input.rootHint,
+			},
+		);
+		state.pendingHookEvents.push(event);
+
+		let session = state.trackedSessions.find(item => item.sessionId === input.sessionId);
+		if (!session) {
+			session = createTrackedSession(
+				input.sessionId,
+				input.label || `Session ${input.sessionId.slice(0, 8)}`,
+				input.origin || 'unknown',
+				{
+					bindingToken: input.bindingToken,
+					firstPromptSnippet: input.firstPromptSnippet,
+					rootHint: input.rootHint,
+					cwd: input.cwd,
+					metadata: input.metadata,
+				},
+			);
+			state.trackedSessions.push(session);
+		} else {
+			this._restoreTrackedSessionStatusForActivity(session);
+			session.origin = input.origin || session.origin;
+			session.label = input.label || session.label;
+			session.firstPromptSnippet = input.firstPromptSnippet ?? session.firstPromptSnippet;
+			session.rootHint = input.rootHint ?? session.rootHint;
+			session.cwd = input.cwd ?? session.cwd;
+			session.bindingToken = input.bindingToken ?? session.bindingToken;
+			session.metadata = input.metadata ? { ...(session.metadata || {}), ...input.metadata } : session.metadata;
+		}
+
+		session.pendingCaptureCount += 1;
+		session.lastActivityAt = lastActivityAt;
+		session.updatedAt = Date.now();
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return event;
+	}
+
+	async markPendingHookEventsBackfilled(sessionId: string, throughSequence: number): Promise<number> {
+		const state = this._getSessionRoutingState();
+		let updatedCount = 0;
+		const now = Date.now();
+		for (const event of state.pendingHookEvents) {
+			if (event.sessionId === sessionId && event.sequence <= throughSequence && event.status === 'pending') {
+				event.status = 'backfilled';
+				event.materializedAt = now;
+				updatedCount += 1;
+			}
+		}
+
+		const session = state.trackedSessions.find(item => item.sessionId === sessionId);
+		if (session && updatedCount > 0) {
+			session.pendingCaptureCount = Math.max(0, session.pendingCaptureCount - updatedCount);
+			session.updatedAt = now;
+		}
+
+		if (updatedCount > 0) {
+			this._saveSessionRoutingState(state);
+			this._emitSessionTrackingChanged();
+		}
+		return updatedCount;
+	}
+
+	async deletePendingHookEvents(sessionId: string, throughSequence?: number): Promise<number> {
+		const state = this._getSessionRoutingState();
+		const before = state.pendingHookEvents.length;
+		state.pendingHookEvents = state.pendingHookEvents.filter(event => {
+			if (event.sessionId !== sessionId) {
+				return true;
+			}
+			if (throughSequence === undefined) {
+				return false;
+			}
+			return event.sequence > throughSequence;
+		});
+
+		const deletedCount = before - state.pendingHookEvents.length;
+		const session = state.trackedSessions.find(item => item.sessionId === sessionId);
+		if (session && deletedCount > 0) {
+			session.pendingCaptureCount = Math.max(0, session.pendingCaptureCount - deletedCount);
+			session.updatedAt = Date.now();
+		}
+
+		if (deletedCount > 0) {
+			this._saveSessionRoutingState(state);
+			this._emitSessionTrackingChanged();
+		}
+		return deletedCount;
+	}
+
+	async bindSessionToProject(
+		sessionId: string,
+		projectId: string,
+		options: { startSequence?: number; reason?: SessionBindingReason } = {},
+	): Promise<TrackedSession | undefined> {
+		if (!this.getProject(projectId)) {
+			return undefined;
+		}
+
+		const state = this._getSessionRoutingState();
+		let session = state.trackedSessions.find(item => item.sessionId === sessionId);
+		if (!session) {
+			session = createTrackedSession(sessionId, `Session ${sessionId.slice(0, 8)}`);
+			state.trackedSessions.push(session);
+		}
+
+		const startSequence = options.startSequence ?? state.nextSequence;
+		const openSegment = session.bindingSegments.find(segment => segment.endSequence === undefined);
+		if (openSegment?.projectId === projectId) {
+			session.status = 'bound';
+			session.dismissedAt = undefined;
+			session.updatedAt = Date.now();
+			session.lastActivityAt = Date.now();
+			this._saveSessionRoutingState(state);
+			this._emitSessionTrackingChanged();
+			return session;
+		}
+
+		if (openSegment) {
+			openSegment.endSequence = Math.max(openSegment.startSequence, startSequence - 1);
+			openSegment.updatedAt = Date.now();
+		}
+
+		session.bindingSegments.push(
+			createSessionBindingSegment(sessionId, projectId, startSequence, options.reason || (openSegment ? 'rebind' : 'initial-bind')),
+		);
+		session.status = 'bound';
+		session.dismissedAt = undefined;
+		session.updatedAt = Date.now();
+		session.lastActivityAt = Date.now();
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return session;
+	}
+
+	async rebindSessionToProject(sessionId: string, projectId: string, startSequence: number): Promise<TrackedSession | undefined> {
+		return this.bindSessionToProject(sessionId, projectId, { startSequence, reason: 'rebind' });
+	}
+
+	resolveProjectForSession(sessionId: string, sequence: number): Project | undefined {
+		const session = this.getTrackedSession(sessionId);
+		if (!session) {
+			return undefined;
+		}
+
+		const matching = [...session.bindingSegments]
+			.sort((left, right) => right.startSequence - left.startSequence)
+			.find(segment => sequence >= segment.startSequence && (segment.endSequence === undefined || sequence <= segment.endSequence));
+		return matching ? this.getProject(matching.projectId) : undefined;
+	}
+
+	async bulkDeleteStaleUnlinkedSessions(maxAgeMs: number): Promise<{ deletedSessions: number; deletedPendingEvents: number }> {
+		const state = this._getSessionRoutingState();
+		const cutoff = Date.now() - Math.max(0, maxAgeMs);
+		const staleIds = new Set(
+			state.trackedSessions
+				.filter(session => session.bindingSegments.length === 0 && session.lastActivityAt < cutoff)
+				.map(session => session.sessionId),
+		);
+
+		if (staleIds.size === 0) {
+			return { deletedSessions: 0, deletedPendingEvents: 0 };
+		}
+
+		const beforeEvents = state.pendingHookEvents.length;
+		state.trackedSessions = state.trackedSessions.filter(session => !staleIds.has(session.sessionId));
+		state.pendingHookEvents = state.pendingHookEvents.filter(event => !staleIds.has(event.sessionId));
+		const deletedPendingEvents = beforeEvents - state.pendingHookEvents.length;
+		this._saveSessionRoutingState(state);
+		this._emitSessionTrackingChanged();
+		return { deletedSessions: staleIds.size, deletedPendingEvents };
 	}
 
 	async createProject(name: string, rootPaths?: string[]): Promise<Project> {
@@ -123,11 +568,18 @@ export class ProjectManager extends vscode.Disposable {
 	}
 
 	async setActiveProject(projectId: string | undefined): Promise<void> {
+		const currentActiveProjectId = this.storage.getActiveProjectId();
+		if (currentActiveProjectId === projectId) {
+			if (projectId) {
+				await this._touchProjectLastAccessed(projectId);
+			}
+			return;
+		}
+
 		await this.storage.setActiveProjectId(projectId);
 		
 		if (projectId) {
-			// Update last accessed
-			await this.updateProject(projectId, {});
+			await this._touchProjectLastAccessed(projectId);
 		}
 		
 		this._onDidChangeActiveProject.fire(this.getActiveProject());

@@ -3,7 +3,7 @@
 	"publisher": "local-dev",
 	"displayName": "ContextManager - AI Project Memory",
 	"version": "2.10.0",
-	"description": "Give Copilot persistent project memory — knowledge cards, folder-aware #saveCard flows, custom AI/template workflows, conventions, working notes, BM25 search, auto-capture, and a full dashboard. Works with @ctx chat, #ctx, #saveCard, and #getCard.",
+	"description": "Persistent project memory for Copilot: knowledge cards, multi-project session routing, BM25 search, queue-aware project-scoped chat tools, AI/template workflows, dedicated model routing, auto-capture, and a full dashboard.",
 	"icon": "ContextManager.png",
 	"galleryBanner": {
 		"color": "#1e1e1e",
@@ -614,12 +614,16 @@
 				],
 				"toolReferenceName": "ctx",
 				"displayName": "Project Memory",
-				"modelDescription": "Unified tool for ALL project knowledge operations. Modes:\n\n**search** (default): BM25 search across all entity types. Use entityTypes to filter: 'convention', 'workingNote', 'toolHint', 'card', 'cache', 'observation', 'session', 'agentMessage', 'project'. Examples: query='auth' entityTypes=['convention','workingNote'] to search only conventions and notes.\n\n**list**: List all items of a type. Set type to 'conventions', 'workingNotes', 'toolHints', or 'cards'. No query needed.\n\n**learn**: Create new intelligence. Set learnType to 'convention' (needs category+title+content), 'toolHint' (needs toolName+pattern+example), or 'workingNote' (needs subject+insight).\n\n**getCard**: Read a knowledge card by ID.\n\n**retrospect**: End-of-task learning. Provide newConventions, newToolHints, knowledgeCards arrays.\n\n**fetch**: Fetch full observation details by IDs.",
+				"modelDescription": "Unified tool for ALL project knowledge operations. When multiple ContextManager projects exist, pass `project` explicitly using the exact project ID, exact project name, or exact workspace root path. Modes:\n\n**search** (default): BM25 search across all entity types. Use entityTypes to filter: 'convention', 'workingNote', 'toolHint', 'card', 'cache', 'observation', 'session', 'agentMessage', 'project'. Examples: query='auth' entityTypes=['convention','workingNote'] to search only conventions and notes.\n\n**list**: List all items of a type. Set type to 'conventions', 'workingNotes', 'toolHints', 'cards', or 'queue'. No query needed.\n\n**learn**: Create new intelligence. Set learnType to 'convention' (needs category+title+content), 'toolHint' (needs toolName+pattern+example), or 'workingNote' (needs subject+insight).\n\n**getCard**: Read a knowledge card by ID.\n\n**getQueueItem**: Read a queued card candidate by ID.\n\n**approveQueueItem**: Approve a queued card candidate into a knowledge card. Optional overrides: cardTitle, cardContent, cardCategory, cardTags.\n\n**rejectQueueItem**: Reject a queued card candidate.\n\n**distillQueue**: Synthesize queued card candidates into proposed knowledge cards. Optional candidateIds limits the set to distill.\n\n**clearQueue**: Remove all queued card candidates from the selected project.\n\n**retrospect**: End-of-task learning. Provide newConventions, newToolHints, knowledgeCards arrays.\n\n**fetch**: Fetch full observation details by IDs.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(search-fuzzy)",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
+						"project": {
+							"type": "string",
+							"description": "Exact project ID, exact project name, or exact workspace root path. Required when multiple ContextManager projects exist."
+						},
 						"mode": {
 							"type": "string",
 							"enum": [
@@ -627,6 +631,11 @@
 								"list",
 								"learn",
 								"getCard",
+								"getQueueItem",
+								"approveQueueItem",
+								"rejectQueueItem",
+								"distillQueue",
+								"clearQueue",
 								"fetch",
 								"retrospect"
 							],
@@ -666,7 +675,8 @@
 								"conventions",
 								"workingNotes",
 								"toolHints",
-								"cards"
+								"cards",
+								"queue"
 							],
 							"description": "For mode='list': which type to list."
 						},
@@ -681,7 +691,41 @@
 						},
 						"id": {
 							"type": "string",
-							"description": "Card ID for mode='getCard'."
+							"description": "Card ID for mode='getCard' or queued candidate ID for queue item modes."
+						},
+						"candidateIds": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Optional queued candidate IDs to distill. Used by mode='distillQueue'."
+						},
+						"cardTitle": {
+							"type": "string",
+							"description": "Optional replacement title when approving a queued card candidate."
+						},
+						"cardContent": {
+							"type": "string",
+							"description": "Optional replacement content when approving a queued card candidate."
+						},
+						"cardCategory": {
+							"type": "string",
+							"enum": [
+								"architecture",
+								"pattern",
+								"convention",
+								"explanation",
+								"note",
+								"other"
+							],
+							"description": "Optional replacement category when approving a queued card candidate."
+						},
+						"cardTags": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Optional replacement tags when approving a queued card candidate."
 						},
 						"category": {
 							"type": "string",
@@ -848,12 +892,16 @@
 				],
 				"toolReferenceName": "saveCard",
 				"displayName": "Save Knowledge Card",
-				"modelDescription": "Silently saves a knowledge card to the active project without interrupting the chat session. No confirmation required — runs in background. The same tool can also list folders or create a folder before saving. For saving, provide title, content (markdown), optional category ('architecture'|'pattern'|'convention'|'explanation'|'note'|'other'), optional tags, optional source, and optional folder controls.",
+				"modelDescription": "Silently saves a knowledge card to the selected project without interrupting the chat session. When multiple ContextManager projects exist, pass `project` explicitly using the exact project ID, exact project name, or exact workspace root path. The same tool can also list folders or create a folder before saving. For saving, provide title, content (markdown), optional category ('architecture'|'pattern'|'convention'|'explanation'|'note'|'other'), optional tags, optional source, and optional folder controls.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(notebook-edit)",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
+						"project": {
+							"type": "string",
+							"description": "Exact project ID, exact project name, or exact workspace root path. Required when multiple ContextManager projects exist."
+						},
 						"action": {
 							"type": "string",
 							"description": "Action to perform. Use 'save' to save a card, 'listFolders' to inspect available folders, or 'createFolder' to create a folder without saving a card.",
@@ -932,7 +980,7 @@
 				],
 				"toolReferenceName": "getCard",
 				"displayName": "Get Knowledge Card",
-				"modelDescription": "Reads the full content of a knowledge card by its ID. Returns title, content, category, tags, anchors (code stubs that ground the card), and staleness warnings if anchor files have changed. Use this tool after finding a card via #ctx. Always prefer this over re-searching when you already have a card ID.",
+				"modelDescription": "Reads the full content of a knowledge card by its ID. When multiple ContextManager projects exist, pass `project` explicitly using the exact project ID, exact project name, or exact workspace root path. Returns title, content, category, tags, anchors (code stubs that ground the card), and staleness warnings if anchor files have changed. Use this tool after finding a card via #ctx. Always prefer this over re-searching when you already have a card ID.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(open-preview)",
 				"inputSchema": {
@@ -941,6 +989,10 @@
 						"id"
 					],
 					"properties": {
+						"project": {
+							"type": "string",
+							"description": "Exact project ID, exact project name, or exact workspace root path. Required when multiple ContextManager projects exist."
+						},
 						"id": {
 							"type": "string",
 							"description": "The knowledge card ID (from the project context index)."
@@ -959,7 +1011,7 @@
 				],
 				"toolReferenceName": "editCard",
 				"displayName": "Edit Knowledge Card",
-				"modelDescription": "Updates fields on an existing knowledge card in the active project. Only the fields you supply are changed — omitted fields are left as-is. Use #ctx to find the card ID first.",
+				"modelDescription": "Updates fields on an existing knowledge card in the selected project. When multiple ContextManager projects exist, pass `project` explicitly using the exact project ID, exact project name, or exact workspace root path. Only the fields you supply are changed — omitted fields are left as-is. Use #ctx to find the card ID first.",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(edit)",
 				"inputSchema": {
@@ -968,6 +1020,10 @@
 						"id"
 					],
 					"properties": {
+						"project": {
+							"type": "string",
+							"description": "Exact project ID, exact project name, or exact workspace root path. Required when multiple ContextManager projects exist."
+						},
 						"id": {
 							"type": "string",
 							"description": "ID of the knowledge card to edit."
@@ -1018,12 +1074,16 @@
 				],
 				"toolReferenceName": "organizeCards",
 				"displayName": "Organize Knowledge Cards",
-				"modelDescription": "Organizes knowledge cards into folders. Actions: 'listFolders' (show all folders and card counts), 'createFolder' (create a folder, optionally nested under parentFolderName), 'moveCard' (move card by ID to a folder by name, auto-creates folder if needed), 'autoOrganize' (auto-assign all unorganized cards to best-matching folders).",
+				"modelDescription": "Organizes knowledge cards into folders in the selected project. When multiple ContextManager projects exist, pass `project` explicitly using the exact project ID, exact project name, or exact workspace root path. Actions: 'listFolders' (show all folders and card counts), 'createFolder' (create a folder, optionally nested under parentFolderName), 'moveCard' (move card by ID to a folder by name, auto-creates folder if needed), 'autoOrganize' (auto-assign all unorganized cards to best-matching folders).",
 				"canBeReferencedInPrompt": true,
 				"icon": "$(folder)",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
+						"project": {
+							"type": "string",
+							"description": "Exact project ID, exact project name, or exact workspace root path. Required when multiple ContextManager projects exist."
+						},
 						"action": {
 							"type": "string",
 							"description": "Action to perform. Defaults to 'listFolders' if omitted.",

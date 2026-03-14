@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-project session routing** — Hook-driven capture now tracks chat sessions independently, queues unbound events, and lets you bind or rebind sessions from the new Dashboard → Sessions tab.
+- **Explicit card queue LM flows** — `#ctx` can now list queued candidates, read a queue item, approve or reject it, distill queue items into card proposals, and clear the queue without leaving chat.
+
+### Changed
+- **Project-scoped LM tools in multi-project mode** — `#ctx`, `#getCard`, `#saveCard`, `#editCard`, and `#organizeCards` now require an explicit `project` target whenever multiple ContextManager projects exist, instead of implicitly using the active project.
+- **Hook upgrade behavior** — This is not a hard breaking change for existing installs: hook scripts are `cm-version`-tracked and auto-updated on activation. Sessions that were already open before the hook upgrade are picked up on the next `Stop`, `PostToolUse`, or `PreCompact` event; only the initial `SessionStart` metadata is not retroactive.
+
 ## [2.10.0] - 2026-03-09
 
 ### Added

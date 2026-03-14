@@ -249,13 +249,16 @@ export class AutoCaptureService {
 		promptText: string,
 		responseText: string,
 		participant?: string,
+		options?: { projectId?: string },
 	): Promise<void> {
 		if (!ConfigurationManager.autoCaptureEnabled) { return; }
 		if (participant === 'contextManager') { return; }
 		if (!promptText?.trim() || !responseText?.trim()) { return; }
 		if (responseText.length < MIN_RESPONSE_LENGTH) { return; }
 
-		const project = this._projectManager.getActiveProject();
+		const project = options?.projectId
+			? this._projectManager.getProject(options.projectId)
+			: this._projectManager.getActiveProject();
 		if (!project) { return; }
 
 		// ── Privacy: strip <private> tags ──

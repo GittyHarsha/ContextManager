@@ -8,7 +8,7 @@ nav_order: 5
 # Custom Workflows
 {: .fs-8 }
 
-User-defined workflow pipelines that render templates against your project knowledge, then either ask the model for markdown output or save the rendered template directly.
+User-defined workflow pipelines that render templates against your project knowledge, then either ask the model for markdown output or save the rendered template directly. AI workflow actions can use their own dedicated model family.
 {: .fs-5 .fw-300 }
 
 ---
@@ -19,6 +19,8 @@ Workflows let you define reusable operations that combine your project data with
 
 - send the rendered template to the LLM and store the markdown result
 - save the rendered template directly with no model call
+
+AI workflow actions use the dedicated **Workflow Model** setting (`contextManager.workflows.modelFamily`) when set, so you can keep workflow automation on a different model than background extraction or card synthesis.
 
 Use cases:
 - **Summarize recent observations** into a daily digest card
@@ -219,7 +221,7 @@ The workflows section appears in the **Intelligence** tab of the Dashboard:
 
 | Setting | Default | Description |
 |:--------|:--------|:------------|
-| Model Family | _(default)_ | Preferred model family for AI workflow actions. Template-only actions ignore this setting. |
+| `contextManager.workflows.modelFamily` | _(auto)_ | Preferred model family for AI workflow actions. Template-only actions ignore this setting. |
 | Max Items | `20` | Per-workflow cap on collection variable expansion |
 | Skip Pattern | _(empty)_ | Per-workflow regex; if the LLM output matches, the output action is skipped |
 | Trigger Filter | _(empty)_ | Per-workflow regex; auto-trigger only fires when event content matches |

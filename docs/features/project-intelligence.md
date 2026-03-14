@@ -84,14 +84,17 @@ The managed block is regenerated whenever pinned cards change. You never edit it
 
 ### `#ctx` Tool (On-Demand)
 
-All intelligence is queryable via the `#ctx` tool. Agents invoke it when they need conventions, notes, or hints. Available modes:
+All intelligence is queryable via the `#ctx` tool. Agents invoke it when they need conventions, notes, hints, or queued card candidates. Available modes:
 
 | Mode | Purpose |
 |:-----|:--------|
 | `#ctx query:"error handling"` | Full-text search across cards, conventions, notes |
-| `#ctx mode:"list" type:"conventions"` | List all items of a type (`conventions`, `workingNotes`, `toolHints`, `cards`) |
+| `#ctx mode:"list" type:"conventions"` | List all items of a type (`conventions`, `workingNotes`, `toolHints`, `cards`, `queue`) |
 | `#ctx mode:"learn" learnType:"convention" ...` | Store a new convention, tool hint, or working note |
 | `#ctx mode:"getCard" id:"<cardId>"` | Read the full content of a knowledge card |
+| `#ctx mode:"getQueueItem" id:"<candidateId>"` | Read a queued card candidate in full |
+| `#ctx mode:"approveQueueItem" id:"<candidateId>"` | Approve a queued item into a saved knowledge card |
+| `#ctx mode:"distillQueue"` | Synthesize queued items into proposed knowledge cards |
 | `#ctx mode:"fetch" observationIds:["<id>"]` | Fetch full observation details by IDs |
 | `#ctx mode:"retrospect"` | End-of-task reflection and capture |
 

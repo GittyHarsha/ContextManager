@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cm-version: 9
+# cm-version: 11
 # ContextManager Agent Hook Script — Linux/macOS
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.sh
@@ -20,6 +20,7 @@ if [ -z "$STDIN" ]; then echo '{}'; exit 0; fi
 HOOK_TYPE=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hook_event_name','') or d.get('hookEventName',''))" 2>/dev/null || echo "")
 SESSION_ID=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('session_id','') or d.get('sessionId',''))" 2>/dev/null || echo "")
 TRANSCRIPT=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('transcript_path',''))" 2>/dev/null || echo "")
+HOOK_CWD=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('cwd',''))" 2>/dev/null || echo "")
 TS=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || date +%s000)
 
 # Helper: get last user + assistant from JSONL transcript
@@ -137,6 +138,13 @@ case "$HOOK_TYPE" in
     if [ -f "$SESSION_CTX" ]; then
       CTX=$(cat "$SESSION_CTX")
     fi
+    python3 - "$SESSION_ID" "$TS" "$HOOK_CWD" <<'PYEOF' >> "$QUEUE_FILE"
+import sys, json
+session_id = sys.argv[1]
+ts = int(sys.argv[2])
+cwd = sys.argv[3]
+print(json.dumps({"hookType":"SessionStart","sessionId":session_id,"timestamp":ts,"cwd":cwd,"rootHint":cwd,"origin":"vscode-extension"}))
+PYEOF
     python3 -c "import sys,json; print(json.dumps({'hookSpecificOutput':{'hookEventName':'SessionStart','additionalContext':sys.argv[1]}}))" "$CTX"
     exit 0
     ;;
@@ -162,16 +170,17 @@ case "$HOOK_TYPE" in
   "PostToolUse")
     TOOL_NAME=$(echo "$STDIN" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
     if [ -z "$TOOL_NAME" ]; then echo '{}'; exit 0; fi
-    ENTRY=$(echo "$STDIN" | python3 - "$TOOL_NAME" "$SESSION_ID" "$TS" <<'PYEOF'
+    ENTRY=$(echo "$STDIN" | python3 - "$TOOL_NAME" "$SESSION_ID" "$TS" "$HOOK_CWD" <<'PYEOF'
 import sys, json
 raw = sys.stdin.read()
 d = json.loads(raw)
 tool_name = sys.argv[1]
 session_id = sys.argv[2]
 ts = int(sys.argv[3])
+cwd = sys.argv[4]
 inp = json.dumps(d.get("tool_input", {}))[:300]
 resp = str(d.get("tool_response", ""))[:600]
-print(json.dumps({"hookType":"PostToolUse","toolName":tool_name,"toolInput":inp,"toolResponse":resp,"sessionId":session_id,"timestamp":ts}))
+print(json.dumps({"hookType":"PostToolUse","toolName":tool_name,"toolInput":inp,"toolResponse":resp,"sessionId":session_id,"timestamp":ts,"cwd":cwd,"rootHint":cwd,"origin":"vscode-extension"}))
 PYEOF
 )
     echo "$ENTRY" >> "$QUEUE_FILE"
@@ -184,26 +193,28 @@ PYEOF
     TURNS_JSON=$(get_all_turns_since_offset "$TRANSCRIPT" "$SESSION_ID")
     if [ -n "$TURNS_JSON" ]; then
       # Multi-turn format
-      python3 - "$SESSION_ID" "$TS" "$TURNS_JSON" <<'PYEOF'
+      python3 - "$SESSION_ID" "$TS" "$TURNS_JSON" "$HOOK_CWD" <<'PYEOF'
 import sys, json
 session_id = sys.argv[1]
 ts = int(sys.argv[2])
 turns = json.loads(sys.argv[3])
-entry = {"hookType":"PreCompact","sessionId":session_id,"timestamp":ts,"turns":turns}
+cwd = sys.argv[4]
+entry = {"hookType":"PreCompact","sessionId":session_id,"timestamp":ts,"turns":turns,"cwd":cwd,"rootHint":cwd,"origin":"vscode-extension"}
 print(json.dumps(entry))
 PYEOF
       | tee -a "$QUEUE_FILE" > /dev/null
     else
       # Fallback: single exchange
       EXCHANGE=$(get_last_exchange "$TRANSCRIPT")
-      python3 - "$SESSION_ID" "$TS" "$EXCHANGE" <<'PYEOF'
+      python3 - "$SESSION_ID" "$TS" "$EXCHANGE" "$HOOK_CWD" <<'PYEOF'
 import sys, json
 session_id = sys.argv[1]
 ts = int(sys.argv[2])
 exchange = json.loads(sys.argv[3])
+cwd = sys.argv[4]
 if not exchange["user"] and not exchange["assistant"]:
     sys.exit(0)
-entry = {"hookType":"PreCompact","prompt":exchange["user"],"response":exchange["assistant"],"participant":"copilot","sessionId":session_id,"timestamp":ts}
+entry = {"hookType":"PreCompact","prompt":exchange["user"],"response":exchange["assistant"],"participant":"copilot","sessionId":session_id,"timestamp":ts,"cwd":cwd,"rootHint":cwd,"origin":"vscode-extension"}
 print(json.dumps(entry))
 PYEOF
       | tee -a "$QUEUE_FILE" > /dev/null
@@ -227,14 +238,15 @@ PYEOF
   "Stop")
     if [ -z "$TRANSCRIPT" ]; then echo '{}'; exit 0; fi
     EXCHANGE=$(get_last_exchange "$TRANSCRIPT")
-    ENTRY=$(python3 - "$SESSION_ID" "$TS" "$EXCHANGE" <<'PYEOF'
+    ENTRY=$(python3 - "$SESSION_ID" "$TS" "$EXCHANGE" "$HOOK_CWD" <<'PYEOF'
 import sys, json
 session_id = sys.argv[1]
 ts = int(sys.argv[2])
 exchange = json.loads(sys.argv[3])
+cwd = sys.argv[4]
 if not exchange["user"] and not exchange["assistant"]:
     sys.exit(0)
-entry = {"hookType":"Stop","prompt":exchange["user"],"response":exchange["assistant"],"participant":"copilot","sessionId":session_id,"timestamp":ts}
+entry = {"hookType":"Stop","prompt":exchange["user"],"response":exchange["assistant"],"participant":"copilot","sessionId":session_id,"timestamp":ts,"cwd":cwd,"rootHint":cwd,"origin":"vscode-extension"}
 print(json.dumps(entry))
 PYEOF
 )

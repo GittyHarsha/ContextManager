@@ -8,10 +8,14 @@ import { ProjectManager } from '../projects/ProjectManager';
 import { SearchIndex } from '../search/SearchIndex';
 import type { SearchEntityType } from '../search/types';
 import type { AutoCaptureService } from '../autoCapture';
+import type { Project, QueuedCardCandidate } from '../projects/types';
+import { resolveToolProject } from './projectSelection';
 
 // ─── Interfaces ─────────────────────────────────────────────────
 
 interface ICtxToolParams {
+	/** Exact project ID, exact project name, or exact workspace root path. Required when multiple projects exist. */
+	project?: string;
 	/** Natural-language search query. Required for search mode. */
 	query?: string;
 	/** Filter to specific entity types. If omitted, searches all types. */
@@ -24,12 +28,17 @@ interface ICtxToolParams {
 	 * - "list": List all items of a given type (conventions, workingNotes, toolHints, cards)
 	 * - "learn": Create a convention, tool hint, or working note
 	 * - "getCard": Read a knowledge card by ID
+	 * - "getQueueItem": Read a queued card candidate by ID
+	 * - "approveQueueItem": Approve a queued card candidate into a knowledge card
+	 * - "rejectQueueItem": Reject a queued card candidate
+	 * - "distillQueue": Synthesize queued card candidates into proposed knowledge cards
+	 * - "clearQueue": Remove all queued card candidates from the selected project
 	 * - "fetch": Full observation details by IDs
 	 * - "retrospect": End-of-task retrospective
 	 */
-	mode?: 'search' | 'list' | 'learn' | 'getCard' | 'fetch' | 'retrospect';
+	mode?: 'search' | 'list' | 'learn' | 'getCard' | 'getQueueItem' | 'approveQueueItem' | 'rejectQueueItem' | 'distillQueue' | 'clearQueue' | 'fetch' | 'retrospect';
 	/** For list mode: which type to list */
-	type?: 'conventions' | 'workingNotes' | 'toolHints' | 'cards';
+	type?: 'conventions' | 'workingNotes' | 'toolHints' | 'cards' | 'queue';
 	/** For learn mode: what to learn */
 	learnType?: 'convention' | 'toolHint' | 'workingNote';
 	// learn convention fields
@@ -51,6 +60,16 @@ interface ICtxToolParams {
 	discoveredWhile?: string;
 	// getCard
 	id?: string;
+	/** Optional queued candidate IDs to distill. If omitted, distillQueue processes the entire queue. */
+	candidateIds?: string[];
+	/** Override title when approving a queued item into a card. */
+	cardTitle?: string;
+	/** Override content when approving a queued item into a card. */
+	cardContent?: string;
+	/** Override category when approving a queued item into a card. */
+	cardCategory?: 'architecture' | 'pattern' | 'convention' | 'explanation' | 'note' | 'other';
+	/** Override tags when approving a queued item into a card. */
+	cardTags?: string[];
 	/** Array of observation IDs to fetch full details (for mode="fetch"). */
 	observationIds?: string[];
 	// retrospect fields
@@ -81,6 +100,11 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 			case 'list': return this._handleList(options.input);
 			case 'learn': return this._handleLearn(options.input);
 			case 'getCard': return this._handleGetCard(options.input);
+			case 'getQueueItem': return this._handleGetQueueItem(options.input);
+			case 'approveQueueItem': return this._handleApproveQueueItem(options.input);
+			case 'rejectQueueItem': return this._handleRejectQueueItem(options.input);
+			case 'distillQueue': return this._handleDistillQueue(options.input);
+			case 'clearQueue': return this._handleClearQueue(options.input);
 			case 'retrospect': return this._handleRetrospect(options.input);
 			case 'fetch': return this._handleFetch(options.input);
 			case 'search': default: return this._handleSearch(options.input);
@@ -91,12 +115,20 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 		return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(msg)]);
 	}
 
+	private _resolveProject(input: ICtxToolParams): { project?: Project; result?: vscode.LanguageModelToolResult } {
+		const resolved = resolveToolProject(this.projectManager, input.project);
+		if (!resolved.project) {
+			return { result: this._text(resolved.error || 'Unable to resolve project.') };
+		}
+		return { project: resolved.project };
+	}
+
 	// ── List mode ──
 
 	private _handleList(input: ICtxToolParams): vscode.LanguageModelToolResult {
-		const activeProject = this.projectManager.getActiveProject();
-		if (!activeProject) { return this._text('No active project.'); }
-		const projectId = activeProject.id;
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const projectId = resolved.project!.id;
 
 		switch (input.type) {
 			case 'conventions': {
@@ -134,17 +166,26 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 				});
 				return this._text(`## Knowledge Cards (${cards.length})\nUse \`mode: "getCard", id: "<cardId>"\` to read full content.\n${lines.join('\n')}`);
 			}
+			case 'queue': {
+				const queue = this.projectManager.getCardQueue(projectId);
+				if (queue.length === 0) { return this._text('No queued card candidates found.'); }
+				const lines = queue.map(item => {
+					const confidence = `${Math.round((item.confidenceScore || 0) * 100)}%`;
+					return `- **${item.suggestedTitle}** [${item.suggestedCategory || item.category || 'note'}] — ID: ${item.id} | confidence ${confidence} | participant ${item.participant}`;
+				});
+				return this._text(`## Card Queue (${queue.length})\nUse \`mode: "getQueueItem", id: "<candidateId>"\` to read full details, \`mode: "approveQueueItem", id: "<candidateId>"\` to create a card, or \`mode: "rejectQueueItem", id: "<candidateId>"\` to remove it.\n${lines.join('\n')}`);
+			}
 			default:
-				return this._text('Unknown list type. Use: "conventions", "workingNotes", "toolHints", or "cards".');
+				return this._text('Unknown list type. Use: "conventions", "workingNotes", "toolHints", "cards", or "queue".');
 		}
 	}
 
 	// ── Learn mode ──
 
 	private async _handleLearn(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
-		const activeProject = this.projectManager.getActiveProject();
-		if (!activeProject) { return this._text('No active project.'); }
-		const projectId = activeProject.id;
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const projectId = resolved.project!.id;
 
 		switch (input.learnType) {
 			case 'convention': {
@@ -174,13 +215,14 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 	// ── GetCard mode ──
 
 	private _handleGetCard(input: ICtxToolParams): vscode.LanguageModelToolResult {
-		const activeProject = this.projectManager.getActiveProject();
-		if (!activeProject) { return this._text('No active project.'); }
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
 		if (!input.id) { return this._text('Missing: id (knowledge card ID).'); }
-		let card = this.projectManager.getKnowledgeCards(activeProject.id).find(c => c.id === input.id);
+		let card = this.projectManager.getKnowledgeCards(project.id).find(c => c.id === input.id);
 		// Also search global cards from other projects
 		if (!card) {
-			card = this.projectManager.getGlobalCards(activeProject.id).find(c => c.id === input.id);
+			card = this.projectManager.getGlobalCards(project.id).find(c => c.id === input.id);
 		}
 		if (!card) { return this._text(`Card not found: ${input.id}`); }
 		const parts = [
@@ -199,12 +241,160 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 		return this._text(parts.join('\n'));
 	}
 
+	private _formatQueueItem(item: QueuedCardCandidate): string {
+		const createdAt = new Date(item.createdAt).toLocaleString();
+		const parts = [
+			`## ${item.suggestedTitle} [${item.suggestedCategory || item.category || 'note'}]`,
+			`**ID:** ${item.id}`,
+			`**Participant:** ${item.participant}`,
+			`**Created:** ${createdAt}`,
+			`**Confidence:** ${Math.round((item.confidenceScore || 0) * 100)}%`,
+			item.reasoning ? `**Reasoning:** ${item.reasoning}` : '',
+			'',
+			'### Suggested Content',
+			item.suggestedContent || '(no suggested content)',
+			'',
+			'### Source Prompt',
+			item.prompt || '(no prompt)',
+			'',
+			'### Source Response',
+			item.response || '(no response)',
+		].filter(Boolean);
+
+		if (item.toolCalls?.length) {
+			parts.push('', '### Tool Calls');
+			for (const toolCall of item.toolCalls) {
+				parts.push(`- \`${toolCall.toolName}\`${toolCall.input ? ` input: ${toolCall.input.substring(0, 160)}` : ''}${toolCall.output ? ` | output: ${toolCall.output.substring(0, 160)}` : ''}`);
+			}
+		}
+
+		return parts.join('\n');
+	}
+
+	private _handleGetQueueItem(input: ICtxToolParams): vscode.LanguageModelToolResult {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		if (!input.id) { return this._text('Missing: id (queued candidate ID).'); }
+
+		const queueItem = this.projectManager.getCardQueue(resolved.project!.id).find(item => item.id === input.id);
+		if (!queueItem) {
+			return this._text(`Queued card candidate not found: ${input.id}`);
+		}
+
+		return this._text(this._formatQueueItem(queueItem));
+	}
+
+	private async _handleApproveQueueItem(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
+		if (!input.id) { return this._text('Missing: id (queued candidate ID).'); }
+
+		const queueItem = this.projectManager.getCardQueue(project.id).find(item => item.id === input.id);
+		if (!queueItem) {
+			return this._text(`Queued card candidate not found: ${input.id}`);
+		}
+
+		const cardId = await this.projectManager.approveQueuedCard(project.id, input.id, {
+			title: input.cardTitle,
+			content: input.cardContent,
+			category: input.cardCategory,
+			tags: input.cardTags,
+		});
+
+		if (!cardId) {
+			return this._text(`Failed to approve queued card candidate: ${input.id}`);
+		}
+
+		return this._text(`✅ Approved queue item "${queueItem.suggestedTitle}" into knowledge card ${cardId}.`);
+	}
+
+	private async _handleRejectQueueItem(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
+		if (!input.id) { return this._text('Missing: id (queued candidate ID).'); }
+
+		const queueItem = this.projectManager.getCardQueue(project.id).find(item => item.id === input.id);
+		if (!queueItem) {
+			return this._text(`Queued card candidate not found: ${input.id}`);
+		}
+
+		await this.projectManager.rejectQueuedCard(project.id, input.id);
+		return this._text(`🗑 Rejected queue item "${queueItem.suggestedTitle}" (${input.id}).`);
+	}
+
+	private async _handleDistillQueue(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
+
+		if (!this.autoCapture) {
+			return this._text('Distill queue mode requires auto-capture service.');
+		}
+
+		const allQueueItems = this.projectManager.getCardQueue(project.id);
+		const selectedIds = new Set((input.candidateIds || []).map(id => id.trim()).filter(Boolean));
+		const queueItems = selectedIds.size > 0
+			? allQueueItems.filter(item => selectedIds.has(item.id))
+			: allQueueItems;
+
+		if (queueItems.length === 0) {
+			return this._text(selectedIds.size > 0
+				? 'No queued card candidates matched candidateIds.'
+				: 'Queue is empty. Responses will be added automatically as you chat.');
+		}
+
+		const cards = await this.autoCapture.distillQueue(queueItems.map(item => ({
+			id: item.id,
+			prompt: item.prompt,
+			response: item.response,
+			participant: item.participant,
+		})));
+
+		if (!cards || cards.length === 0) {
+			return this._text('No cards extracted. Try adding more responses or check model availability.');
+		}
+
+		const parts: string[] = [];
+		parts.push(`## Distilled Queue Proposals (${cards.length})`);
+		parts.push('Review these proposals and save or refine them as needed.');
+		for (const [index, card] of cards.entries()) {
+			parts.push('');
+			parts.push(`### ${index + 1}. ${card.title} [${card.category}]`);
+			parts.push(`**Confidence:** ${Math.round((card.confidence || 0) * 100)}%`);
+			if (card.reasoning) {
+				parts.push(`**Reasoning:** ${card.reasoning}`);
+			}
+			if (Array.isArray(card.sourceIndices) && card.sourceIndices.length > 0) {
+				parts.push(`**Source queue items:** ${card.sourceIndices.join(', ')}`);
+			}
+			parts.push('');
+			parts.push(card.content);
+		}
+
+		return this._text(parts.join('\n'));
+	}
+
+	private async _handleClearQueue(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
+		const queue = this.projectManager.getCardQueue(project.id);
+		if (queue.length === 0) {
+			return this._text('Queue is already empty.');
+		}
+
+		await this.projectManager.clearCardQueue(project.id);
+		return this._text(`🧹 Cleared ${queue.length} queued card candidate(s) from project "${project.name}".`);
+	}
+
 	// ── Retrospect mode ──
 
 	private async _handleRetrospect(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
-		const activeProject = this.projectManager.getActiveProject();
-		if (!activeProject) { return this._text('No active project.'); }
-		const projectId = activeProject.id;
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const projectId = resolved.project!.id;
 		const results: string[] = ['## 📋 Retrospective Processed\n'];
 
 		if (input.newConventions?.length) {
@@ -235,6 +425,10 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 	// ── Search mode (BM25) ──
 
 	private async _handleSearch(input: ICtxToolParams): Promise<vscode.LanguageModelToolResult> {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
+
 		if (!ConfigurationManager.searchEnableFTS) {
 			return new vscode.LanguageModelToolResult([
 				new vscode.LanguageModelTextPart('Full-text search is disabled. Enable it via `contextManager.search.enableFTS` setting.')
@@ -248,11 +442,9 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 			]);
 		}
 
-		const activeProject = this.projectManager.getActiveProject();
-
 		const results = await this.searchIndex.search(query, {
 			entityTypes: input.entityTypes,
-			projectId: activeProject?.id,
+			projectId: project.id,
 			limit: input.limit ?? ConfigurationManager.searchMaxSearchResults,
 			snippetTokens: ConfigurationManager.searchSnippetTokens,
 		});
@@ -265,8 +457,8 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 		if (results.length === 0) {
 			const requestedTypes = input.entityTypes;
 			const includesCards = !requestedTypes || requestedTypes.includes('card');
-			if (activeProject && includesCards) {
-				const fallback = this.keywordCardFallback(activeProject.id, query, Math.min(input.limit ?? 10, 10));
+			if (includesCards) {
+				const fallback = this.keywordCardFallback(project.id, query, Math.min(input.limit ?? 10, 10));
 				if (fallback.length > 0) {
 					const parts: string[] = [];
 					parts.push(`## Full-Text Search Results for: "${query}"`);
@@ -352,6 +544,11 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 			list: `Listing ${options.input?.type || 'items'}...`,
 			learn: `Learning ${options.input?.learnType || 'item'}: "${options.input?.title || options.input?.subject || options.input?.pattern || '...'}"`,
 			getCard: `Reading card ${options.input?.id || '...'}`,
+			getQueueItem: `Reading queue item ${options.input?.id || '...'}`,
+			approveQueueItem: `Approving queue item ${options.input?.id || '...'}`,
+			rejectQueueItem: `Rejecting queue item ${options.input?.id || '...'}`,
+			distillQueue: `Distilling ${options.input?.candidateIds?.length ? `${options.input.candidateIds.length} queue item(s)` : 'queue items'} into card proposals...`,
+			clearQueue: 'Clearing queued card candidates...',
 			fetch: `Fetching observation details...`,
 			retrospect: `Processing retrospective...`,
 		};
@@ -361,6 +558,9 @@ export class CtxTool implements vscode.LanguageModelTool<ICtxToolParams> {
 	// ─── 3-Layer Search: Fetch Mode ─────────────────────────────
 
 	private _handleFetch(input: ICtxToolParams): vscode.LanguageModelToolResult {
+		const resolved = this._resolveProject(input);
+		if (resolved.result) { return resolved.result; }
+
 		if (!this.autoCapture) {
 			return new vscode.LanguageModelToolResult([
 				new vscode.LanguageModelTextPart('Fetch mode requires auto-capture service.')

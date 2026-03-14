@@ -21,7 +21,7 @@ ContextManager is a VS Code extension with the following core subsystems:
 <pre class="mermaid">
 graph TB
     LMT[Language Model Tools - 5 tools] --> PM[Project Manager]
-    DASH[Dashboard - 4 tabs] --> PM
+    DASH[Dashboard - 5 tabs] --> PM
     PM --> AC[Auto-Capture Service]
     AC --> AL[Auto-Learn Pipeline]
     AC --> SI[Search Index - SQLite FTS4]
@@ -72,7 +72,7 @@ Registered via `vscode.lm.registerTool()`. Available to all agents:
 
 ```typescript
 // Registration pattern (src/tools/index.ts → registerTools())
-vscode.lm.registerTool('contextManager_ctx', handler);              // #ctx — unified search/list/learn/getCard/fetch/retrospect
+vscode.lm.registerTool('contextManager_ctx', handler);              // #ctx — unified search/list/learn/getCard/queue/fetch/retrospect
 vscode.lm.registerTool('contextManager_getCard', handler);          // #getCard — read full card by ID
 vscode.lm.registerTool('contextManager_saveKnowledgeCard', handler);   // #saveCard
 vscode.lm.registerTool('contextManager_editKnowledgeCard', handler);   // #editCard
@@ -90,12 +90,13 @@ Each tool includes `disambiguation` entries that help Copilot decide when to aut
 Central data store (`src/projects/ProjectManager.ts`, ~2000 lines) managing:
 
 - **Projects** — metadata, root paths, goals, conventions
+- **Session routing state** — tracked chat sessions, binding segments, pending hook events
 - **Knowledge Cards** — CRUD, folders, flags, progressive disclosure
 - **Project Intelligence** — conventions, tool hints, working notes
 - **Todos** — user-managed task items
-- **Events** — `onDidChangeActiveProject`, `onDidChangeProjects`, `onDidChangeCache`
+- **Events** — `onDidChangeActiveProject`, `onDidChangeProjects`, `onDidChangeSessionTracking`, `onDidChangeCache`
 
-Data persists to JSON files in `globalStorageUri` with in-memory caching for zero-overhead reads. Storage layer (`storage.ts`) handles disk I/O and `globalState` for metadata.
+Data persists to JSON files in `globalStorageUri` with in-memory caching for zero-overhead reads. Storage layer (`storage.ts`) handles disk I/O and `globalState` for metadata, including `projects.json` and `session-routing.json`.
 
 ### 3. Auto-Capture Service
 
@@ -166,14 +167,17 @@ File system watcher on `~/.contextmanager/hook-queue.jsonl` (`src/hooks/HookWatc
 1. Uses native `fs.watch()` with 400ms debounce
 2. Reads queue file as raw Buffer for accurate byte offsets with multi-byte UTF-8
 3. Parses new JSONL lines into typed `HookEntry` objects
-4. Routes to handler by `hookType` — **3 active handlers:**
+4. Routes to handler by `hookType` — **4 handled event families:**
+    - **`SessionStart`** → tracked-session registration and session metadata refresh (no capture materialization)
    - **`Stop`** → `autoCapture.onModelResponse()` + card queue candidate (gated by `hooks.stop` setting)
    - **`PostToolUse`** → tool-call observation with parsed input summary (gated by `hooks.postToolUse` setting)
    - **`PreCompact`** → multi-turn extraction via `extractMultiTurnLearnings()` + `distillAndSaveBackground()` (gated by `hooks.preCompact` setting)
 5. Advances byte offset and persists to `~/.contextmanager/.queue-offset`
 6. On startup, processes any backlog before starting the watcher; snaps to end if offset exceeds file size
 
-**Configured but unhandled hooks:** `SessionStart` and `SubagentStart` (context injection handled at shell-script level via `session-context.txt`), `UserPromptSubmit` — all declared in `hooks.json` but silently ignored by the TypeScript watcher.
+**Queueing behavior in multi-project mode:** if a hook event arrives for an unbound session and no exact project hint resolves it, the event is queued as pending until the user binds that session from the Dashboard → Sessions tab.
+
+**Configured but unhandled hooks:** `SubagentStart` and `UserPromptSubmit` remain shell-script level only.
 
 ### 7. Supporting Services
 
@@ -271,12 +275,13 @@ graph TD
 
 ## Dashboard
 
-The WebView dashboard has **4 tabs**:
+The WebView dashboard has **5 tabs**:
 
 | Tab | ID | Contents |
 |:----|:---|:---------|
 | 🧠 Intelligence | `intelligence` | Auto-Learn & Auto-Capture controls, observation stats (24h/90d), toggle switches |
 | Knowledge | `knowledge` | 3 sub-tabs: **Workbench** (conventions, notes, hints), **Knowledge Cards** (full card list + editor), **Card Queue** (AI candidates) |
+| Sessions | `sessions` | Tracked chat sessions, pending capture counts, bind/rebind actions, dismiss/forget controls |
 | Context | `context` | Project context editor (goals, conventions, tech stack) included in AI prompts |
 | ⚙ Settings | `settings` | Extension settings UI with grouped sections |
 
@@ -299,7 +304,7 @@ ContextManager/
 │   ├── prompts.ts                # System prompt templates for explanation commands
 │   │
 │   ├── dashboard/
-│   │   ├── DashboardPanel.ts     # WebView dashboard (4 tabs, ~1500 lines)
+│   │   ├── DashboardPanel.ts     # WebView dashboard (5 tabs, ~1500 lines)
 │   │   ├── cardCanvas.ts         # Card tile rendering & tool-call viewer
 │   │   ├── index.ts              # Barrel export
 │   │   ├── htmlHelpers.ts        # HTML generation (escapeHtml, renderMarkdown, KaTeX)

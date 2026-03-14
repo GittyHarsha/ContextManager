@@ -92,11 +92,15 @@ export class GitHubInstructionsManager {
 		lines.push('');
 		lines.push('## Project Knowledge (auto-managed by ContextManager)');
 		lines.push('');
+		lines.push('If multiple ContextManager projects exist, include `project="Exact Project Name"` (or exact project ID / root path) in LM tool calls.');
+		lines.push('');
 		lines.push('Use `#ctx` to search, list, and manage all project knowledge:');
-		lines.push('- Search: `#ctx query="error handling"` or filter by type: `#ctx query="auth" entityTypes=["convention","workingNote"]`');
-		lines.push('- List all: `#ctx mode="list" type="conventions"` (also: `workingNotes`, `toolHints`, `cards`)');
-		lines.push('- Read card: `#ctx mode="getCard" id="<cardId>"`');
-		lines.push('- Learn: `#ctx mode="learn" learnType="convention" ...`');
+		lines.push('- Search: `#ctx query="error handling"` or `#ctx project="ContextManager" query="auth" entityTypes=["convention","workingNote"]`');
+		lines.push('- List all: `#ctx mode="list" type="conventions"` (also: `workingNotes`, `toolHints`, `cards`, `queue`)');
+		lines.push('- Read card: `#ctx mode="getCard" id="<cardId>"` or `#getCard project="ContextManager" id="<cardId>"`');
+		lines.push('- Review queue: `#ctx mode="getQueueItem" id="<candidateId>"`, `#ctx mode="approveQueueItem" id="<candidateId>"`, `#ctx mode="rejectQueueItem" id="<candidateId>"`');
+		lines.push('- Distill or clear queue: `#ctx mode="distillQueue"` (optionally with `candidateIds=[...]`) or `#ctx mode="clearQueue"`');
+		lines.push('- Learn: `#ctx mode="learn" learnType="convention" project="ContextManager" ...`');
 
 		// Include pinned knowledge cards (user explicitly marked as important)
 		const cards = this.projectManager.getKnowledgeCards(projectId);

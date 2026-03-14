@@ -1,4 +1,4 @@
-# cm-version: 9
+# cm-version: 11
 # ContextManager Agent Hook Script — Windows PowerShell
 # Handles: SessionStart, SubagentStart, UserPromptSubmit, PostToolUse, PreCompact, Stop
 # Installed to: ~/.contextmanager/scripts/capture.ps1
@@ -219,9 +219,9 @@ function Get-LastCompletedTurn($transcriptPath) {
 }
 
 # ── Append entry to queue file ───────────────────────────────────────────────
-function Append-Queue($obj) {
+function Append-Queue($obj, $depth = 5) {
     try {
-        $line = $obj | ConvertTo-Json -Compress -Depth 5
+        $line = $obj | ConvertTo-Json -Compress -Depth $depth
         Add-Content -Path $queueFile -Value $line -Encoding UTF8
     } catch {}
 }
@@ -233,6 +233,16 @@ switch ($hookType) {
         if (Test-Path $sessionCtx) {
             $raw = (Get-Content $sessionCtx -Raw -Encoding UTF8)
             if ($raw) { $ctx = $raw.Trim() }
+        }
+
+        $cwd = if ($data.cwd) { [string]$data.cwd } else { "" }
+        Append-Queue @{
+            hookType  = "SessionStart"
+            sessionId = $sessionId
+            timestamp = $ts
+            cwd       = $cwd
+            rootHint  = $cwd
+            origin    = "vscode-extension"
         }
 
         @{
@@ -295,6 +305,9 @@ switch ($hookType) {
             toolResponse = $resultStr
             sessionId    = $sessionId
             timestamp    = $ts
+            cwd          = if ($data.cwd) { [string]$data.cwd } else { "" }
+            rootHint     = if ($data.cwd) { [string]$data.cwd } else { "" }
+            origin       = "vscode-extension"
         }
 
         # Also scan Copilot transcript for any completed user+assistant turns
@@ -322,6 +335,9 @@ switch ($hookType) {
                             participant = "copilot"
                             sessionId   = $sessionId
                             timestamp   = $ts
+                            cwd         = if ($data.cwd) { [string]$data.cwd } else { "" }
+                            rootHint    = if ($data.cwd) { [string]$data.cwd } else { "" }
+                            origin      = "vscode-extension"
                         }
                         Set-Content $seenFile $turn.userId -Encoding UTF8
                     }
@@ -345,6 +361,9 @@ switch ($hookType) {
                 sessionId = $sessionId
                 timestamp = $ts
                 turns     = $turns
+                cwd       = if ($data.cwd) { [string]$data.cwd } else { "" }
+                rootHint  = if ($data.cwd) { [string]$data.cwd } else { "" }
+                origin    = "vscode-extension"
             }
         } else {
             # Fallback: extract last exchange only (pre-v2 behavior)
@@ -358,6 +377,9 @@ switch ($hookType) {
                     response  = $response
                     sessionId = $sessionId
                     timestamp = $ts
+                    cwd       = if ($data.cwd) { [string]$data.cwd } else { "" }
+                    rootHint  = if ($data.cwd) { [string]$data.cwd } else { "" }
+                    origin    = "vscode-extension"
                 }
             }
         }
@@ -398,6 +420,9 @@ switch ($hookType) {
                 sessionId   = $sessionId
                 timestamp   = $ts
                 toolCalls   = $tc
+                cwd         = if ($data.cwd) { [string]$data.cwd } else { "" }
+                rootHint    = if ($data.cwd) { [string]$data.cwd } else { "" }
+                origin      = "vscode-extension"
             }
         }
 

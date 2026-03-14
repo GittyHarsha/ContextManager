@@ -72,26 +72,28 @@ AI Draft / Synthesize uses the dedicated **Card Synthesis Model** setting (`know
 
 Use Language Model Tools when you want to create a card immediately from a chat session:
 
+If multiple ContextManager projects exist, include `project:"Exact Project Name"` or the exact project ID/root path on every tool call.
+
 **Save a new card — `#saveCard`**
 ```
-#saveCard title:"Authentication Flow" content:"The auth system uses JWT..." category:"architecture"
+#saveCard project:"ContextManager" title:"Authentication Flow" content:"The auth system uses JWT..." category:"architecture"
 ```
 
 **List or create folders from chat — `#saveCard`**
 ```
-#saveCard action:"listFolders"
-#saveCard action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
-#saveCard title:"Authentication Flow" content:"# Authentication Flow\nThe auth system uses JWT..." folderMode:"named-folder" folderName:"Security"
+#saveCard project:"ContextManager" action:"listFolders"
+#saveCard project:"ContextManager" action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
+#saveCard project:"ContextManager" title:"Authentication Flow" content:"# Authentication Flow\nThe auth system uses JWT..." folderMode:"named-folder" folderName:"Security"
 ```
 
 **Edit an existing card — `#editCard`**
 ```
-#editCard id:"card-id" content:"Updated content..."
+#editCard project:"ContextManager" id:"card-id" content:"Updated content..."
 ```
 
 **Organize cards into folders — `#organizeCards`**
 ```
-#organizeCards
+#organizeCards project:"ContextManager"
 ```
 
 ---

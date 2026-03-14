@@ -1,10 +1,12 @@
 /**
- * Knowledge Card tools — save and edit knowledge cards in the active project.
+ * Knowledge Card tools — save and edit knowledge cards in an explicitly selected project.
  */
 
 import * as vscode from 'vscode';
 import { ConfigurationManager } from '../config';
 import { ProjectManager } from '../projects/ProjectManager';
+import type { Project } from '../projects/types';
+import { resolveToolProject } from './projectSelection';
 
 // ─── Interfaces ─────────────────────────────────────────────────
 
@@ -12,6 +14,8 @@ type SaveKnowledgeCardAction = 'save' | 'listFolders' | 'createFolder';
 type SaveKnowledgeCardFolderMode = 'auto' | 'root' | 'named-folder';
 
 interface ISaveKnowledgeCardParams {
+	/** Exact project ID, exact project name, or exact workspace root path. Required when multiple projects exist. */
+	project?: string;
 	/** Action to perform. Defaults to 'save'. */
 	action?: SaveKnowledgeCardAction;
 	/** Title of the knowledge card. Required for action='save'. */
@@ -35,6 +39,8 @@ interface ISaveKnowledgeCardParams {
 }
 
 interface IEditKnowledgeCardParams {
+	/** Exact project ID, exact project name, or exact workspace root path. Required when multiple projects exist. */
+	project?: string;
 	/** ID of the knowledge card to edit. */
 	id: string;
 	/** New title. Omit to keep existing. */
@@ -49,10 +55,25 @@ interface IEditKnowledgeCardParams {
 	source?: string;
 }
 
+function resolveKnowledgeToolProject(
+	projectManager: ProjectManager,
+	input: { project?: string },
+): { project?: Project; result?: vscode.LanguageModelToolResult } {
+	const resolved = resolveToolProject(projectManager, input.project);
+	if (!resolved.project) {
+		return {
+			result: new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(resolved.error || 'Unable to resolve project.'),
+			]),
+		};
+	}
+	return { project: resolved.project };
+}
+
 // ─── Save Knowledge Card Tool ───────────────────────────────────
 
 /**
- * Silently saves a knowledge card to the active project without interrupting the chat session.
+ * Silently saves a knowledge card to the selected project without interrupting the chat session.
  * No confirmation required — runs in background.
  */
 export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnowledgeCardParams> {
@@ -179,12 +200,9 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 		options: vscode.LanguageModelToolInvocationOptions<ISaveKnowledgeCardParams>,
 		_token: vscode.CancellationToken,
 	): Promise<vscode.LanguageModelToolResult> {
-		const project = this.projectManager.getActiveProject();
-		if (!project) {
-			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-				'No active project. Cannot save knowledge card.'
-			)]);
-		}
+		const resolved = resolveKnowledgeToolProject(this.projectManager, options.input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
 
 		const {
 			action = 'save',
@@ -285,13 +303,14 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 		_token: vscode.CancellationToken,
 	) {
 		const action = options.input?.action ?? 'save';
+		const projectSuffix = options.input?.project?.trim() ? ` in project "${options.input.project.trim()}"` : '';
 		const folderName = options.input?.folderName?.trim();
 		const title = options.input?.title ?? 'knowledge card';
 		const msg = action === 'listFolders'
-			? 'Listing knowledge card folders...'
+			? `Listing knowledge card folders${projectSuffix}...`
 			: action === 'createFolder'
-				? `Preparing knowledge folder${folderName ? `: "${folderName}"` : ''}...`
-				: `Saving knowledge card: "${title}"...`;
+				? `Preparing knowledge folder${folderName ? `: "${folderName}"` : ''}${projectSuffix}...`
+				: `Saving knowledge card${projectSuffix}: "${title}"...`;
 		if (ConfigurationManager.toolsBackgroundMode) {
 			return { invocationMessage: msg };
 		}
@@ -301,10 +320,10 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 				title: action === 'createFolder' ? 'Create Knowledge Folder' : 'Save Knowledge Card',
 				message: new vscode.MarkdownString(
 					action === 'listFolders'
-						? 'List knowledge card folders in the active project?'
+						? `List knowledge card folders${projectSuffix || ''}?`
 						: action === 'createFolder'
-							? `Create knowledge folder **"${folderName || 'new folder'}"** in the active project?`
-							: `Save knowledge card **"${title}"** to the active project?`
+							? `Create knowledge folder **"${folderName || 'new folder'}"**${projectSuffix || ''}?`
+							: `Save knowledge card **"${title}"**${projectSuffix || ''}?`
 				),
 			},
 		};
@@ -314,6 +333,8 @@ export class SaveKnowledgeCardTool implements vscode.LanguageModelTool<ISaveKnow
 // ─── Get Knowledge Card Tool ──────────────────────────────────
 
 interface IGetCardParams {
+	/** Exact project ID, exact project name, or exact workspace root path. Required when multiple projects exist. */
+	project?: string;
 	/** ID of the knowledge card to retrieve. */
 	id: string;
 }
@@ -329,12 +350,9 @@ export class GetCardTool implements vscode.LanguageModelTool<IGetCardParams> {
 		options: vscode.LanguageModelToolInvocationOptions<IGetCardParams>,
 		_token: vscode.CancellationToken,
 	): Promise<vscode.LanguageModelToolResult> {
-		const project = this.projectManager.getActiveProject();
-		if (!project) {
-			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-				'No active project.'
-			)]);
-		}
+		const resolved = resolveKnowledgeToolProject(this.projectManager, options.input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
 
 		const id = options.input?.id?.trim();
 		if (!id) {
@@ -418,14 +436,15 @@ export class GetCardTool implements vscode.LanguageModelTool<IGetCardParams> {
 	) {
 		// Read-only — never requires confirmation, runs immediately like #projectContext
 		const id = options.input?.id ?? 'card';
-		return { invocationMessage: `Reading knowledge card "${id}"...` };
+		const projectSuffix = options.input?.project?.trim() ? ` in project "${options.input.project.trim()}"` : '';
+		return { invocationMessage: `Reading knowledge card "${id}"${projectSuffix}...` };
 	}
 }
 
 // ─── Edit Knowledge Card Tool ─────────────────────────────────
 
 /**
- * Updates fields on an existing knowledge card in the active project.
+ * Updates fields on an existing knowledge card in the selected project.
  * Only supplied fields are changed; omitted fields are left as-is.
  */
 export class EditKnowledgeCardTool implements vscode.LanguageModelTool<IEditKnowledgeCardParams> {
@@ -435,12 +454,9 @@ export class EditKnowledgeCardTool implements vscode.LanguageModelTool<IEditKnow
 		options: vscode.LanguageModelToolInvocationOptions<IEditKnowledgeCardParams>,
 		_token: vscode.CancellationToken,
 	): Promise<vscode.LanguageModelToolResult> {
-		const project = this.projectManager.getActiveProject();
-		if (!project) {
-			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-				'No active project. Cannot edit knowledge card.'
-			)]);
-		}
+		const resolved = resolveKnowledgeToolProject(this.projectManager, options.input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
 
 		const { id, title, content, category, tags, source } = options.input;
 		if (!id?.trim()) {
@@ -479,7 +495,8 @@ export class EditKnowledgeCardTool implements vscode.LanguageModelTool<IEditKnow
 		_token: vscode.CancellationToken,
 	) {
 		const id = options.input?.id ?? 'card';
-		const msg = `Editing knowledge card "${id}"...`;
+		const projectSuffix = options.input?.project?.trim() ? ` in project "${options.input.project.trim()}"` : '';
+		const msg = `Editing knowledge card "${id}"${projectSuffix}...`;
 		if (ConfigurationManager.toolsBackgroundMode) {
 			return { invocationMessage: msg };
 		}
@@ -487,7 +504,7 @@ export class EditKnowledgeCardTool implements vscode.LanguageModelTool<IEditKnow
 			invocationMessage: msg,
 			confirmationMessages: {
 				title: 'Edit Knowledge Card',
-				message: new vscode.MarkdownString(`Update knowledge card **"${id}"**?`),
+				message: new vscode.MarkdownString(`Update knowledge card **"${id}"**${projectSuffix || ''}?`),
 			},
 		};
 	}
@@ -496,6 +513,8 @@ export class EditKnowledgeCardTool implements vscode.LanguageModelTool<IEditKnow
 // ─── Organize Knowledge Cards Tool ─────────────────────────────
 
 interface IOrganizeKnowledgeCardsParams {
+	/** Exact project ID, exact project name, or exact workspace root path. Required when multiple projects exist. */
+	project?: string;
 	/** Action to perform. */
 	action: 'listFolders' | 'createFolder' | 'moveCard' | 'autoOrganize';
 	/** Folder name (for createFolder). */
@@ -520,12 +539,9 @@ export class OrganizeKnowledgeCardsTool implements vscode.LanguageModelTool<IOrg
 	): Promise<vscode.LanguageModelToolResult> {
 		console.log('[ContextManager] organizeKnowledgeCards.invoke called', JSON.stringify(options?.input ?? null));
 		try {
-		const project = this.projectManager.getActiveProject();
-		if (!project) {
-			return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(
-				'No active project. Create or select a project in the ContextManager dashboard first.'
-			)]);
-		}
+		const resolved = resolveKnowledgeToolProject(this.projectManager, options.input);
+		if (resolved.result) { return resolved.result; }
+		const project = resolved.project!;
 
 		// Guard against missing/null input (some model runtimes omit input when schema has required fields)
 		const action: IOrganizeKnowledgeCardsParams['action'] = options?.input?.action ?? 'listFolders';
@@ -647,7 +663,8 @@ export class OrganizeKnowledgeCardsTool implements vscode.LanguageModelTool<IOrg
 		console.log('[ContextManager] organizeKnowledgeCards.prepareInvocation called');
 		try {
 			const action = options?.input?.action ?? 'organize';
-			return { invocationMessage: `Organizing knowledge cards: ${action}...` };
+			const projectSuffix = options.input?.project?.trim() ? ` in project "${options.input.project.trim()}"` : '';
+			return { invocationMessage: `Organizing knowledge cards${projectSuffix}: ${action}...` };
 		} catch (err) {
 			console.error('[ContextManager] organizeKnowledgeCards.prepareInvocation ERROR:', err);
 			return { invocationMessage: 'Organizing knowledge cards...' };

@@ -17,7 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import type { AutoCaptureService } from '../autoCapture';
 import type { ProjectManager } from '../projects/ProjectManager';
-import type { KnowledgeCard } from '../projects/types';
+import type { KnowledgeCard, SessionOrigin } from '../projects/types';
 import { ConfigurationManager } from '../config';
 import type { WorkflowEngine } from '../workflows/WorkflowEngine';
 
@@ -32,9 +32,14 @@ export interface HookEntry {
 	hookType: string;
 	timestamp: number;
 	sessionId?: string;
+	origin?: SessionOrigin;
+	sequence?: number;
 	participant?: string;
 	prompt?: string;
 	response?: string;
+	cwd?: string;
+	rootHint?: string;
+	projectIdHint?: string;
 	toolName?: string;
 	toolInput?: unknown;
 	toolResponse?: string;
@@ -95,6 +100,35 @@ export class HookWatcher implements vscode.Disposable {
 			scriptsDir: SCRIPTS_DIR,
 			lastOffset: this.lastOffset,
 		};
+	}
+
+	async bindPendingSessionToProject(sessionId: string, projectId: string): Promise<{ backfilled: number }> {
+		const pending = this.projectManager.getPendingHookEvents(sessionId)
+			.filter(event => event.status === 'pending')
+			.sort((left, right) => left.sequence - right.sequence);
+		const startSequence = pending[0]?.sequence;
+		const session = await this.projectManager.bindSessionToProject(sessionId, projectId, { startSequence, reason: 'initial-bind' });
+		if (!session) {
+			return { backfilled: 0 };
+		}
+
+		let backfilled = 0;
+		let lastSequence = 0;
+		for (const event of pending) {
+			await this._materializePendingHookEvent(event.eventType, event.payload, projectId);
+			backfilled += 1;
+			lastSequence = event.sequence;
+		}
+
+		if (backfilled > 0) {
+			await this.projectManager.markPendingHookEventsBackfilled(sessionId, lastSequence);
+		}
+
+		return { backfilled };
+	}
+
+	async rebindSessionToProjectFromNow(sessionId: string, projectId: string): Promise<void> {
+		await this.projectManager.bindSessionToProject(sessionId, projectId, { reason: 'rebind' });
 	}
 
 	dispose(): void {
@@ -186,55 +220,55 @@ export class HookWatcher implements vscode.Disposable {
 	private async _processEntry(entry: HookEntry): Promise<void> {
 		const { hookType, prompt = '', response = '', toolName = '', participant = 'copilot' } = entry;
 		const cfg = vscode.workspace.getConfiguration('contextManager');
+		const origin = entry.origin || 'vscode-extension';
+
+		if (entry.sessionId) {
+			await this.projectManager.ensureTrackedSession(entry.sessionId, {
+				origin,
+				label: prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
+				firstPromptSnippet: prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 160) : undefined,
+				rootHint: entry.rootHint,
+				cwd: entry.cwd,
+				lastActivityAt: entry.timestamp,
+				metadata: {
+					lastHookType: hookType,
+					participant,
+				},
+			}).catch(err => console.warn('[HookWatcher] ensureTrackedSession error:', err));
+		}
 
 		console.log(`[HookWatcher:DEBUG] _processEntry hookType=${hookType} participant=${participant} promptLen=${prompt.length} responseLen=${response.length}`);
 		switch (hookType) {
+			case 'SessionStart': {
+				break;
+			}
+
 			case 'Stop': {
 				const stopEnabled = cfg.get('hooks.stop', true);
 				console.log(`[HookWatcher:DEBUG] Stop entry — hooks.stop=${stopEnabled} hasPrompt=${!!prompt} hasResponse=${!!response} toolCalls=${(entry.toolCalls || []).length}`);
 				if (!stopEnabled) { return; }
 				if (!prompt && !response) { return; }
-				await this.autoCapture.onModelResponse(prompt, response, `hook:${participant}`);
-				// Also queue for card distillation (with tool call evidence)
-				this._queueCardCandidate(prompt, response, participant, entry.toolCalls).catch(() => {});
-				// One-shot mode: deselect cards after they've been injected
-				this._deselectIfOneShot();
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'Stop', {
+					prompt,
+					response,
+					participant,
+					toolCalls: entry.toolCalls,
+				});
+				if (!projectId) { return; }
+				await this._captureStopEvent(prompt, response, participant, entry.toolCalls, projectId);
 				break;
 			}
 
 			case 'PreCompact': {
 				if (!cfg.get('hooks.preCompact', true)) { return; }
-
-				// Multi-turn v2 path: entry.turns array present
-				if (Array.isArray(entry.turns) && entry.turns.length > 0) {
-					// Store one synthetic observation summarizing the batch
-					const firstUser = entry.turns[0]?.user || '';
-					await this.autoCapture.onModelResponse(
-						firstUser.substring(0, 300),
-						`[PreCompact multi-turn: ${entry.turns.length} turns processed]`,
-						'hook:compact',
-					);
-
-					// Route to iterative multi-turn extraction
-					const activeProject = this.projectManager.getActiveProject();
-					if (activeProject) {
-						this.autoCapture.extractMultiTurnLearnings(entry.turns, activeProject.id).catch(e =>
-							console.warn('[HookWatcher] multi-turn extraction error:', e));
-
-						// Fire-and-forget auto-distill at compaction checkpoint
-						this.autoCapture.distillAndSaveBackground(activeProject.id).catch(() => {});
-					}
-				} else {
-					// Legacy single-turn path
-					if (!prompt && !response) { return; }
-					await this.autoCapture.onModelResponse(prompt, response, 'hook:compact');
-
-					// Fire-and-forget auto-distill
-					const activeProject = this.projectManager.getActiveProject();
-					if (activeProject) {
-						this.autoCapture.distillAndSaveBackground(activeProject.id).catch(() => {});
-					}
-				}
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'PreCompact', {
+					prompt,
+					response,
+					participant,
+					turns: entry.turns,
+				});
+				if (!projectId) { return; }
+				await this._capturePreCompactEvent(prompt, response, entry.turns, projectId);
 				break;
 			}
 
@@ -262,13 +296,186 @@ export class HookWatcher implements vscode.Disposable {
 					inputStr ? `Input: ${inputStr}` : '',
 					responseStr ? `Result: ${responseStr}` : '',
 				].filter(Boolean).join('\n');
-				await this.autoCapture.onModelResponse(displayPrompt, summary, `hook:tool`);
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'PostToolUse', {
+					participant,
+					toolName,
+					toolInput: inp,
+					toolResponse: responseStr,
+					displayPrompt,
+					summary,
+				});
+				if (!projectId) { return; }
+				await this._capturePostToolUseEvent(displayPrompt, summary, projectId);
 				break;
 			}
 
 			default:
 				break;
 		}
+	}
+
+	private async _resolveProjectIdForHookEntry(entry: HookEntry, eventType: string, payload: unknown): Promise<string | undefined> {
+		if (!entry.sessionId) {
+			return this.projectManager.getActiveProject()?.id;
+		}
+
+		const prompt = typeof (payload as { prompt?: unknown })?.prompt === 'string'
+			? ((payload as { prompt?: string }).prompt || '')
+			: '';
+		const participant = typeof (payload as { participant?: unknown })?.participant === 'string'
+			? ((payload as { participant?: string }).participant || 'copilot')
+			: 'copilot';
+		const lastActivityAt = entry.timestamp || Date.now();
+		const sequence = await this.projectManager.reserveSessionEventSequence(entry.sessionId, {
+			origin: entry.origin || 'vscode-extension',
+			label: prompt.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
+			firstPromptSnippet: prompt.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 160) : undefined,
+			rootHint: entry.rootHint,
+			cwd: entry.cwd,
+			lastActivityAt,
+			metadata: {
+				lastHookType: eventType,
+				participant,
+			},
+		});
+
+		const boundProject = this.projectManager.resolveProjectForSession(entry.sessionId, sequence);
+		if (boundProject) {
+			return boundProject.id;
+		}
+
+		const hintedProject = this._resolveProjectIdFromHints(entry);
+		if (hintedProject) {
+			return hintedProject;
+		}
+
+		const projects = this.projectManager.getAllProjects();
+		if (projects.length === 1) {
+			return projects[0].id;
+		}
+
+		await this.projectManager.addPendingHookEvent({
+			sessionId: entry.sessionId,
+			eventType,
+			payload,
+			sequence,
+			origin: entry.origin || 'vscode-extension',
+			projectIdHint: entry.projectIdHint,
+			rootHint: entry.rootHint,
+			label: prompt.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
+			firstPromptSnippet: prompt.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 160) : undefined,
+			cwd: entry.cwd,
+			lastActivityAt,
+			metadata: {
+				lastHookType: eventType,
+				participant,
+			},
+		});
+		console.log(`[HookWatcher] Queued pending ${eventType} event for unbound session ${entry.sessionId}`);
+		return undefined;
+	}
+
+	private async _materializePendingHookEvent(eventType: string, payload: unknown, projectId: string): Promise<void> {
+		switch (eventType) {
+			case 'Stop': {
+				const stopPayload = payload as {
+					prompt?: string;
+					response?: string;
+					participant?: string;
+					toolCalls?: Array<{ toolName: string; input: string; output: string }>;
+				};
+				await this._captureStopEvent(
+					stopPayload.prompt || '',
+					stopPayload.response || '',
+					stopPayload.participant || 'copilot',
+					stopPayload.toolCalls,
+					projectId,
+					false,
+				);
+				break;
+			}
+
+			case 'PreCompact': {
+				const compactPayload = payload as {
+					prompt?: string;
+					response?: string;
+					turns?: Array<{ user: string; assistant: string }>;
+				};
+				await this._capturePreCompactEvent(
+					compactPayload.prompt || '',
+					compactPayload.response || '',
+					compactPayload.turns,
+					projectId,
+				);
+				break;
+			}
+
+			case 'PostToolUse': {
+				const toolPayload = payload as { displayPrompt?: string; summary?: string };
+				if (!toolPayload.displayPrompt || !toolPayload.summary) { return; }
+				await this._capturePostToolUseEvent(toolPayload.displayPrompt, toolPayload.summary, projectId);
+				break;
+			}
+
+			default:
+				break;
+		}
+	}
+
+	private async _captureStopEvent(
+		prompt: string,
+		response: string,
+		participant: string,
+		toolCalls: Array<{ toolName: string; input: string; output: string }> | undefined,
+		projectId: string,
+		applyOneShotMode: boolean = true,
+	): Promise<void> {
+		await this.autoCapture.onModelResponse(prompt, response, `hook:${participant}`, { projectId });
+		this._queueCardCandidate(prompt, response, participant, toolCalls, projectId).catch(() => {});
+		if (applyOneShotMode) {
+			this._deselectIfOneShot(projectId);
+		}
+	}
+
+	private async _capturePreCompactEvent(
+		prompt: string,
+		response: string,
+		turns: Array<{ user: string; assistant: string }> | undefined,
+		projectId: string,
+	): Promise<void> {
+		if (Array.isArray(turns) && turns.length > 0) {
+			const firstUser = turns[0]?.user || '';
+			await this.autoCapture.onModelResponse(
+				firstUser.substring(0, 300),
+				`[PreCompact multi-turn: ${turns.length} turns processed]`,
+				'hook:compact',
+				{ projectId },
+			);
+			this.autoCapture.extractMultiTurnLearnings(turns, projectId).catch(e =>
+				console.warn('[HookWatcher] multi-turn extraction error:', e));
+			this.autoCapture.distillAndSaveBackground(projectId).catch(() => {});
+			return;
+		}
+
+		if (!prompt && !response) { return; }
+		await this.autoCapture.onModelResponse(prompt, response, 'hook:compact', { projectId });
+		this.autoCapture.distillAndSaveBackground(projectId).catch(() => {});
+	}
+
+	private async _capturePostToolUseEvent(displayPrompt: string, summary: string, projectId: string): Promise<void> {
+		await this.autoCapture.onModelResponse(displayPrompt, summary, 'hook:tool', { projectId });
+	}
+
+	private _resolveProjectIdFromHints(entry: HookEntry): string | undefined {
+		for (const candidate of [entry.projectIdHint, entry.rootHint]) {
+			if (!candidate?.trim()) { continue; }
+			const resolved = this.projectManager.resolveProjectTarget(candidate);
+			if (resolved.status === 'resolved') {
+				return resolved.project.id;
+			}
+		}
+
+		return undefined;
 	}
 
 	/** Queue a response as a card candidate for later distillation. */
@@ -297,6 +504,7 @@ export class HookWatcher implements vscode.Disposable {
 		response: string,
 		participant: string,
 		toolCalls?: Array<{ toolName: string; input: string; output: string }>,
+		projectId?: string,
 	): Promise<void> {
 		console.log(`[HookWatcher/CardQueue:DEBUG] _queueCardCandidate — participant=${participant} responseLen=${response.length} toolCalls=${(toolCalls || []).length} enabled=${ConfigurationManager.cardQueueEnabled} minLen=${ConfigurationManager.cardQueueMinResponseLength}`);
 		if (!ConfigurationManager.cardQueueEnabled) {
@@ -312,7 +520,9 @@ export class HookWatcher implements vscode.Disposable {
 			return;
 		}
 
-		const project = this.projectManager.getActiveProject();
+		const project = projectId
+			? this.projectManager.getProject(projectId)
+			: this.projectManager.getActiveProject();
 		if (!project) { return; }
 
 		try {
@@ -351,8 +561,10 @@ export class HookWatcher implements vscode.Disposable {
 	}
 
 	/** If one-shot mode is on, deselect all selected cards after a prompt completes. */
-	private _deselectIfOneShot(): void {
-		const project = this.projectManager.getActiveProject();
+	private _deselectIfOneShot(projectId?: string): void {
+		const project = projectId
+			? this.projectManager.getProject(projectId)
+			: this.projectManager.getActiveProject();
 		if (!project) { return; }
 		if (!project.promptInjection?.oneShotMode) { return; }
 		const selectedCardIds = project.selectedCardIds || [];
@@ -399,14 +611,39 @@ export class HookWatcher implements vscode.Disposable {
 		const selectedCardIds = project.selectedCardIds || [];
 		const hasCustomInstruction = !!(injection?.customInstruction?.trim());
 		const includeFullContent = injection?.includeFullContent ?? false;
+		const includeProjectContext = injection?.includeProjectContext ?? false;
+		const projectGoals = project.context.goals?.trim();
+		const projectConventions = project.context.conventions?.trim();
+		const projectKeyFiles = (project.context.keyFiles || [])
+			.map(file => file.trim())
+			.filter(Boolean);
+		const hasProjectContext = includeProjectContext && !!(projectGoals || projectConventions || projectKeyFiles.length > 0);
 
-		if (selectedCardIds.length > 0 || hasCustomInstruction) {
+		if (selectedCardIds.length > 0 || hasCustomInstruction || hasProjectContext) {
 			lines.push('');
 			lines.push('## Injected Context for This Session');
 
 			if (hasCustomInstruction) {
 				lines.push('');
 				lines.push(injection!.customInstruction.trim());
+			}
+
+			if (hasProjectContext) {
+				lines.push('');
+				lines.push('### Project Context');
+				lines.push('');
+				if (projectGoals) {
+					lines.push(`Goals: ${projectGoals}`);
+				}
+				if (projectConventions) {
+					lines.push(`Conventions: ${projectConventions}`);
+				}
+				if (projectKeyFiles.length > 0) {
+					lines.push('Key files:');
+					for (const file of projectKeyFiles) {
+						lines.push(`- ${file}`);
+					}
+				}
 			}
 
 			if (selectedCardIds.length > 0) {

@@ -5,6 +5,7 @@
 export interface PromptInjection {
 	customInstruction: string;   // Custom message prepended to the injected block
 	includeFullContent: boolean; // true = inject full card body; false = title + ID only
+	includeProjectContext?: boolean; // true = inject goals, context conventions, and key files with explicit prompt injection
 	oneShotMode?: boolean;       // true = deselect cards after they are injected once
 	// Card selection is driven by project.selectedCardIds (Knowledge tab checkboxes)
 }
@@ -291,6 +292,67 @@ export interface CachedExplanation {
 	projectId?: string;
 }
 
+// ─── Session Routing Types ────────────────────────────────────
+
+export type SessionOrigin = 'vscode-extension' | 'copilot-cli-plugin' | 'unknown';
+
+export type TrackedSessionStatus = 'pending' | 'bound' | 'ended' | 'dismissed';
+
+export type SessionBindingReason = 'initial-bind' | 'rebind' | 'auto-link';
+
+export type PendingHookEventStatus = 'pending' | 'backfilled' | 'discarded';
+
+export interface SessionBindingSegment {
+	id: string;
+	sessionId: string;
+	projectId: string;
+	startSequence: number;
+	endSequence?: number;
+	reason: SessionBindingReason;
+	createdAt: number;
+	updatedAt: number;
+}
+
+export interface TrackedSession {
+	sessionId: string;
+	origin: SessionOrigin;
+	status: TrackedSessionStatus;
+	label: string;
+	bindingToken?: string;
+	firstPromptSnippet?: string;
+	rootHint?: string;
+	cwd?: string;
+	createdAt: number;
+	updatedAt: number;
+	lastActivityAt: number;
+	endedAt?: number;
+	dismissedAt?: number;
+	pendingCaptureCount: number;
+	bindingSegments: SessionBindingSegment[];
+	metadata?: Record<string, string | number | boolean>;
+}
+
+export interface PendingHookEvent {
+	id: string;
+	sessionId: string;
+	origin: SessionOrigin;
+	sequence: number;
+	eventType: string;
+	queuedAt: number;
+	status: PendingHookEventStatus;
+	projectIdHint?: string;
+	rootHint?: string;
+	payload: unknown;
+	materializedAt?: number;
+}
+
+export interface SessionRoutingState {
+	trackedSessions: TrackedSession[];
+	pendingHookEvents: PendingHookEvent[];
+	nextSequence: number;
+	updatedAt: number;
+}
+
 // Helper to create new project with defaults
 export function createProject(name: string, rootPaths: string[]): Project {
 	return {
@@ -440,6 +502,83 @@ export function createWorkingNote(
 		enabled: true,
 		createdAt: Date.now(), updatedAt: Date.now(),
 		staleness: 'fresh',
+	};
+}
+
+export function createSessionBindingSegment(
+	sessionId: string,
+	projectId: string,
+	startSequence: number,
+	reason: SessionBindingReason = 'initial-bind',
+): SessionBindingSegment {
+	const now = Date.now();
+	return {
+		id: generateId(),
+		sessionId,
+		projectId,
+		startSequence,
+		reason,
+		createdAt: now,
+		updatedAt: now,
+	};
+}
+
+export function createTrackedSession(
+	sessionId: string,
+	label: string,
+	origin: SessionOrigin = 'unknown',
+	updates: Partial<Omit<TrackedSession, 'sessionId' | 'label' | 'origin' | 'createdAt' | 'updatedAt' | 'lastActivityAt' | 'pendingCaptureCount'>> = {},
+): TrackedSession {
+	const now = Date.now();
+	return {
+		sessionId,
+		origin,
+		status: updates.status || 'pending',
+		label,
+		bindingToken: updates.bindingToken,
+		firstPromptSnippet: updates.firstPromptSnippet,
+		rootHint: updates.rootHint,
+		cwd: updates.cwd,
+		createdAt: now,
+		updatedAt: now,
+		lastActivityAt: now,
+		endedAt: updates.endedAt,
+		dismissedAt: updates.dismissedAt,
+		pendingCaptureCount: 0,
+		bindingSegments: updates.bindingSegments || [],
+		metadata: updates.metadata,
+	};
+}
+
+export function createPendingHookEvent(
+	sessionId: string,
+	eventType: string,
+	payload: unknown,
+	sequence: number,
+	origin: SessionOrigin = 'unknown',
+	updates: Partial<Omit<PendingHookEvent, 'id' | 'sessionId' | 'eventType' | 'payload' | 'sequence' | 'origin' | 'queuedAt' | 'status'>> = {},
+): PendingHookEvent {
+	return {
+		id: generateId(),
+		sessionId,
+		origin,
+		sequence,
+		eventType,
+		queuedAt: Date.now(),
+		status: 'pending',
+		projectIdHint: updates.projectIdHint,
+		rootHint: updates.rootHint,
+		payload,
+		materializedAt: updates.materializedAt,
+	};
+}
+
+export function createSessionRoutingState(): SessionRoutingState {
+	return {
+		trackedSessions: [],
+		pendingHookEvents: [],
+		nextSequence: 1,
+		updatedAt: Date.now(),
 	};
 }
 

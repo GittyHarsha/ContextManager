@@ -8,7 +8,7 @@ nav_order: 7
 # Dashboard
 {: .fs-8 }
 
-Centralized management for all ContextManager features — 4 tabs, one WebView.
+Centralized management for all ContextManager features — 5 tabs, one WebView.
 {: .fs-5 .fw-300 }
 
 ---
@@ -27,6 +27,7 @@ Centralized management for all ContextManager features — 4 tabs, one WebView.
 |:----|:-------------|
 | **🧠 Intelligence** | Auto-Capture/Auto-Learn controls, observations feed, AI Distill |
 | **Knowledge** | All cards with search, filter, folders, select/deselect (drives hook injection), inline editing, card health, card queue |
+| **Sessions** | Tracked chat sessions, pending capture counts, and bind/rebind controls for multi-project routing |
 | **Context** | Project goals, conventions, tool hints, working notes, key files |
 | **⚙ Settings** | Core extension settings, hook controls, and data import/export |
 
@@ -55,6 +56,20 @@ The command center for the intelligence pipeline:
 - **▶ Run** — manually execute any workflow
 - **Enable/Disable** toggle, Edit, Delete actions
 - See [Custom Workflows]({% link features/workflows.md %}) for full documentation
+
+---
+
+## Sessions Tab
+
+The session-routing control plane for multi-project setups:
+
+- **Tracked sessions** — each Copilot chat session appears with origin, last activity, and a first-prompt label
+- **Pending capture counts** — see how many hook events are waiting for assignment because no project was explicitly bound yet
+- **Bind & Import Pending** — attach an unbound session to a project and immediately materialize queued captures into that project's memory
+- **Rebind From Now** — switch future captures to a different project without rewriting past captures
+- **Dismiss / Forget** — hide noisy sessions or permanently drop stale, unbound routing state
+
+Single-project setups usually do not need this tab, because tools and hook capture can resolve the only project automatically.
 
 ---
 
@@ -138,7 +153,11 @@ The most commonly used extension settings are editable directly in the dashboard
 
 | Shortcut | Action |
 |:---------|:-------|
-| `1`–`4` | Switch tabs |
+| `1` | Intelligence |
+| `2` | Knowledge |
+| `3` | Sessions |
+| `4` | Context |
+| `5` | Settings |
 | `Ctrl+K` | Focus search |
 | `Ctrl+Shift+K` | Deselect all cards |
 | `Ctrl+N` | New card |

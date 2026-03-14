@@ -31,6 +31,7 @@ export class DashboardPanel {
 
 	// Host-side active tab — survives full HTML re-renders; updated via webview message
 	private _currentTab: string = 'intelligence';
+	private _sessionTabDirty = false;
 	// Cached model families from vscode.lm API — populated async on first render
 	private _availableModelFamilies: string[] = [];
 	// Card IDs with stale file references (anchors/referenceFiles modified since card.updated)
@@ -58,7 +59,7 @@ export class DashboardPanel {
 			const families = [...new Set(models.map(m => m.family))].sort();
 			if (families.length && JSON.stringify(families) !== JSON.stringify(this._availableModelFamilies)) {
 				this._availableModelFamilies = families;
-				this._flushUpdate();
+				this._guardedUpdate();
 			}
 		}, () => { /* ignore errors — dropdown stays with current value only */ });
 
@@ -66,7 +67,7 @@ export class DashboardPanel {
 		const active = projectManager.getActiveProject();
 		if (active) {
 			projectManager.refreshStaleness(active.id).then(changed => {
-				if (changed) { this._flushUpdate(); }
+				if (changed) { this._guardedUpdate(); }
 			}, () => {});
 			this._refreshCardStaleness(active.id);
 		}
@@ -76,6 +77,7 @@ export class DashboardPanel {
 
 		// Update when project data changes
 		projectManager.onDidChangeProjects(() => this._guardedUpdate(), null, this._disposables);
+		projectManager.onDidChangeSessionTracking(() => this._handleSessionTrackingChanged(), null, this._disposables);
 		projectManager.onDidChangeActiveProject(() => this._guardedUpdate(), null, this._disposables);
 
 		// Auto-release suppression when user switches away from the dashboard.
@@ -96,7 +98,7 @@ export class DashboardPanel {
 				const proj = projectManager.getActiveProject();
 				if (proj) {
 					projectManager.refreshStaleness(proj.id).then(changed => {
-						if (changed) { this._flushUpdate(); }
+						if (changed) { this._guardedUpdate(); }
 					}, () => {});
 					this._refreshCardStaleness(proj.id);
 				}
@@ -122,6 +124,9 @@ export class DashboardPanel {
 				// the correct tab even if vscode.getState() is unavailable.
 				if (message.command === 'setCurrentTab' && typeof message.tab === 'string') {
 					this._currentTab = message.tab;
+					if (message.tab === 'sessions' && this._sessionTabDirty) {
+						this._guardedUpdate();
+					}
 					return;
 				}
 				handleWebviewMessage(message, ctx);
@@ -129,6 +134,15 @@ export class DashboardPanel {
 			null,
 			this._disposables
 		);
+	}
+
+	private _handleSessionTrackingChanged() {
+		if (this._currentTab === 'sessions') {
+			this._guardedUpdate();
+			return;
+		}
+
+		this._sessionTabDirty = true;
 	}
 
 	public static createOrShow(
@@ -147,7 +161,7 @@ export class DashboardPanel {
 		// If panel already exists, show it and refresh content
 		if (DashboardPanel.currentPanel) {
 			DashboardPanel.currentPanel._panel.reveal(column);
-			DashboardPanel.currentPanel._flushUpdate();
+			DashboardPanel.currentPanel._guardedUpdate();
 			return;
 		}
 
@@ -290,6 +304,9 @@ export class DashboardPanel {
 	private _flushUpdate() {
 		const webview = this._panel.webview;
 		this._panel.title = 'ContextManager Dashboard';
+		if (this._currentTab === 'sessions') {
+			this._sessionTabDirty = false;
+		}
 		this._panel.webview.html = this._getHtmlForWebview(webview);
 	}
 
@@ -344,7 +361,7 @@ export class DashboardPanel {
 			[...newStale].some(id => !this._staleCardIds.has(id));
 		if (changed) {
 			this._staleCardIds = newStale;
-			this._flushUpdate();
+			this._guardedUpdate();
 		}
 	}
 
@@ -352,6 +369,7 @@ export class DashboardPanel {
 		const projects = this.projectManager.getAllProjects();
 		const activeProject = this.projectManager.getActiveProject();
 		const currentTab = this._currentTab || 'intelligence';
+		const trackedSessions = this.projectManager.getTrackedSessions();
 		
 		const knowledgeFolders = activeProject?.knowledgeFolders || [];
 
@@ -381,12 +399,13 @@ export class DashboardPanel {
 			`).join('')}
 		</select>
 		<button onclick="showNewProjectForm()">+ New Project</button>
-		<span style="opacity: 0.5; font-size: 0.78em; margin-left: auto;" title="Ctrl+K: Search | 1-4: Switch tabs | Ctrl+N: New card">⌨️ Shortcuts: Ctrl+K search · 1-4 tabs · Ctrl+N new card</span>
+		<span style="opacity: 0.5; font-size: 0.78em; margin-left: auto;" title="Ctrl+K: Search | 1-5: Switch tabs | Ctrl+N: New card">⌨️ Shortcuts: Ctrl+K search · 1-5 tabs · Ctrl+N new card</span>
 	</div>
 
 	<div class="tabs" role="tablist" aria-label="Dashboard tabs">
 		<div class="tab${currentTab === 'intelligence' ? ' active' : ''}" id="tabBtn-intelligence" data-tab="intelligence" onclick="switchTab('intelligence')" role="tab" aria-selected="${currentTab === 'intelligence'}" aria-controls="tab-intelligence" tabindex="${currentTab === 'intelligence' ? '0' : '-1'}">🧠 Intelligence</div>
 		<div class="tab${currentTab === 'knowledge' ? ' active' : ''}"id="tabBtn-knowledge" data-tab="knowledge" onclick="switchTab('knowledge')" role="tab" aria-selected="${currentTab === 'knowledge'}" aria-controls="tab-knowledge" tabindex="${currentTab === 'knowledge' ? '0' : '-1'}">Knowledge (${activeProject?.knowledgeCards?.length || 0})</div>
+		<div class="tab${currentTab === 'sessions' ? ' active' : ''}" id="tabBtn-sessions" data-tab="sessions" onclick="switchTab('sessions')" role="tab" aria-selected="${currentTab === 'sessions'}" aria-controls="tab-sessions" tabindex="${currentTab === 'sessions' ? '0' : '-1'}">Sessions (${trackedSessions.length})</div>
 		<div class="tab${currentTab === 'context' ? ' active' : ''}" id="tabBtn-context"data-tab="context" onclick="switchTab('context')" role="tab" aria-selected="${currentTab === 'context'}" aria-controls="tab-context" tabindex="${currentTab === 'context' ? '0' : '-1'}">Context</div>
 		<div class="tab${currentTab === 'settings' ? ' active' : ''}" id="tabBtn-settings" data-tab="settings" onclick="switchTab('settings')" role="tab" aria-selected="${currentTab === 'settings'}" aria-controls="tab-settings" tabindex="${currentTab === 'settings' ? '0' : '-1'}">⚙ Settings</div>
 	</div>
@@ -691,7 +710,6 @@ export class DashboardPanel {
 		</div>`;
 		})()}
 	</div>
-
 
 	<div id="tab-knowledge"class="tab-content" role="tabpanel" aria-labelledby="tabBtn-knowledge"${currentTab !== 'knowledge' ? ' style="display: none;"' : ''}>
 		${activeProject ? `
@@ -1125,6 +1143,61 @@ export class DashboardPanel {
 								renderCardTile(candidate, { isQueue: true, isSelected: false })
 							).join('')}
 						</div>
+
+				<div id="tab-sessions" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-sessions"${currentTab !== 'sessions' ? ' style="display: none;"' : ''}>
+					${(() => {
+						if (projects.length === 0) {
+							return `<div class="empty-state"><h2>No projects yet</h2><p>Create a project before linking sessions.</p></div>`;
+						}
+
+						if (trackedSessions.length === 0) {
+							return `<div class="empty-state"><h2>No tracked sessions yet</h2><p>Open a new Copilot chat session and use the extension normally. Hook traffic will appear here automatically.</p></div>`;
+						}
+
+						return `
+						<div class="card" style="margin-bottom: 16px;">
+							<h3 style="margin-top: 0;">Tracked Sessions</h3>
+							<p style="opacity: 0.75; margin-bottom: 0;">Bind unassigned sessions to a project to import queued captures. Rebind only affects future captures.</p>
+						</div>
+						<div style="display: grid; gap: 12px;">
+							${trackedSessions.map(session => {
+								const openSegment = [...session.bindingSegments]
+									.sort((left, right) => right.startSequence - left.startSequence)
+									.find(segment => segment.endSequence === undefined);
+								const boundProject = openSegment ? this.projectManager.getProject(openSegment.projectId) : undefined;
+								const label = escapeHtml(session.label || `Session ${session.sessionId.slice(0, 8)}`);
+								const snippet = session.firstPromptSnippet ? escapeHtml(session.firstPromptSnippet) : '';
+								const statusText = boundProject ? `Bound to ${escapeHtml(boundProject.name)}` : (session.pendingCaptureCount > 0 ? 'Pending assignment' : 'Tracking only');
+								return `
+								<div class="card" style="margin: 0; border-left: 3px solid ${boundProject ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-editorWarning-foreground)'};">
+									<div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+										<div style="min-width: 260px; flex: 1;">
+											<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+												<strong>${label}</strong>
+												<span class="badge">${escapeHtml(session.origin)}</span>
+												<span class="badge">${session.pendingCaptureCount} pending</span>
+											</div>
+											<div style="opacity: 0.78; font-size: 0.9em; margin-bottom: 4px;">${statusText}</div>
+											<div style="opacity: 0.62; font-size: 0.82em;">Last activity ${formatAge(session.lastActivityAt)} · ${escapeHtml(session.sessionId)}</div>
+											${snippet ? `<div style="margin-top: 8px; font-size: 0.88em; opacity: 0.8;">${snippet}</div>` : ''}
+										</div>
+										<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+											<select id="session-project-${session.sessionId}" style="min-width: 180px;">
+												<option value="">Select project…</option>
+												${projects.map(project => `<option value="${project.id}" ${project.id === boundProject?.id ? 'selected' : ''}>${escapeHtml(project.name)}</option>`).join('')}
+											</select>
+											${boundProject
+												? `<button onclick="rebindTrackedSession('${session.sessionId}')">Rebind From Now</button>`
+												: `<button onclick="bindTrackedSession('${session.sessionId}')">Bind &amp; Import Pending</button>`}
+											<button class="secondary" onclick="dismissTrackedSession('${session.sessionId}')">Dismiss</button>
+											<button class="secondary" onclick="forgetTrackedSession('${session.sessionId}')">Forget</button>
+										</div>
+									</div>
+								</div>`;
+							}).join('')}
+						</div>`;
+					})()}
+				</div>
 					`
 				}
 				<div id="distill-queue-results" style="display:none; margin-bottom: 16px;"></div>
@@ -1171,7 +1244,7 @@ export class DashboardPanel {
 			${(() => {
 				const injection = activeProject.promptInjection;
 				const selectedCount = (activeProject.selectedCardIds || []).length;
-				const hasInjection = selectedCount > 0 || (injection?.customInstruction || '').trim();
+				const hasInjection = selectedCount > 0 || (injection?.customInstruction || '').trim() || injection?.includeProjectContext;
 				return `
 			<div class="card" style="margin-top: 16px;">
 				<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
@@ -1179,7 +1252,7 @@ export class DashboardPanel {
 					${hasInjection ? `<span style="font-size: 0.72em; background: var(--vscode-testing-iconPassed, #28a745); color: #fff; padding: 2px 10px; border-radius: 10px; font-weight: 600; letter-spacing: 0.3px;">Active</span>` : ''}
 				</div>
 				<p style="opacity: 0.55; margin: 0 0 16px 0; font-size: 0.82em; line-height: 1.4;">
-					Cards checked in the <strong>Knowledge</strong> tab above${selectedCount > 0 ? ` (${selectedCount} selected)` : ''} and your custom instruction are written to <code style="padding: 1px 4px; border-radius: 3px; background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.15));">session-context.txt</code>
+					Cards checked in the <strong>Knowledge</strong> tab above${selectedCount > 0 ? ` (${selectedCount} selected)` : ''}, your custom instruction, and any explicitly enabled project context are written to <code style="padding: 1px 4px; border-radius: 3px; background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.15));">session-context.txt</code>
 					and injected via the <strong>UserPromptSubmit</strong> hook on every prompt.
 				</p>
 
@@ -1194,6 +1267,11 @@ export class DashboardPanel {
 						<input type="checkbox" id="injectionFullContent" ${injection?.includeFullContent ? 'checked' : ''}
 							onchange="saveInjection()">
 						Include full card content
+					</label>
+					<label style="display: flex; align-items: center; gap: 5px; font-size: 0.8em; cursor: pointer; opacity: 0.75; user-select: none;" title="When checked, the Context tab's goals, conventions, and key files are injected along with this explicit prompt injection block.">
+						<input type="checkbox" id="injectionProjectContext" ${injection?.includeProjectContext ? 'checked' : ''}
+							onchange="saveInjection()">
+						Include project context
 					</label>
 					<label style="display: flex; align-items: center; gap: 5px; font-size: 0.8em; cursor: pointer; opacity: 0.75; user-select: none;" title="When checked, selected cards are automatically unchecked after being injected into a prompt (one-time use).">
 						<input type="checkbox" id="injectionOneShotMode" ${injection?.oneShotMode ? 'checked' : ''}

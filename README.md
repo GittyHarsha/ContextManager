@@ -1,6 +1,6 @@
 # ContextManager — AI Project Memory
 
-> Give Copilot persistent, structured memory for your codebase. Knowledge cards, conventions, working notes, tool hints, BM25 search, auto-capture from all chat participants, and a full dashboard — all injected automatically into every AI interaction.
+> Build a persistent project memory layer for Copilot. Curate knowledge cards, auto-capture project intelligence, search everything with BM25, run AI or template workflows, route different features to different models, and manage it all from one dashboard.
 
 [![Version](https://img.shields.io/badge/version-2.10.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.100.0+-007ACC.svg)](https://code.visualstudio.com/)
@@ -32,6 +32,7 @@ Build reusable automations on top of your project memory. Workflow templates can
 - **Template actions** — skip the model call and write rendered templates directly
 - **7 triggers** — manual, queue, convention learned, card created, card updated, observation created
 - **Target-aware updates** — workflows can resolve target card content into template variables before updating
+- **Dedicated workflow model** — choose a specific model family for AI workflow actions without affecting other features
 - **Run history and skip patterns** — track success/skipped/error runs and suppress low-value output
 
 ### 🔄 Auto-Capture & Card Queue
@@ -51,7 +52,7 @@ Card-worthy responses are automatically queued. Click **Distill into Cards** in 
 
 Fast, ranked search across your entire project memory:
 
-- **`#ctx`** — unified BM25 search across cards, conventions, working notes, tool hints, cache, observations, sessions, and projects
+- **`#ctx`** — unified BM25 search plus explicit card queue review flows across cards, conventions, working notes, tool hints, cache, observations, sessions, and projects
 - SQLite FTS4 via sql.js (WebAssembly) — no native binaries, works everywhere
 - Quoted phrases (`"error handler"`), prefix matching (`auth*`), snippet previews
 - Index persisted between sessions, rebuilt on activation, incrementally synced on every mutation
@@ -63,6 +64,7 @@ ContextManager automatically learns from your interactions:
 - **Conventions** — coding patterns and rules extracted from AI responses
 - **Tool Hints** — search queries that work for your codebase (fail→success patterns)
 - **Working Notes** — file relationships and insights from code exploration
+- **Dedicated extraction model** — route background auto-learn extraction to a smaller or cheaper model family
 - **Tiered injection** — confirmed conventions are always injected; task-relevant notes are matched by keywords
 - **Staleness tracking** — items are flagged when their referenced files change
 
@@ -83,8 +85,9 @@ Open with the status bar icon or `ContextManager: Open Dashboard`:
 |-----|--------------|
 | **Intelligence** | Conventions, tool hints, working notes, auto-learn pipeline status |
 | **Knowledge** | Cards, folders, card queue, search, inline editing, card canvas |
+| **Sessions** | Tracked chat sessions, pending capture counts, and bind/rebind controls for multi-project routing |
 | **Context** | Project goals, conventions, key files, prompt customization |
-| **Settings** | All extension settings — edit right in the dashboard |
+| **Settings** | All extension settings, dedicated model selectors, and import/export |
 
 ---
 
@@ -94,11 +97,13 @@ These tools are registered via `vscode.lm.registerTool` and available to **all a
 
 | Tool | Reference | Purpose |
 |------|-----------|---------|  
-| `contextManager_ctx` | `#ctx` | Unified project memory — search, list, learn, getCard, retrospect |
+| `contextManager_ctx` | `#ctx` | Unified project memory — search, list, learn, getCard, explicit card queue review, distillQueue, clearQueue, retrospect |
 | `contextManager_getCard` | `#getCard` | Read a specific knowledge card by ID |
 | `contextManager_saveKnowledgeCard` | `#saveCard` | Save a card, list folders, or create folders from chat |
 | `contextManager_editKnowledgeCard` | `#editCard` | Edit an existing knowledge card |
 | `contextManager_organizeKnowledgeCards` | `#organizeCards` | Organize cards into folders |
+
+When multiple ContextManager projects exist, pass `project:"Exact Project Name"` or the exact project ID/root path on every LM tool call.
 
 ---
 
@@ -115,6 +120,8 @@ These tools are registered via `vscode.lm.registerTool` and available to **all a
 
 Just use Copilot as you normally would. ContextManager captures intelligence silently in the background from all chat participants.
 
+If you keep multiple ContextManager projects at once, open the **Dashboard** → **Sessions** tab and bind each tracked chat session to the right project before backfilling pending captures.
+
 ### Step 3 — Review the Card Queue
 
 AI responses accumulate in the **Card Queue**. Periodically:
@@ -129,16 +136,19 @@ Type `#ctx` in any Copilot Chat to search your project memory:
 
 ```
 #ctx query:"error handling"
-#ctx mode:list type:conventions
-#ctx mode:learn learnType:convention title:"Error handling" content:"Always use Result<T>"
+#ctx project:"ContextManager" mode:list type:conventions
+#ctx project:"ContextManager" mode:learn learnType:convention title:"Error handling" content:"Always use Result<T>"
+#ctx project:"ContextManager" mode:list type:queue
+#ctx project:"ContextManager" mode:getQueueItem id:"candidate-id"
+#ctx project:"ContextManager" mode:distillQueue
 ```
 
 You can also save and organize cards directly from chat:
 
 ```
-#saveCard action:"listFolders"
-#saveCard action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
-#saveCard title:"Authentication Flow" content:"# Authentication Flow\nUses JWT for session auth." folderMode:"named-folder" folderName:"Security"
+#saveCard project:"ContextManager" action:"listFolders"
+#saveCard project:"ContextManager" action:"createFolder" folderName:"Security" parentFolderName:"Architecture"
+#saveCard project:"ContextManager" title:"Authentication Flow" content:"# Authentication Flow\nUses JWT for session auth." folderMode:"named-folder" folderName:"Security"
 ```
 
 ### Step 5 — Context Everywhere
@@ -146,7 +156,7 @@ You can also save and organize cards directly from chat:
 ContextManager delivers context to every AI interaction via two channels:
 
 - **`copilot-instructions.md` managed block** — auto-synced `#ctx` usage instructions and pinned card titles, included in every agent session
-- **`#ctx` tool** — available on-demand for search, list, learn, and getCard across all project knowledge
+- **`#ctx` tool** — available on-demand for search, list, learn, getCard, and explicit card queue review across all project knowledge
 
 ---
 
@@ -172,8 +182,17 @@ All settings are accessible from the **Settings** tab in the dashboard.
 | `contextManager.intelligence.tier2MaxTokens` | 400 | Token budget for task-relevant learnings (100–1000) |
 | `contextManager.intelligence.autoLearn` | ✅ | Enable auto-learning pipeline |
 | `contextManager.intelligence.autoLearn.useLLM` | ✅ | Use LLM for convention/note extraction (vs regex-only) |
+| `contextManager.intelligence.autoLearn.modelFamily` | _(auto)_ | Preferred model family for background auto-learn extraction |
 | `contextManager.intelligence.enableStalenessTracking` | ✅ | Flag items when referenced files change |
 | `contextManager.intelligence.stalenessAgeDays` | 30 | Days before cards are flagged as age-stale (7–365) |
+
+### AI Model Routing
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `contextManager.intelligence.autoLearn.modelFamily` | _(auto)_ | Preferred model family for background extraction in Project Intelligence / Auto-Learn |
+| `contextManager.workflows.modelFamily` | _(auto)_ | Preferred model family for AI workflow actions; template-only workflows ignore it |
+| `contextManager.knowledgeCards.synthesisModelFamily` | _(auto)_ | Preferred model family for AI Draft / Synthesize Card in the dashboard editor |
 
 ### Auto-Capture
 
@@ -225,7 +244,7 @@ copilot-instructions.md (auto-synced managed block)
   └── #ctx usage instructions + pinned card titles
 
 5 Language Model Tools (available to ALL agents)
-  ├── #ctx — unified project memory (search, list, learn, getCard, retrospect)
+  ├── #ctx — unified project memory (search, list, learn, getCard, queue review, distillQueue, clearQueue, retrospect)
   ├── #getCard — read a specific card by ID
   └── #saveCard / #editCard / #organizeCards — knowledge card CRUD and folder flows
 
@@ -241,9 +260,10 @@ Workflow Engine
   ├── Template actions: create / update / append without model calls
   └── Re-entrancy guard + run history + skip patterns
 
-Dashboard (WebView, 4 tabs)
+Dashboard (WebView, 5 tabs)
   ├── Intelligence — conventions, tool hints, working notes
   ├── Knowledge — cards, folders, card queue, card canvas
+  ├── Sessions — tracked chats, pending captures, binding controls
   ├── Context — project metadata, prompt customization
   └── Settings — all extension settings
 

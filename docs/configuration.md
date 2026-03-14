@@ -52,6 +52,14 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 | `contextManager.intelligence.tier1MaxTokens` | `400` | Token budget for Tier 1 (always-injected) learnings (100–1000) |
 | `contextManager.intelligence.tier2MaxTokens` | `400` | Token budget for Tier 2 (task-relevant) learnings (100–1000) |
 
+### AI Model Routing
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `contextManager.intelligence.autoLearn.modelFamily` | _(auto)_ | Preferred model family for background auto-learn extraction. Use this to keep continuous extraction on a smaller or cheaper model. |
+| `contextManager.workflows.modelFamily` | _(auto)_ | Preferred model family for AI workflow actions. Template-only workflow actions ignore this setting. |
+| `contextManager.knowledgeCards.synthesisModelFamily` | _(auto)_ | Preferred model family for AI Draft / Synthesize Card in the dashboard editor. |
+
 ### Auto-Learn
 
 | Setting | Default | Description |

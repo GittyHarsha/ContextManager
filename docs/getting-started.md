@@ -82,7 +82,7 @@ You don't need to review the queue every session. Weekly or per-feature review i
 From now on, every new Copilot session automatically receives context two ways:
 
 - **`copilot-instructions.md` managed block**: ContextManager auto-syncs a managed section into your `.github/copilot-instructions.md` containing `#ctx` tool usage instructions and pinned card titles. VS Code always includes this file, so every agent starts informed.
-- **`#ctx` tool**: Available to all agents for on-demand search, list, learn, and getCard across all project knowledge.
+- **`#ctx` tool**: Available to all agents for on-demand search, list, learn, getCard, and explicit card queue review across all project knowledge.
 
 The AI knows your architecture, conventions, and recent discoveries without you repeating yourself.
 
@@ -116,12 +116,14 @@ Each session builds on everything that came before it.
 5 Language Model Tools available to all agents:
 
 ```
-#ctx                   — unified search, list, learn, getCard across all knowledge
+#ctx                   — unified search, list, learn, getCard, queue review, distillQueue, clearQueue
 #getCard               — read a specific knowledge card by ID
 #saveCard              — save a new knowledge card
 #editCard              — edit an existing card
 #organizeCards         — organize cards into folders
 ```
+
+If multiple ContextManager projects exist, add `project:"Exact Project Name"` or the exact project ID/root path to every LM tool call.
 
 ---
 

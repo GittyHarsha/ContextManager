@@ -7,7 +7,7 @@ nav_order: 1
 # ContextManager - AI Project Memory
 {: .fs-9 }
 
-Give Copilot persistent, structured memory for your codebase. Curate knowledge cards, capture project intelligence automatically, search everything with BM25, and share context across every Copilot interaction.
+Build a persistent project memory layer for Copilot. Curate knowledge cards, auto-capture project intelligence, search everything with BM25, run AI or template workflows, choose dedicated models for different features, and carry context across every session.
 {: .fs-6 .fw-300 }
 
 [Get Started]({% link getting-started.md %}){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
@@ -40,7 +40,7 @@ ContextManager was built specifically for this gap - persistent project memory t
   </div>
   <div class="feature-card">
     <h4>💬 Language Model Tools</h4>
-    <p>6 tools available to every Copilot agent — search knowledge, save cards, organize, and more via <code>#ctx</code>.</p>
+    <p>5 tools available to every Copilot agent — search memory, open cards, save cards, edit cards, and organize folders without leaving chat.</p>
   </div>
   <div class="feature-card">
     <h4>🔍 BM25 Search</h4>
@@ -52,15 +52,15 @@ ContextManager was built specifically for this gap - persistent project memory t
   </div>
   <div class="feature-card">
     <h4>⚡ Custom Workflows</h4>
-    <p>Define reusable workflows with template variables, event triggers, and AI or direct-template output actions. Summarize, classify, append, audit.</p>
+    <p>Define reusable workflows with template variables, event triggers, AI or direct-template output actions, and a dedicated workflow model selector.</p>
   </div>
   <div class="feature-card">
     <h4>📊 Dashboard</h4>
-    <p>Centralized management with 4 tabs: Intelligence, Knowledge, Context, and Settings.</p>
+    <p>Centralized management with 5 tabs: Intelligence, Knowledge, Sessions, Context, and Settings, including model routing, import/export, and multi-project session binding.</p>
   </div>
   <div class="feature-card">
     <h4>🔗 Works Everywhere</h4>
-    <p>7 Language Model Tools available to Copilot Chat, background agents, cloud agents, and Codex. Type <code>#ctx</code> in any chat.</p>
+    <p>Project memory is available across Copilot Chat, background agents, cloud agents, and Codex through tool-based access and auto-injected context.</p>
   </div>
 </div>
 ---
@@ -124,11 +124,11 @@ Layers 1–3 are author-first: you write them at setup time. Layer 4 is discover
 
 ---
 
-## What's New in v2.3
+## What's New in v2.10.0
 
-- **Custom Workflows** — Define reusable workflows with `{{template}}` variables, 7 trigger types (manual, auto-queue, convention-learned, card-created, card-updated, observation-created), and 6 output actions across AI and direct-template modes
-- **Entity data sources** — Workflow prompts can reference collection variables: `{{cards.all}}`, `{{conventions.all}}`, `{{toolHints.all}}`, `{{workingNotes.all}}`, `{{observations.recent}}`, each capped by a per-workflow Max Items setting
-- **Event triggers** — Workflows can fire automatically when conventions are learned, cards are created/updated, or observations are captured
-- **Re-entrancy protection** — Prevents infinite loops when workflow output actions create or update entities that would re-trigger other workflows
+- **Dedicated model selectors** — choose separate model families for background extraction, AI workflows, and AI card synthesis
+- **Workflow expansion** — combine AI-backed and template-only actions, event triggers, target-aware card updates, and skip-pattern suppression
+- **Folder-aware card flows** — `#saveCard` can list folders, create folders, and save directly into a named folder
+- **Dashboard resilience** — in-progress edits in the dashboard are protected from background refresh disruptions
 
 See the [full changelog]({% link changelog.md %}) for complete version history.

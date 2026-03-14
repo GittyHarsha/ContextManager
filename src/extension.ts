@@ -196,6 +196,7 @@ export function activate(context: vscode.ExtensionContext) {
 			instructionsSyncTimer = setTimeout(() => instructionsManager.syncInstructions(), 5_000);
 		};
 		projectManager.onDidChangeProjects(() => debouncedInstructionsSync());
+		projectManager.onDidChangeActiveProject(() => debouncedInstructionsSync());
 		// Initial sync after a delay to avoid blocking activation
 		setTimeout(() => instructionsManager.syncInstructions(), 10_000);
 
