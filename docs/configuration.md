@@ -103,6 +103,25 @@ All settings are accessible from the **⚙ Settings** tab in the Dashboard or vi
 
 ---
 
+## Session Tracking
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `contextManager.sessionTracking.enabled` | `true` | Track chat sessions in the Sessions tab. When disabled, no sessions are recorded and the Sessions tab stays empty. |
+
+---
+
+## Hooks
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `contextManager.hooks.sessionStart` | `true` | Inject selected cards and custom instructions into every prompt via session-context.txt |
+| `contextManager.hooks.postToolUse` | `false` | Capture tool use events as observations. **Warning:** creates an observation for every single tool call — very noisy. |
+| `contextManager.hooks.preCompact` | `true` | Capture session state before VS Code compacts conversation history |
+| `contextManager.hooks.stop` | `true` | Capture final exchange for card queue processing |
+
+---
+
 ## Prompt Customization
 
 Customize the system prompts used by the distill pipelines. Leave empty to use defaults.

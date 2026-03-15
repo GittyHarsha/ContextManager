@@ -61,6 +61,9 @@ ContextManager captures intelligence silently in the background:
 
 No commands. No setup. It just runs.
 
+{: .tip }
+If you have multiple ContextManager projects, open the **Dashboard → Sessions** tab and bind each tracked chat session to the right project. Unbound sessions queue their captures until you assign them.
+
 ---
 
 ## Step 4 — Review the Queue (Once a Week)

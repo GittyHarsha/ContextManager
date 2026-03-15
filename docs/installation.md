@@ -97,12 +97,26 @@ ContextManager includes an optional hook system that captures AI interactions fr
 The hook script (`capture.ps1`) is automatically installed to `~/.contextmanager/scripts/` on first activation. It watches for:
 
 - **UserPromptSubmit** - Injects selected knowledge cards and custom instruction into every prompt
-- **PostToolUse** - Captures tool executions and harvests completed turns
+- **PostToolUse** - Captures tool executions and harvests completed turns (disabled by default)
 - **PreCompact** - Extracts multi-turn context before summarization
 - **Stop** - Records final exchange for card queue processing
 
 {: .note }
 Hooks are optional. All core features (knowledge cards, search, dashboard, LM tools) work without hooks enabled.
+
+---
+
+## Copilot CLI Plugin (Optional)
+
+If you use [GitHub Copilot in the terminal](https://docs.github.com/en/copilot/github-copilot-in-the-cli), you can install the ContextManager plugin so CLI sessions also capture knowledge and have access to your cards via MCP.
+
+```bash
+copilot plugin install GittyHarsha/ContextManager:plugin
+```
+
+The VS Code extension must be running so `HookWatcher` can ingest events from the CLI. Verify the MCP server inside Copilot CLI with `/mcp show contextmanager`.
+
+For more details, see the [plugin README](https://github.com/GittyHarsha/ContextManager/tree/main/plugin).
 
 ---
 
