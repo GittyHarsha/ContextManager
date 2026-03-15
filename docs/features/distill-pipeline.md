@@ -64,7 +64,8 @@ When `autoDistill.enabled` is true, the same pipeline runs automatically at comp
 Guards:
   - autoDistill.enabled must be true
   - At least 4 observations in the last 2 hours for this project
-  - Rate-limited: minimum intervalMinutes between runs (default 30)
+  - Per-project rate limit: minimum intervalMinutes between runs (default 30)
+    Each project has its own independent cooldown timer.
   
 Behavior:
   - Runs distillObservations(40, projectId) 

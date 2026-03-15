@@ -16,6 +16,17 @@ All notable changes to ContextManager.
 
 ---
 
+## [2.12.0] - 2026-03-15
+
+### Changed
+- **Per-project workflow execution** — Re-entrancy guard scoped per-project; multi-project workflows no longer block each other.
+- **Per-project auto-distill rate limit** — Each project has its own independent cooldown timer.
+
+### Fixed
+- **Documented CLI card capture gap** — Added warnings that CLI sessions cannot auto-populate the card queue (no `Stop` hook). Workaround: use MCP `contextmanager_save_card_intent`.
+
+---
+
 ## [2.11.0] - 2026-03-15
 
 ### Added

@@ -707,7 +707,8 @@ Guidelines:
 
 	// ─── Private ────────────────────────────────────────────────
 
-	private _lastAutoDistillAt = 0;
+	/** Per-project rate-limit for auto-distill — keyed by projectId. */
+	private _lastAutoDistillAt = new Map<string, number>();
 
 	// ─── Multi-Turn Extraction (Step 4) ─────────────────────────
 
@@ -827,11 +828,11 @@ Guidelines:
 		const recent = this.getRecentObservations(2 * 60 * 60 * 1000, projectId); // 2 hours, project-scoped
 		if (recent.length < 4) { return; }
 
-		// Guard: rate limit
+		// Guard: per-project rate limit
 		const intervalMs = ConfigurationManager.autoDistillIntervalMinutes * 60 * 1000;
 		const now = Date.now();
-		if (now - this._lastAutoDistillAt < intervalMs) { return; }
-		this._lastAutoDistillAt = now;
+		if (now - (this._lastAutoDistillAt.get(projectId) ?? 0) < intervalMs) { return; }
+		this._lastAutoDistillAt.set(projectId, now);
 
 		const shouldExtractConvs = ConfigurationManager.autoLearnExtractConventions;
 		const shouldExtractNotes = ConfigurationManager.autoLearnExtractWorkingNotes;

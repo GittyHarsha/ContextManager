@@ -138,8 +138,9 @@ function resolveTemplate(
 
 export class WorkflowEngine {
 	private _autoCapture: AutoCaptureService | undefined;
-	/** Re-entrancy guard — prevents infinite loops from card-updated/card-created triggers. */
-	private _isExecuting = false;
+	/** Per-project re-entrancy guard — prevents infinite loops from card-updated/card-created triggers
+	 *  while allowing different projects' workflows to execute concurrently. */
+	private _executingProjects = new Set<string>();
 
 	constructor(private projectManager: ProjectManager) {}
 
@@ -199,13 +200,13 @@ export class WorkflowEngine {
 				}
 			}
 
-			// 5. Execute output action (with re-entrancy guard)
-			this._isExecuting = true;
+			// 5. Execute output action (with per-project re-entrancy guard)
+			this._executingProjects.add(projectId);
 			let result: WorkflowResult;
 			try {
 				result = await this._executeOutput(workflow, ctx, text);
 			} finally {
-				this._isExecuting = false;
+				this._executingProjects.delete(projectId);
 			}
 
 			// 6. Record success
@@ -256,7 +257,7 @@ export class WorkflowEngine {
 	// ── Auto-trigger: Queue item added ──────────────────────────
 
 	async fireAutoQueue(projectId: string, queueItem: QueuedCardCandidate): Promise<void> {
-		if (this._isExecuting) { return; }
+		if (this._executingProjects.has(projectId)) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && (w.trigger === 'auto-queue' || w.trigger === 'both')
@@ -278,7 +279,7 @@ export class WorkflowEngine {
 	// ── Auto-trigger: Convention learned ─────────────────────────
 
 	async fireConventionLearned(projectId: string, convention: Convention): Promise<void> {
-		if (this._isExecuting) { return; }
+		if (this._executingProjects.has(projectId)) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && w.trigger === 'convention-learned'
@@ -300,7 +301,7 @@ export class WorkflowEngine {
 	// ── Auto-trigger: Card created ──────────────────────────────
 
 	async fireCardCreated(projectId: string, card: KnowledgeCard): Promise<void> {
-		if (this._isExecuting) { return; }
+		if (this._executingProjects.has(projectId)) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && w.trigger === 'card-created'
@@ -322,7 +323,7 @@ export class WorkflowEngine {
 	// ── Auto-trigger: Card updated ──────────────────────────────
 
 	async fireCardUpdated(projectId: string, card: KnowledgeCard): Promise<void> {
-		if (this._isExecuting) { return; }
+		if (this._executingProjects.has(projectId)) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && w.trigger === 'card-updated'
@@ -344,7 +345,7 @@ export class WorkflowEngine {
 	// ── Auto-trigger: Observation created ───────────────────────
 
 	async fireObservationCreated(projectId: string, observation: Observation): Promise<void> {
-		if (this._isExecuting) { return; }
+		if (this._executingProjects.has(projectId)) { return; }
 		const workflows = this.projectManager.getWorkflows(projectId);
 		const eligible = workflows.filter(
 			w => w.enabled && w.trigger === 'observation-created'

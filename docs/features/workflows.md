@@ -159,7 +159,7 @@ This is useful when auto-triggered workflows sometimes produce low-value or plac
 
 ## Re-Entrancy Protection
 
-Workflows that output to cards (create or update) could theoretically trigger other workflows listening for card-created or card-updated events, creating an infinite loop. ContextManager prevents this with a re-entrancy guard: while a workflow's output action is executing, all other workflow triggers are suppressed.
+Workflows that output to cards (create or update) could theoretically trigger other workflows listening for card-created or card-updated events, creating an infinite loop. ContextManager prevents this with a **per-project** re-entrancy guard: while a workflow's output action is executing for a given project, triggers for *that same project* are suppressed. Workflows for other projects continue to fire normally, so multi-project setups don't block each other.
 
 ---
 

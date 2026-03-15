@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-03-15
+
+### Changed
+- **Per-project workflow execution** — Workflow re-entrancy guard is now per-project instead of global. Workflows for different projects no longer block each other in multi-project setups.
+- **Per-project auto-distill rate limit** — Background auto-distill cooldown timer is now per-project. Each project can independently trigger auto-distill without being blocked by another project's recent run.
+
+### Fixed
+- **Documented CLI card capture gap** — The Copilot CLI does not expose a `Stop` hook, so CLI sessions cannot auto-populate the card queue. Added clear warnings to CLI plugin docs and plugin README with workaround (use MCP `contextmanager_save_card_intent`).
+
 ## [2.11.0] - 2026-03-15
 
 ### Added

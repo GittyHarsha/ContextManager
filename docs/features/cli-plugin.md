@@ -66,6 +66,9 @@ The plugin hooks into Copilot CLI's event pipeline and writes normalized entries
 
 Events are tagged with `origin: "copilot-cli-plugin"` so you can distinguish them from VS Code sessions in the Dashboard → Sessions tab.
 
+{: .warning }
+**No automatic card capture from CLI sessions.** The Copilot CLI does not expose a `Stop` hook (the event that fires when the agent finishes a turn with the full prompt + response). This is the event that VS Code sessions use to populate the card queue. Until the CLI adds a `Stop`-equivalent hook, CLI sessions will track observations and tool use but will **not** automatically produce card queue candidates. Use the MCP write intent tools (`contextmanager_save_card_intent`) to manually save knowledge from CLI sessions.
+
 ---
 
 ## MCP Tools
@@ -149,6 +152,7 @@ copilot plugin uninstall contextmanager  # Remove the plugin
 
 ## Current Limitations
 
+- **No automatic card capture** — The Copilot CLI does not fire a `Stop` hook (agent turn complete with full response), so CLI sessions cannot auto-populate the card queue. VS Code sessions use this hook to create card candidates. Until the CLI exposes it, use the MCP `contextmanager_save_card_intent` tool to capture knowledge explicitly.
 - **Write intents require VS Code** — the MCP server queues writes but doesn't execute them directly. The VS Code extension must be running to materialize them.
 - **No plugin skills yet** — the plugin provides hooks and MCP tools but no Copilot CLI skills.
 - **Session ID is synthetic** — CLI sessions use a per-directory ID, not a true Copilot session ID.
