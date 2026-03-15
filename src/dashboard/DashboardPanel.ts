@@ -764,19 +764,33 @@ export class DashboardPanel {
 					Selected cards are included as context in all AI prompts for this project.
 				</p>
 
-				<!-- Search & Filter Bar — always on top -->
-				<div class="search-filter-bar" style="margin-bottom: 16px;">
-					<input type="text" class="search-input" placeholder="🔍 Search knowledge cards..." oninput="searchKnowledgeCards(this.value)">
-					<select class="filter-select" onchange="filterKnowledgeCards(this.value)">
-						<option value="all">All Categories</option>
-						<option value="architecture">Architecture</option>
-						<option value="pattern">Pattern</option>
-						<option value="convention">Convention</option>
-						<option value="explanation">Explanation</option>
-						<option value="note">Note</option>
-						<option value="other">Other</option>
-					</select>
-					<button class="secondary" onclick="addKnowledgeFolder()" style="white-space: nowrap;">📁 New Folder</button>
+				<div class="workbench-filter-bar" id="knowledge-cards-filter-bar" style="margin-bottom: 16px;">
+					<div class="workbench-filter-row">
+						<input type="text" class="workbench-search" id="knowledge-cards-search" placeholder="Search knowledge cards..." oninput="applyKnowledgeCardsFilter()">
+						<select class="filter-select" id="knowledge-cards-category-filter" onchange="applyKnowledgeCardsFilter()">
+							<option value="all">All Categories</option>
+							<option value="architecture">Architecture</option>
+							<option value="pattern">Pattern</option>
+							<option value="convention">Convention</option>
+							<option value="explanation">Explanation</option>
+							<option value="note">Note</option>
+							<option value="other">Other</option>
+						</select>
+						<label class="workbench-filter-pill workbench-status-toggle"><input type="checkbox" id="knowledge-cards-pinned-only" onchange="applyKnowledgeCardsFilter()"> 📌 Pinned only</label>
+						<label class="workbench-filter-pill workbench-status-toggle"><input type="checkbox" id="knowledge-cards-show-archived" checked onchange="applyKnowledgeCardsFilter()"> 📦 Show archived</label>
+						<span style="flex: 1;"></span>
+						<button class="secondary" onclick="addKnowledgeFolder()" style="white-space: nowrap;">📁 New Folder</button>
+					</div>
+					<div class="workbench-filter-row">
+						<select class="filter-select" id="knowledge-cards-sort" onchange="applyKnowledgeCardsFilter()">
+							<option value="az">A → Z</option>
+							<option value="za">Z → A</option>
+							<option value="newest">Newest first</option>
+							<option value="oldest">Oldest first</option>
+						</select>
+						<span id="knowledge-cards-result-count" style="font-size: 0.82em; opacity: 0.7;"></span>
+						<button class="secondary" id="knowledge-cards-clear-filters" onclick="clearKnowledgeCardsFilters()" style="display:none;">✕ Clear filters</button>
+					</div>
 				</div>
 
 				<div id="addCardForm" style="display: none; margin-bottom: 16px; padding: 12px; background: var(--bg-color); border-radius: 4px;">
@@ -909,7 +923,7 @@ export class DashboardPanel {
 									<summary class="knowledge-tree-folder-header" style="cursor: pointer; list-style: none;">
 										<span class="folder-toggle-arrow">▶</span>
 										<span style="opacity: ${isRoot ? 0.6 : 0.85};">${isRoot ? '' : '📁 '}${escapeHtml(folderLabel)}</span>
-										<span style="opacity: 0.5; font-size: 0.85em; margin-left: 4px;">${cardCount > 0 ? `(${cardCount})` : '(empty)'}</span>
+										<span class="knowledge-tree-folder-count" style="opacity: 0.5; font-size: 0.85em; margin-left: 4px;">${cardCount > 0 ? `(${cardCount})` : '(empty)'}</span>
 										${!isRoot ? `<span class="knowledge-tree-folder-actions">
 											<button class="secondary" style="padding: 1px 6px; font-size: 0.78em;" onclick="event.stopPropagation(); addKnowledgeSubfolder('${parentId}')">+ Sub</button>
 											<button class="secondary" style="padding: 1px 6px; font-size: 0.78em;" onclick="event.stopPropagation(); renameKnowledgeFolder('${parentId}')">Rename</button>
@@ -944,7 +958,7 @@ export class DashboardPanel {
 								const cardBorderColor = isSelected ? 'var(--vscode-testing-iconPassed)' : card.pinned ? 'var(--vscode-charts-yellow, #e5c07b)' : 'transparent';
 								const cardOpacity = card.archived ? 'opacity: 0.55;' : '';
 								parts.push(`
-								<details class="cache-item" data-expand-id="card-${card.id}" data-card-id="${card.id}" style="border-left: 3px solid ${cardBorderColor}; padding-left: 12px; margin-left: ${isRoot ? 0 : 8}px; ${cardOpacity}">
+								<details class="cache-item" data-expand-id="card-${card.id}" data-card-id="${card.id}" data-parent-folder-id="${parentId}" data-card-category="${card.category}" data-card-pinned="${card.pinned ? 'true' : 'false'}" data-card-archived="${card.archived ? 'true' : 'false'}" data-card-title="${escapeHtml(card.title)}" data-card-updated="${card.updated || card.created || 0}" data-card-tags="${escapeHtml((card.tags || []).join(','))}" style="border-left: 3px solid ${cardBorderColor}; padding-left: 12px; margin-left: ${isRoot ? 0 : 8}px; ${cardOpacity}">
 									<summary class="cache-header" draggable="true" ondragstart="dragCard(event, '${card.id}')" style="cursor: grab; list-style: none;">
 										<span style="margin-right: 8px;">▶</span>
 										<input type="checkbox"
@@ -1143,61 +1157,6 @@ export class DashboardPanel {
 								renderCardTile(candidate, { isQueue: true, isSelected: false })
 							).join('')}
 						</div>
-
-				<div id="tab-sessions" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-sessions"${currentTab !== 'sessions' ? ' style="display: none;"' : ''}>
-					${(() => {
-						if (projects.length === 0) {
-							return `<div class="empty-state"><h2>No projects yet</h2><p>Create a project before linking sessions.</p></div>`;
-						}
-
-						if (trackedSessions.length === 0) {
-							return `<div class="empty-state"><h2>No tracked sessions yet</h2><p>Open a new Copilot chat session and use the extension normally. Hook traffic will appear here automatically.</p></div>`;
-						}
-
-						return `
-						<div class="card" style="margin-bottom: 16px;">
-							<h3 style="margin-top: 0;">Tracked Sessions</h3>
-							<p style="opacity: 0.75; margin-bottom: 0;">Bind unassigned sessions to a project to import queued captures. Rebind only affects future captures.</p>
-						</div>
-						<div style="display: grid; gap: 12px;">
-							${trackedSessions.map(session => {
-								const openSegment = [...session.bindingSegments]
-									.sort((left, right) => right.startSequence - left.startSequence)
-									.find(segment => segment.endSequence === undefined);
-								const boundProject = openSegment ? this.projectManager.getProject(openSegment.projectId) : undefined;
-								const label = escapeHtml(session.label || `Session ${session.sessionId.slice(0, 8)}`);
-								const snippet = session.firstPromptSnippet ? escapeHtml(session.firstPromptSnippet) : '';
-								const statusText = boundProject ? `Bound to ${escapeHtml(boundProject.name)}` : (session.pendingCaptureCount > 0 ? 'Pending assignment' : 'Tracking only');
-								return `
-								<div class="card" style="margin: 0; border-left: 3px solid ${boundProject ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-editorWarning-foreground)'};">
-									<div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
-										<div style="min-width: 260px; flex: 1;">
-											<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
-												<strong>${label}</strong>
-												<span class="badge">${escapeHtml(session.origin)}</span>
-												<span class="badge">${session.pendingCaptureCount} pending</span>
-											</div>
-											<div style="opacity: 0.78; font-size: 0.9em; margin-bottom: 4px;">${statusText}</div>
-											<div style="opacity: 0.62; font-size: 0.82em;">Last activity ${formatAge(session.lastActivityAt)} · ${escapeHtml(session.sessionId)}</div>
-											${snippet ? `<div style="margin-top: 8px; font-size: 0.88em; opacity: 0.8;">${snippet}</div>` : ''}
-										</div>
-										<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
-											<select id="session-project-${session.sessionId}" style="min-width: 180px;">
-												<option value="">Select project…</option>
-												${projects.map(project => `<option value="${project.id}" ${project.id === boundProject?.id ? 'selected' : ''}>${escapeHtml(project.name)}</option>`).join('')}
-											</select>
-											${boundProject
-												? `<button onclick="rebindTrackedSession('${session.sessionId}')">Rebind From Now</button>`
-												: `<button onclick="bindTrackedSession('${session.sessionId}')">Bind &amp; Import Pending</button>`}
-											<button class="secondary" onclick="dismissTrackedSession('${session.sessionId}')">Dismiss</button>
-											<button class="secondary" onclick="forgetTrackedSession('${session.sessionId}')">Forget</button>
-										</div>
-									</div>
-								</div>`;
-							}).join('')}
-						</div>`;
-					})()}
-				</div>
 					`
 				}
 				<div id="distill-queue-results" style="display:none; margin-bottom: 16px;"></div>
@@ -1208,6 +1167,151 @@ export class DashboardPanel {
 				<p>Select a project first.</p>
 			</div>
 		`}
+	</div>
+
+	<div id="tab-sessions" class="tab-content" role="tabpanel" aria-labelledby="tabBtn-sessions"${currentTab !== 'sessions' ? ' style="display: none;"' : ''}>
+		${(() => {
+			if (projects.length === 0) {
+				return `<div class="empty-state"><h2>No projects yet</h2><p>Create a project before linking sessions.</p></div>`;
+			}
+
+			if (trackedSessions.length === 0) {
+				return `<div class="empty-state"><h2>No tracked sessions yet</h2><p>Open a new Copilot chat session and use the extension normally. Hook traffic will appear here automatically.</p></div>`;
+			}
+
+			return `
+			<div class="card" style="margin-bottom: 16px;">
+				<h3 style="margin-top: 0;">Tracked Sessions</h3>
+				<p style="opacity: 0.75; margin-bottom: 0;">Bind unassigned sessions to a project to import queued captures. Rebind only affects future captures.</p>
+			</div>
+			<div class="workbench-filter-bar" id="sessions-filter-bar" style="margin-bottom: 16px;">
+				<div class="workbench-filter-row">
+					<input type="text" class="workbench-search search-input" id="sessions-search" placeholder="Search sessions...">
+					<select class="filter-select" id="sessions-origin-filter">
+						<option value="all">All Origins</option>
+						<option value="vscode-extension">VS Code</option>
+						<option value="copilot-cli-plugin">Copilot CLI</option>
+						<option value="claude-code-plugin">Claude Code</option>
+						<option value="unknown">Unknown</option>
+					</select>
+					<select class="filter-select" id="sessions-status-filter">
+						<option value="all">All States</option>
+						<option value="bound">Bound</option>
+						<option value="pending-assignment">Pending assignment</option>
+						<option value="tracking-only">Tracking only</option>
+					</select>
+					<select class="filter-select" id="sessions-project-filter">
+						<option value="all">All Projects</option>
+						<option value="__unbound__">Unbound only</option>
+						${projects.map(project => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join('')}
+					</select>
+					<label class="workbench-filter-pill workbench-status-toggle"><input type="checkbox" id="sessions-queued-only"> 📥 Queued only</label>
+				</div>
+				<div class="workbench-filter-row">
+					<select class="filter-select" id="sessions-sort">
+						<option value="newest">Newest activity</option>
+						<option value="oldest">Oldest activity</option>
+						<option value="queued">Most queued captures</option>
+						<option value="az">Label A → Z</option>
+						<option value="za">Label Z → A</option>
+						<option value="origin">Origin</option>
+					</select>
+					<span id="sessions-result-count" style="opacity: 0.75; font-size: 0.9em;">${trackedSessions.length} sessions</span>
+					<span style="flex: 1;"></span>
+					<button class="secondary" id="sessions-clear-filters" type="button" style="display: none;">Clear Filters</button>
+				</div>
+			</div>
+			<div class="bulk-actions hidden" id="bulk-actions-sessions">
+				<label class="bulk-select-all"><input type="checkbox" id="select-all-sessions"> Select visible</label>
+				<span><strong id="bulk-count-sessions">0</strong> selected</span>
+				<select id="sessions-bulk-project" class="filter-select" style="min-width: 180px;">
+					<option value="">Select project…</option>
+					${projects.map(project => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join('')}
+				</select>
+				<button type="button" data-session-bulk-action="assign">Apply Project</button>
+				<button class="secondary" type="button" data-session-bulk-action="dismiss">Dismiss Selected</button>
+				<button class="secondary" type="button" data-session-bulk-action="delete">Delete Selected</button>
+			</div>
+			<div id="sessions-list" style="display: grid; gap: 12px;">
+				${trackedSessions.map(session => {
+					try {
+						const sessionId = typeof session.sessionId === 'string' && session.sessionId.trim()
+							? session.sessionId
+							: 'unknown-session';
+						const pendingImportCount = this.projectManager.getPendingHookEvents(sessionId)
+							.filter(event => event.status === 'pending' && event.eventType !== 'SessionStart' && event.eventType !== 'UserPromptSubmitted')
+							.length;
+						const bindingSegments = Array.isArray(session.bindingSegments)
+							? session.bindingSegments.filter(segment => segment && typeof segment.startSequence === 'number' && typeof segment.projectId === 'string')
+							: [];
+						const lastActivityAt = typeof session.lastActivityAt === 'number' && Number.isFinite(session.lastActivityAt)
+							? session.lastActivityAt
+							: (typeof session.updatedAt === 'number' && Number.isFinite(session.updatedAt)
+								? session.updatedAt
+								: (typeof session.createdAt === 'number' && Number.isFinite(session.createdAt) ? session.createdAt : Date.now()));
+						const openSegment = [...bindingSegments]
+							.sort((left, right) => right.startSequence - left.startSequence)
+							.find(segment => segment.endSequence === undefined);
+						const boundProject = openSegment ? this.projectManager.getProject(openSegment.projectId) : undefined;
+						const labelText = typeof session.label === 'string' && session.label.trim()
+							? session.label
+							: `Session ${sessionId.slice(0, 8)}`;
+						const label = escapeHtml(labelText);
+						const snippet = typeof session.firstPromptSnippet === 'string' && session.firstPromptSnippet
+							? escapeHtml(session.firstPromptSnippet)
+							: '';
+						const cwdText = typeof session.cwd === 'string' && session.cwd
+							? session.cwd
+							: (typeof session.rootHint === 'string' ? session.rootHint : '');
+						const origin = typeof session.origin === 'string' && session.origin ? session.origin : 'unknown';
+						const statusKey = boundProject ? 'bound' : (pendingImportCount > 0 ? 'pending-assignment' : 'tracking-only');
+						const statusText = boundProject ? `Bound to ${escapeHtml(boundProject.name)}` : (pendingImportCount > 0 ? 'Pending assignment' : 'Tracking only');
+						const projectId = boundProject?.id || '';
+						const projectName = boundProject?.name || '';
+						return `
+					<div class="card session-item" data-session-id="${escapeHtml(sessionId)}" data-session-label="${label}" data-session-origin="${escapeHtml(origin)}" data-session-status="${statusKey}" data-session-project-id="${escapeHtml(projectId)}" data-session-project-name="${escapeHtml(projectName)}" data-session-last-activity="${lastActivityAt}" data-session-pending="${pendingImportCount}" data-session-snippet="${snippet}" data-session-cwd="${escapeHtml(cwdText)}" style="margin: 0; border-left: 3px solid ${boundProject ? 'var(--vscode-testing-iconPassed)' : 'var(--vscode-editorWarning-foreground)'};">
+						<div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+							<div style="display: flex; align-items: flex-start; gap: 10px; min-width: 260px; flex: 1;">
+								<input type="checkbox" class="item-checkbox" data-id="${escapeHtml(sessionId)}" data-session-select="true" title="Select session">
+								<div style="min-width: 0; flex: 1;">
+								<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+									<strong>${label}</strong>
+									<span class="badge">${escapeHtml(origin)}</span>
+									<span class="badge">${pendingImportCount} queued captures</span>
+								</div>
+								<div style="opacity: 0.78; font-size: 0.9em; margin-bottom: 4px;">${statusText}</div>
+								<div style="opacity: 0.62; font-size: 0.82em;">Last activity ${formatAge(lastActivityAt)} · ${escapeHtml(sessionId)}</div>
+								${cwdText ? `<div style="opacity: 0.56; font-size: 0.8em; margin-top: 4px;">${escapeHtml(cwdText)}</div>` : ''}
+								${snippet ? `<div style="margin-top: 8px; font-size: 0.88em; opacity: 0.8;">${snippet}</div>` : ''}
+								</div>
+							</div>
+							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+								<select id="session-project-${sessionId}" style="min-width: 180px;">
+									<option value="">Select project…</option>
+									${projects.map(project => `<option value="${project.id}" ${project.id === boundProject?.id ? 'selected' : ''}>${escapeHtml(project.name)}</option>`).join('')}
+								</select>
+								${boundProject
+									? `<button type="button" data-session-action="rebind" data-session-id="${escapeHtml(sessionId)}">Rebind From Now</button>`
+									: `<button type="button" data-session-action="bind" data-session-id="${escapeHtml(sessionId)}">Bind &amp; Import Pending</button>`}
+								<button class="secondary" type="button" data-session-action="dismiss" data-session-id="${escapeHtml(sessionId)}">Dismiss</button>
+								<button class="secondary" type="button" data-session-action="delete" data-session-id="${escapeHtml(sessionId)}">Delete</button>
+							</div>
+						</div>
+					</div>`;
+					} catch {
+						const fallbackSessionId = typeof session?.sessionId === 'string' && session.sessionId ? session.sessionId : 'unknown-session';
+						return `
+					<div class="card" style="margin: 0; border-left: 3px solid var(--vscode-editorError-foreground);">
+						<div style="display: flex; flex-direction: column; gap: 6px;">
+							<strong>${escapeHtml(`Session ${fallbackSessionId.slice(0, 8)}`)}</strong>
+							<div style="opacity: 0.78; font-size: 0.9em;">This session record is malformed and could not be rendered fully.</div>
+							<div style="opacity: 0.62; font-size: 0.82em;">${escapeHtml(fallbackSessionId)}</div>
+						</div>
+					</div>`;
+					}
+				}).join('')}
+			</div>`;
+		})()}
 	</div>
 
 
@@ -1641,6 +1745,22 @@ export class DashboardPanel {
 						class="dashboard-input-narrow"
 						onchange="updateSetting('autoCapture.maxObservations', parseInt(this.value) || 50)">
 				</div>
+			</details>
+
+			<!-- Session Tracking -->
+			<details class="dashboard-settings-section">
+				<summary><span class="section-toggle">▶</span> 🔗 Session Tracking</summary>
+				<p class="dashboard-section-desc">
+					Track chat sessions in the Sessions tab. When disabled, no sessions are recorded and the Sessions tab stays empty. Hook capture and auto-capture continue independently.
+				</p>
+				<label class="setting-row">
+					<div class="setting-info">
+						<strong>Enable Session Tracking</strong>
+						<div class="setting-desc">Record sessions from hooks and show them in the Sessions tab</div>
+					</div>
+					<input type="checkbox" ${cfg.get('sessionTracking.enabled', true) ? 'checked' : ''}
+						onchange="updateSetting('sessionTracking.enabled', this.checked)">
+				</label>
 			</details>
 
 			<!-- Agent Hooks -->

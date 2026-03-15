@@ -22,6 +22,7 @@ const ALLOWED_COMMANDS = new Set([
 	'clearCacheEntry', 'editCacheEntry', 'clearAllCache', 'reexplain',
 	'addKnowledgeCard', 'generateCardWithAI',
 	'bindTrackedSession', 'rebindTrackedSession', 'dismissTrackedSession', 'forgetTrackedSession',
+	'bulkAssignTrackedSessions', 'bulkDismissTrackedSessions', 'bulkForgetTrackedSessions',
 	'addKnowledgeFolder', 'renameKnowledgeFolder', 'deleteKnowledgeFolder', 'moveKnowledgeCard',
 	'toggleCardSelection', 'toggleCacheSelection',
 	'deselectAllCards', 'smartSelectCards', 'deselectAllCacheEntries',
@@ -74,6 +75,7 @@ const SETTING_ALLOWLIST = new Set([
 	'search.maxSearchResults', 'search.snippetTokens',
 	'autoCapture.enabled', 'autoCapture.learnFromAllParticipants',
 	'autoCapture.maxObservations',
+	'sessionTracking.enabled',
 	'hooks.sessionStart', 'hooks.postToolUse', 'hooks.preCompact', 'hooks.stop',
 ]);
 
@@ -210,12 +212,65 @@ export async function handleWebviewMessage(message: any, ctx: DashboardContext):
 					case 'forgetTrackedSession': {
 						if (typeof message.sessionId !== 'string') { break; }
 						const choice = await vscode.window.showWarningMessage(
-							'Forget this tracked session and remove any pending unassigned captures?',
+							'Delete this tracked session and remove any pending unassigned captures?',
 							{ modal: true },
-							'Forget Session',
+							'Delete Session',
 						);
-						if (choice !== 'Forget Session') { break; }
+						if (choice !== 'Delete Session') { break; }
 						await projectManager.forgetTrackedSession(message.sessionId, { removePendingEvents: true });
+						ctx.update();
+						break;
+					}
+
+					case 'bulkAssignTrackedSessions': {
+						if (!ctx.hookWatcher || !Array.isArray(message.sessionIds) || typeof message.projectId !== 'string') { break; }
+						const sessionIds = message.sessionIds.filter((sessionId: unknown): sessionId is string => typeof sessionId === 'string');
+						if (sessionIds.length === 0) { break; }
+						let rebound = 0;
+						let newlyBound = 0;
+						let backfilled = 0;
+						for (const sessionId of sessionIds) {
+							const tracked = projectManager.getTrackedSession(sessionId);
+							const isBound = !!tracked?.bindingSegments?.some(segment => segment.endSequence === undefined);
+							if (isBound) {
+								await ctx.hookWatcher.rebindSessionToProjectFromNow(sessionId, message.projectId);
+								rebound += 1;
+							} else {
+								const result = await ctx.hookWatcher.bindPendingSessionToProject(sessionId, message.projectId);
+								backfilled += result.backfilled;
+								newlyBound += 1;
+							}
+						}
+						const project = projectManager.getProject(message.projectId);
+						const projectName = project?.name || 'the selected project';
+						vscode.window.showInformationMessage(`Updated ${sessionIds.length} session${sessionIds.length !== 1 ? 's' : ''} for ${projectName}${backfilled > 0 ? ` and imported ${backfilled} queued capture${backfilled !== 1 ? 's' : ''}` : ''}.`);
+						ctx.update();
+						break;
+					}
+
+					case 'bulkDismissTrackedSessions': {
+						if (!Array.isArray(message.sessionIds)) { break; }
+						const sessionIds = message.sessionIds.filter((sessionId: unknown): sessionId is string => typeof sessionId === 'string');
+						for (const sessionId of sessionIds) {
+							await projectManager.dismissTrackedSession(sessionId);
+						}
+						ctx.update();
+						break;
+					}
+
+					case 'bulkForgetTrackedSessions': {
+						if (!Array.isArray(message.sessionIds)) { break; }
+						const sessionIds = message.sessionIds.filter((sessionId: unknown): sessionId is string => typeof sessionId === 'string');
+						if (sessionIds.length === 0) { break; }
+						const choice = await vscode.window.showWarningMessage(
+							`Delete ${sessionIds.length} tracked session${sessionIds.length !== 1 ? 's' : ''} and remove pending unassigned captures?`,
+							{ modal: true },
+							'Delete Sessions',
+						);
+						if (choice !== 'Delete Sessions') { break; }
+						for (const sessionId of sessionIds) {
+							await projectManager.forgetTrackedSession(sessionId, { removePendingEvents: true });
+						}
 						ctx.update();
 						break;
 					}

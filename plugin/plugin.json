@@ -1,0 +1,17 @@
+{
+	"name": "context-manager",
+	"description": "ContextManager knowledge capture hooks for GitHub Copilot CLI.",
+	"version": "2.10.0",
+	"author": {
+		"name": "Harsha Narayana P"
+	},
+	"license": "MIT",
+	"keywords": [
+		"copilot",
+		"contextmanager",
+		"knowledge",
+		"hooks"
+	],
+	"hooks": "hooks.json",
+	"mcpServers": ".mcp.json"
+}

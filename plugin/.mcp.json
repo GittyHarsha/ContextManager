@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"contextmanager": {
+			"type": "local",
+			"command": "node",
+			"args": [
+				"server/contextmanager-mcp.js"
+			],
+			"env": {},
+			"tools": [
+				"*"
+			]
+		}
+	}
+}

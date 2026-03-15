@@ -2,7 +2,7 @@
 
 > Build a persistent project memory layer for Copilot. Curate knowledge cards, auto-capture project intelligence, search everything with BM25, run AI or template workflows, route different features to different models, and manage it all from one dashboard.
 
-[![Version](https://img.shields.io/badge/version-2.10.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
+[![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.100.0+-007ACC.svg)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
@@ -104,6 +104,41 @@ These tools are registered via `vscode.lm.registerTool` and available to **all a
 | `contextManager_organizeKnowledgeCards` | `#organizeCards` | Organize cards into folders |
 
 When multiple ContextManager projects exist, pass `project:"Exact Project Name"` or the exact project ID/root path on every LM tool call.
+
+---
+
+## Installation
+
+### VS Code Extension
+
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=HarshaNarayanaP.context-manager):
+
+1. Open VS Code
+2. Go to **Extensions** (Ctrl+Shift+X)
+3. Search for **ContextManager**
+4. Click **Install**
+
+Or from the command line:
+
+```
+code --install-extension HarshaNarayanaP.context-manager
+```
+
+### Copilot CLI Plugin (optional)
+
+If you use [GitHub Copilot in the terminal](https://docs.github.com/en/copilot/github-copilot-in-the-cli), you can install the ContextManager plugin so CLI sessions also capture knowledge and have access to your cards via MCP.
+
+```
+copilot plugin install GittyHarsha/ContextManager:plugin
+```
+
+Or from a local clone:
+
+```
+copilot plugin install ./plugin
+```
+
+The VS Code extension must be running so `HookWatcher` can ingest events from the CLI. Verify the MCP server inside Copilot CLI with `/mcp show contextmanager`.
 
 ---
 

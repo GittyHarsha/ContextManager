@@ -17,7 +17,7 @@ import * as path from 'path';
 import * as os from 'os';
 import type { AutoCaptureService } from '../autoCapture';
 import type { ProjectManager } from '../projects/ProjectManager';
-import type { KnowledgeCard, SessionOrigin } from '../projects/types';
+import type { HookEventType, HookWriteIntent, KnowledgeCard, SessionOrigin } from '../projects/types';
 import { ConfigurationManager } from '../config';
 import type { WorkflowEngine } from '../workflows/WorkflowEngine';
 
@@ -29,7 +29,7 @@ export const OFFSET_FILE    = path.join(CM_DIR, '.queue-offset');
 export const SCRIPTS_DIR    = path.join(CM_DIR, 'scripts');
 
 export interface HookEntry {
-	hookType: string;
+	hookType: HookEventType | string;
 	timestamp: number;
 	sessionId?: string;
 	origin?: SessionOrigin;
@@ -43,6 +43,10 @@ export interface HookEntry {
 	toolName?: string;
 	toolInput?: unknown;
 	toolResponse?: string;
+	toolResultType?: 'success' | 'failure' | 'denied';
+	reason?: string;
+	error?: { message?: string; name?: string; stack?: string };
+	writeIntent?: HookWriteIntent;
 	/** Tool calls captured from the transcript (VS Code Copilot path) */
 	toolCalls?: Array<{ toolName: string; input: string; output: string }>;
 	/** Multi-turn array for PreCompact v2 entries */
@@ -222,7 +226,10 @@ export class HookWatcher implements vscode.Disposable {
 		const cfg = vscode.workspace.getConfiguration('contextManager');
 		const origin = entry.origin || 'vscode-extension';
 
-		if (entry.sessionId) {
+		// Skip PostToolUse entirely when disabled — avoids session churn + observations on every tool call
+		if (hookType === 'PostToolUse' && !cfg.get('hooks.postToolUse', false)) { return; }
+
+		if (entry.sessionId && cfg.get<boolean>('sessionTracking.enabled', true)) {
 			await this.projectManager.ensureTrackedSession(entry.sessionId, {
 				origin,
 				label: prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
@@ -240,6 +247,17 @@ export class HookWatcher implements vscode.Disposable {
 		console.log(`[HookWatcher:DEBUG] _processEntry hookType=${hookType} participant=${participant} promptLen=${prompt.length} responseLen=${response.length}`);
 		switch (hookType) {
 			case 'SessionStart': {
+				break;
+			}
+
+			case 'SessionEnd': {
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'SessionEnd', {
+					participant,
+					reason: entry.reason || 'complete',
+					cwd: entry.cwd,
+				});
+				if (!projectId) { return; }
+				await this._captureSessionEndEvent(entry.reason || 'complete', participant, entry.cwd, projectId);
 				break;
 			}
 
@@ -293,6 +311,7 @@ export class HookWatcher implements vscode.Disposable {
 				const responseStr = (entry.toolResponse || '').substring(0, 500);
 				const summary = [
 					`Tool: ${toolName}`,
+					entry.toolResultType ? `Result Type: ${entry.toolResultType}` : '',
 					inputStr ? `Input: ${inputStr}` : '',
 					responseStr ? `Result: ${responseStr}` : '',
 				].filter(Boolean).join('\n');
@@ -300,12 +319,36 @@ export class HookWatcher implements vscode.Disposable {
 					participant,
 					toolName,
 					toolInput: inp,
+					toolResultType: entry.toolResultType,
 					toolResponse: responseStr,
 					displayPrompt,
 					summary,
 				});
 				if (!projectId) { return; }
-				await this._capturePostToolUseEvent(displayPrompt, summary, projectId);
+				await this._capturePostToolUseEvent(displayPrompt, summary, projectId, toolName, inp);
+				break;
+			}
+
+			case 'ErrorOccurred': {
+				const errorPayload = entry.error || {};
+				if (!errorPayload.message && !errorPayload.name && !errorPayload.stack) { return; }
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'ErrorOccurred', {
+					participant,
+					error: errorPayload,
+				});
+				if (!projectId) { return; }
+				await this._captureErrorEvent(errorPayload, participant, projectId);
+				break;
+			}
+
+			case 'WriteIntent': {
+				if (!entry.writeIntent) { return; }
+				const projectId = await this._resolveProjectIdForHookEntry(entry, 'WriteIntent', {
+					participant,
+					writeIntent: entry.writeIntent,
+				});
+				if (!projectId) { return; }
+				await this._materializeWriteIntent(entry.writeIntent, projectId);
 				break;
 			}
 
@@ -315,7 +358,9 @@ export class HookWatcher implements vscode.Disposable {
 	}
 
 	private async _resolveProjectIdForHookEntry(entry: HookEntry, eventType: string, payload: unknown): Promise<string | undefined> {
-		if (!entry.sessionId) {
+		const sessionTrackingEnabled = vscode.workspace.getConfiguration('contextManager').get<boolean>('sessionTracking.enabled', true);
+
+		if (!entry.sessionId || !sessionTrackingEnabled) {
 			return this.projectManager.getActiveProject()?.id;
 		}
 
@@ -411,9 +456,33 @@ export class HookWatcher implements vscode.Disposable {
 			}
 
 			case 'PostToolUse': {
-				const toolPayload = payload as { displayPrompt?: string; summary?: string };
+				const toolPayload = payload as { displayPrompt?: string; summary?: string; toolName?: string; toolInput?: Record<string, unknown> };
 				if (!toolPayload.displayPrompt || !toolPayload.summary) { return; }
-				await this._capturePostToolUseEvent(toolPayload.displayPrompt, toolPayload.summary, projectId);
+				await this._capturePostToolUseEvent(toolPayload.displayPrompt, toolPayload.summary, projectId, toolPayload.toolName, toolPayload.toolInput);
+				break;
+			}
+
+			case 'SessionEnd': {
+				const sessionPayload = payload as { reason?: string; participant?: string; cwd?: string };
+				await this._captureSessionEndEvent(
+					sessionPayload.reason || 'complete',
+					sessionPayload.participant || 'copilot',
+					sessionPayload.cwd,
+					projectId,
+				);
+				break;
+			}
+
+			case 'ErrorOccurred': {
+				const errorPayload = payload as { error?: { message?: string; name?: string; stack?: string }; participant?: string };
+				await this._captureErrorEvent(errorPayload.error, errorPayload.participant || 'copilot', projectId);
+				break;
+			}
+
+			case 'WriteIntent': {
+				const writePayload = payload as { writeIntent?: HookWriteIntent };
+				if (!writePayload.writeIntent) { return; }
+				await this._materializeWriteIntent(writePayload.writeIntent, projectId);
 				break;
 			}
 
@@ -462,8 +531,165 @@ export class HookWatcher implements vscode.Disposable {
 		this.autoCapture.distillAndSaveBackground(projectId).catch(() => {});
 	}
 
-	private async _capturePostToolUseEvent(displayPrompt: string, summary: string, projectId: string): Promise<void> {
-		await this.autoCapture.onModelResponse(displayPrompt, summary, 'hook:tool', { projectId });
+	private async _capturePostToolUseEvent(
+		displayPrompt: string,
+		summary: string,
+		projectId: string,
+		toolName?: string,
+		toolInput?: Record<string, unknown>,
+	): Promise<void> {
+		const fileRef = toolInput
+			? (toolInput.filePath ?? toolInput.path ?? toolInput.file ?? toolInput.dirPath)
+			: undefined;
+		const filesReferenced = typeof fileRef === 'string' ? [fileRef] : [];
+		const toolCalls = toolName ? [{ name: toolName, input: toolInput ? JSON.stringify(toolInput).substring(0, 200) : undefined }] : undefined;
+		await this.autoCapture.captureHookObservation(displayPrompt, summary, 'hook:tool', {
+			projectId,
+			type: 'change',
+			filesReferenced,
+			toolCalls,
+		});
+	}
+
+	private async _captureSessionEndEvent(
+		reason: string,
+		participant: string,
+		cwd: string | undefined,
+		projectId: string,
+	): Promise<void> {
+		const promptText = `[session end] ${participant}`;
+		const responseText = [
+			'Session ended.',
+			`Reason: ${reason}`,
+			cwd ? `CWD: ${cwd}` : '',
+		].filter(Boolean).join('\n');
+		await this.autoCapture.captureHookObservation(promptText, responseText, 'hook:session', {
+			projectId,
+			type: 'change',
+			filesReferenced: cwd ? [cwd] : [],
+		});
+	}
+
+	private async _captureErrorEvent(
+		error: { message?: string; name?: string; stack?: string } | undefined,
+		participant: string,
+		projectId: string,
+	): Promise<void> {
+		if (!error?.message && !error?.name && !error?.stack) { return; }
+		const promptText = `[error] ${participant}`;
+		const responseText = [
+			error.name ? `Name: ${error.name}` : 'Agent error occurred.',
+			error.message ? `Message: ${error.message}` : '',
+			error.stack ? `Stack: ${error.stack.substring(0, 1200)}` : '',
+		].filter(Boolean).join('\n');
+		await this.autoCapture.captureHookObservation(promptText, responseText, 'hook:error', {
+			projectId,
+			type: 'bugfix',
+		});
+	}
+
+	private async _materializeWriteIntent(intent: HookWriteIntent, projectId: string): Promise<void> {
+		switch (intent.action) {
+			case 'save-card': {
+				if (!intent.title?.trim() || !intent.content?.trim()) { return; }
+				const folderId = await this._resolveKnowledgeFolderId(
+					projectId,
+					intent.folderName,
+					intent.parentFolderName,
+					intent.createFolderIfMissing !== false,
+				);
+				await this.projectManager.addKnowledgeCard(
+					projectId,
+					intent.title.trim(),
+					intent.content.trim(),
+					intent.category || 'note',
+					intent.tags || [],
+					intent.source || 'external plugin write intent',
+					undefined,
+					folderId,
+					intent.trackToolUsage,
+				);
+				break;
+			}
+
+			case 'learn-convention': {
+				if (!intent.title?.trim() || !intent.content?.trim()) { return; }
+				await this.projectManager.addConvention(
+					projectId,
+					intent.category,
+					intent.title.trim(),
+					intent.content.trim(),
+					intent.confidence || 'observed',
+					intent.learnedFrom || 'external plugin write intent',
+				);
+				break;
+			}
+
+			case 'learn-tool-hint': {
+				if (!intent.toolName?.trim() || !intent.pattern?.trim() || !intent.example?.trim()) { return; }
+				await this.projectManager.addToolHint(
+					projectId,
+					intent.toolName.trim(),
+					intent.pattern.trim(),
+					intent.example.trim(),
+					intent.antiPattern?.trim(),
+				);
+				break;
+			}
+
+			case 'learn-working-note': {
+				if (!intent.subject?.trim() || !intent.insight?.trim()) { return; }
+				await this.projectManager.addWorkingNote(
+					projectId,
+					intent.subject.trim(),
+					intent.insight.trim(),
+					intent.relatedFiles || [],
+					intent.relatedSymbols || [],
+					intent.discoveredWhile || 'external plugin write intent',
+				);
+				break;
+			}
+		}
+	}
+
+	private async _resolveKnowledgeFolderId(
+		projectId: string,
+		folderName: string | undefined,
+		parentFolderName: string | undefined,
+		createFolderIfMissing: boolean,
+	): Promise<string | undefined> {
+		const normalizedFolder = folderName?.trim().toLowerCase();
+		if (!normalizedFolder) {
+			return undefined;
+		}
+
+		const folders = this.projectManager.getKnowledgeFolders(projectId);
+		let parentFolderId: string | undefined;
+		const normalizedParent = parentFolderName?.trim().toLowerCase();
+
+		if (normalizedParent) {
+			const parent = folders.find(folder => folder.name.toLowerCase() === normalizedParent);
+			if (parent) {
+				parentFolderId = parent.id;
+			} else if (createFolderIfMissing) {
+				const createdParent = await this.projectManager.addKnowledgeFolder(projectId, parentFolderName!.trim());
+				parentFolderId = createdParent?.id;
+			}
+		}
+
+		const existing = this.projectManager.getKnowledgeFolders(projectId).find(folder =>
+			folder.name.toLowerCase() === normalizedFolder && (folder.parentFolderId || '') === (parentFolderId || '')
+		);
+		if (existing) {
+			return existing.id;
+		}
+
+		if (!createFolderIfMissing) {
+			return undefined;
+		}
+
+		const created = await this.projectManager.addKnowledgeFolder(projectId, folderName!.trim(), parentFolderId);
+		return created?.id;
 	}
 
 	private _resolveProjectIdFromHints(entry: HookEntry): string | undefined {

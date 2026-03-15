@@ -4,8 +4,12 @@
 
 import * as katex from 'katex';
 
-export function escapeHtml(text: string): string {
-	return text
+export function escapeHtml(text: unknown): string {
+	if (text === undefined || text === null) {
+		return '';
+	}
+
+	return String(text)
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
@@ -13,7 +17,11 @@ export function escapeHtml(text: string): string {
 		.replace(/'/g, '&#039;');
 }
 
-export function formatAge(timestamp: number): string {
+export function formatAge(timestamp: unknown): string {
+	if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) {
+		return 'unknown';
+	}
+
 	const diff = Date.now() - timestamp;
 	if (diff < 60_000) { return 'just now'; }
 	if (diff < 3_600_000) { return `${Math.floor(diff / 60_000)}m ago`; }

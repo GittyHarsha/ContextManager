@@ -1,0 +1,70 @@
+{
+	"version": 1,
+	"hooks": {
+		"sessionStart": [
+			{
+				"type": "command",
+				"bash": "scripts/capture.sh",
+				"powershell": "scripts/capture.ps1",
+				"env": {
+					"CM_HOOK_TYPE": "SessionStart",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 10
+			}
+		],
+		"sessionEnd": [
+			{
+				"type": "command",
+				"bash": "scripts/capture.sh",
+				"powershell": "scripts/capture.ps1",
+				"env": {
+					"CM_HOOK_TYPE": "SessionEnd",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 10
+			}
+		],
+		"userPromptSubmitted": [
+			{
+				"type": "command",
+				"bash": "scripts/capture.sh",
+				"powershell": "scripts/capture.ps1",
+				"env": {
+					"CM_HOOK_TYPE": "UserPromptSubmitted",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 10
+			}
+		],
+		"postToolUse": [
+			{
+				"type": "command",
+				"bash": "scripts/capture.sh",
+				"powershell": "scripts/capture.ps1",
+				"env": {
+					"CM_HOOK_TYPE": "PostToolUse",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 15
+			}
+		],
+		"errorOccurred": [
+			{
+				"type": "command",
+				"bash": "scripts/capture.sh",
+				"powershell": "scripts/capture.ps1",
+				"env": {
+					"CM_HOOK_TYPE": "ErrorOccurred",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 15
+			}
+		]
+	}
+}

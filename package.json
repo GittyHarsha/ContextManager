@@ -2,7 +2,7 @@
 	"name": "context-manager",
 	"publisher": "local-dev",
 	"displayName": "ContextManager - AI Project Memory",
-	"version": "2.10.0",
+	"version": "2.11.0",
 	"description": "Persistent project memory for Copilot: knowledge cards, multi-project session routing, BM25 search, queue-aware project-scoped chat tools, AI/template workflows, dedicated model routing, auto-capture, and a full dashboard.",
 	"icon": "ContextManager.png",
 	"galleryBanner": {
@@ -179,6 +179,18 @@
 				"title": "Install Hooks",
 				"category": "ContextManager",
 				"icon": "$(plug)"
+			},
+			{
+				"command": "contextManager.installCopilotCliPluginHooks",
+				"title": "Install Copilot CLI Plugin Hooks",
+				"category": "ContextManager",
+				"icon": "$(cloud-download)"
+			},
+			{
+				"command": "contextManager.openPluginScaffold",
+				"title": "Open Plugin Scaffold",
+				"category": "ContextManager",
+				"icon": "$(package)"
 			}
 		],
 		"menus": {
@@ -475,6 +487,11 @@
 					"maximum": 200,
 					"markdownDescription": "Maximum number of observations to store in the circular buffer. Older observations are evicted when the buffer is full."
 				},
+				"contextManager.sessionTracking.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Track chat sessions in the Sessions tab. When disabled, no sessions are recorded and the Sessions tab stays empty. Hook capture and auto-capture continue to work independently."
+				},
 				"contextManager.hooks.sessionStart": {
 					"type": "boolean",
 					"default": true,
@@ -482,8 +499,8 @@
 				},
 				"contextManager.hooks.postToolUse": {
 					"type": "boolean",
-					"default": true,
-					"markdownDescription": "Enable hook-based capture of tool calls during agent sessions."
+					"default": false,
+					"markdownDescription": "Enable hook-based capture of tool calls during agent sessions. **Warning:** creates an observation for every single tool call — very noisy."
 				},
 				"contextManager.hooks.preCompact": {
 					"type": "boolean",

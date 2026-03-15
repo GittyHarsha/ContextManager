@@ -239,6 +239,28 @@ export class AutoCaptureService {
 		this._searchIndex = index;
 	}
 
+	private _isDuplicateObservation(contentHash: string, timestamp: number): boolean {
+		return this._observations.some(
+			o => o.contentHash === contentHash && (timestamp - o.timestamp) < DEDUP_WINDOW_MS
+		);
+	}
+
+	private _storeObservation(observation: Observation, projectId: string): void {
+		this._observations.push(observation);
+		if (this._observations.length > ConfigurationManager.autoCaptureMaxObservations) {
+			this._observations = this._observations.slice(-ConfigurationManager.autoCaptureMaxObservations);
+		}
+
+		this._persistToDisk();
+		this._indexObservation(observation, projectId);
+
+		if (observation.projectId) {
+			this._workflowEngine?.fireObservationCreated(observation.projectId, observation).catch(err =>
+				console.warn('[AutoCapture/Workflow] observation-created trigger error:', err)
+			);
+		}
+	}
+
 	// ─── Public API ─────────────────────────────────────────────
 
 	/**
@@ -271,9 +293,7 @@ export class AutoCaptureService {
 		// ── Content-hash dedup (30s window) ──
 		const contentHash = computeContentHash(promptSummary, respSummary);
 		const now = Date.now();
-		const isDuplicate = this._observations.some(
-			o => o.contentHash === contentHash && (now - o.timestamp) < DEDUP_WINDOW_MS
-		);
+		const isDuplicate = this._isDuplicateObservation(contentHash, now);
 		if (isDuplicate) { return; }
 
 		// ── Token economics ──
@@ -297,20 +317,7 @@ export class AutoCaptureService {
 			projectId: project.id,
 		};
 
-		this._observations.push(observation);
-		if (this._observations.length > ConfigurationManager.autoCaptureMaxObservations) {
-			this._observations = this._observations.slice(-ConfigurationManager.autoCaptureMaxObservations);
-		}
-
-		this._persistToDisk();
-		this._indexObservation(observation, project.id);
-
-		// Fire observation-created workflow trigger
-		if (observation.projectId) {
-			this._workflowEngine?.fireObservationCreated(observation.projectId, observation).catch(err =>
-				console.warn('[AutoCapture/Workflow] observation-created trigger error:', err)
-			);
-		}
+		this._storeObservation(observation, project.id);
 
 		console.log(`[ContextManager] Auto-captured ${OBSERVATION_TYPE_EMOJI[obsType]} ${obsType} from ${observation.participant} (saved ${discoveryTokens - readTokens} tokens)`);
 
@@ -357,9 +364,7 @@ export class AutoCaptureService {
 		const respSummary = summarizeResponse(condensedResponse);
 		const contentHash = computeContentHash(cleanPrompt, respSummary);
 
-		const isDuplicate = this._observations.some(
-			o => o.contentHash === contentHash && (now - o.timestamp) < DEDUP_WINDOW_MS
-		);
+		const isDuplicate = this._isDuplicateObservation(contentHash, now);
 		if (isDuplicate) { return; }
 
 		const discoveryTokens = toolCallRounds.reduce((sum, r) =>
@@ -384,22 +389,56 @@ export class AutoCaptureService {
 			projectId: project.id,
 		};
 
-		this._observations.push(observation);
-		if (this._observations.length > ConfigurationManager.autoCaptureMaxObservations) {
-			this._observations = this._observations.slice(-ConfigurationManager.autoCaptureMaxObservations);
-		}
-
-		this._persistToDisk();
-		this._indexObservation(observation, project.id);
-
-		// Fire observation-created workflow trigger
-		if (observation.projectId) {
-			this._workflowEngine?.fireObservationCreated(observation.projectId, observation).catch(err =>
-				console.warn('[AutoCapture/Workflow] observation-created trigger error:', err)
-			);
-		}
+		this._storeObservation(observation, project.id);
 
 		console.log(`[ContextManager] Captured ${allToolCalls.length} tool calls from /${command} (${OBSERVATION_TYPE_EMOJI[obsType]} ${obsType}, saved ${discoveryTokens - readTokens} tokens)`);
+	}
+
+	async captureHookObservation(
+		promptText: string,
+		responseText: string,
+		participant: string,
+		options: {
+			projectId: string;
+			type?: ObservationType;
+			filesReferenced?: string[];
+			toolCalls?: Array<{ name: string; input?: string }>;
+		},
+	): Promise<void> {
+		if (!ConfigurationManager.autoCaptureEnabled) { return; }
+		if (!promptText?.trim() || !responseText?.trim()) { return; }
+
+		const project = this._projectManager.getProject(options.projectId);
+		if (!project) { return; }
+
+		const cleanPrompt = stripPrivacyTags(promptText);
+		const cleanResponse = stripPrivacyTags(responseText);
+		const promptSummary = cleanPrompt.substring(0, 500);
+		const respSummary = summarizeResponse(cleanResponse);
+		const now = Date.now();
+		const contentHash = computeContentHash(promptSummary, respSummary);
+		if (this._isDuplicateObservation(contentHash, now)) { return; }
+
+		const observation: Observation = {
+			id: `obs_${now}_${Math.random().toString(36).slice(2, 8)}`,
+			timestamp: now,
+			prompt: promptSummary,
+			responseSummary: respSummary,
+			participant,
+			type: options.type || classifyObservation(cleanPrompt, cleanResponse),
+			contentHash,
+			filesReferenced: [...new Set([
+				...extractFilePaths(cleanPrompt + ' ' + cleanResponse),
+				...(options.filesReferenced || []),
+			])].slice(0, 20),
+			toolCalls: options.toolCalls?.slice(0, 20),
+			discoveryTokens: Math.ceil((promptText.length + responseText.length) / CHARS_PER_TOKEN),
+			readTokens: Math.ceil((promptSummary.length + respSummary.length) / CHARS_PER_TOKEN),
+			projectId: project.id,
+		};
+
+		this._storeObservation(observation, project.id);
+		console.log(`[ContextManager] Hook-captured ${OBSERVATION_TYPE_EMOJI[observation.type]} ${observation.type} from ${participant}`);
 	}
 
 	getRecentObservations(maxAgeMs: number = 24 * 60 * 60 * 1000, projectId?: string): Observation[] {

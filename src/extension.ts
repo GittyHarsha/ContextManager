@@ -273,6 +273,148 @@ export function activate(context: vscode.ExtensionContext) {
 					console.error('[ContextManager] installHooks failed:', err);
 				}
 			}),
+			vscode.commands.registerCommand('contextManager.installCopilotCliPluginHooks', async () => {
+				const fs = require('fs') as typeof import('fs');
+				const pathMod = require('path') as typeof import('path');
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject?.rootPaths?.[0]) {
+					vscode.window.showWarningMessage('No active project with a root path. Set one first.');
+					return;
+				}
+
+				const rootPath = activeProject.rootPaths[0];
+				const hooksDir = pathMod.join(rootPath, '.github', 'hooks');
+				const pluginScriptsDir = pathMod.join(SCRIPTS_DIR, 'copilot-cli');
+				const hookConfigPath = pathMod.join(hooksDir, 'contextmanager-copilot-cli-hooks.json');
+
+				try {
+					fs.mkdirSync(pluginScriptsDir, { recursive: true });
+					fs.mkdirSync(hooksDir, { recursive: true });
+
+					const pluginScriptsSourceDir = pathMod.join(context.extensionUri.fsPath, 'plugin', 'scripts');
+					for (const fileName of ['capture.ps1', 'capture.sh', 'write-intent.ps1', 'write-intent.sh']) {
+						fs.copyFileSync(pathMod.join(pluginScriptsSourceDir, fileName), pathMod.join(pluginScriptsDir, fileName));
+					}
+					try { fs.chmodSync(pathMod.join(pluginScriptsDir, 'capture.sh'), 0o755); } catch {}
+					try { fs.chmodSync(pathMod.join(pluginScriptsDir, 'write-intent.sh'), 0o755); } catch {}
+
+					const bashCapture = pathMod.join(pluginScriptsDir, 'capture.sh').replace(/\\/g, '/');
+					const bashCaptureCommand = `bash \"${bashCapture}\"`;
+					const powershellCapture = pathMod.join(pluginScriptsDir, 'capture.ps1').replace(/\//g, '\\\\');
+					const powershellCaptureCommand = `powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File \"${powershellCapture}\"`;
+
+					const hookConfig = {
+						version: 1,
+						hooks: {
+							sessionStart: [{
+								type: 'command',
+								bash: bashCaptureCommand,
+								powershell: powershellCaptureCommand,
+								env: {
+									CM_HOOK_TYPE: 'SessionStart',
+									CM_PLUGIN_ORIGIN: 'copilot-cli-plugin',
+									CM_PLUGIN_PARTICIPANT: 'copilot-cli',
+								},
+								timeoutSec: 10,
+							}],
+							userPromptSubmitted: [{
+								type: 'command',
+								bash: bashCaptureCommand,
+								powershell: powershellCaptureCommand,
+								env: {
+									CM_HOOK_TYPE: 'UserPromptSubmitted',
+									CM_PLUGIN_ORIGIN: 'copilot-cli-plugin',
+									CM_PLUGIN_PARTICIPANT: 'copilot-cli',
+								},
+								timeoutSec: 10,
+							}],
+							postToolUse: [{
+								type: 'command',
+								bash: bashCaptureCommand,
+								powershell: powershellCaptureCommand,
+								env: {
+									CM_HOOK_TYPE: 'PostToolUse',
+									CM_PLUGIN_ORIGIN: 'copilot-cli-plugin',
+									CM_PLUGIN_PARTICIPANT: 'copilot-cli',
+								},
+								timeoutSec: 15,
+							}],
+							errorOccurred: [{
+								type: 'command',
+								bash: bashCaptureCommand,
+								powershell: powershellCaptureCommand,
+								env: {
+									CM_HOOK_TYPE: 'ErrorOccurred',
+									CM_PLUGIN_ORIGIN: 'copilot-cli-plugin',
+									CM_PLUGIN_PARTICIPANT: 'copilot-cli',
+								},
+								timeoutSec: 15,
+							}],
+							sessionEnd: [{
+								type: 'command',
+								bash: bashCaptureCommand,
+								powershell: powershellCaptureCommand,
+								env: {
+									CM_HOOK_TYPE: 'SessionEnd',
+									CM_PLUGIN_ORIGIN: 'copilot-cli-plugin',
+									CM_PLUGIN_PARTICIPANT: 'copilot-cli',
+								},
+								timeoutSec: 10,
+							}],
+						},
+					};
+
+					fs.writeFileSync(hookConfigPath, `${JSON.stringify(hookConfig, null, '\t')}\n`, 'utf8');
+
+					vscode.window.showInformationMessage(
+						`✅ Copilot CLI hook scaffold installed. Scripts → ${pluginScriptsDir} | Config → ${hookConfigPath}`,
+						'Open Hooks Dir',
+						'Open Scripts Dir'
+					).then(sel => {
+						if (sel === 'Open Hooks Dir') {
+							vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(hooksDir));
+						} else if (sel === 'Open Scripts Dir') {
+							vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(pluginScriptsDir));
+						}
+					});
+					outputChannel.appendLine(`[ContextManager] Copilot CLI hook scaffold installed to ${hookConfigPath}`);
+				} catch (err: any) {
+					vscode.window.showErrorMessage(`Failed to install Copilot CLI hook scaffold: ${err.message}`);
+					console.error('[ContextManager] installCopilotCliPluginHooks failed:', err);
+				}
+			}),
+			vscode.commands.registerCommand('contextManager.openPluginScaffold', async () => {
+				const pathMod = require('path') as typeof import('path');
+				const fs = require('fs') as typeof import('fs');
+				const pluginDir = pathMod.join(context.extensionUri.fsPath, 'plugin');
+				if (!fs.existsSync(pluginDir)) {
+					vscode.window.showWarningMessage('Plugin scaffold not found in this ContextManager install.');
+					return;
+				}
+
+				const readmePath = pathMod.join(pluginDir, 'README.md');
+				const selection = await vscode.window.showInformationMessage(
+					'ContextManager Copilot CLI plugin is available in the extension folder. Preferred install: copilot plugin install ./plugin. The VS Code command installs a repo hook config instead.',
+					'Install Copilot CLI Plugin Hooks',
+					'Open Folder',
+					'Open README'
+				);
+
+				if (selection === 'Install Copilot CLI Plugin Hooks') {
+					await vscode.commands.executeCommand('contextManager.installCopilotCliPluginHooks');
+					return;
+				}
+
+				if (selection === 'Open README' && fs.existsSync(readmePath)) {
+					const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(readmePath));
+					await vscode.window.showTextDocument(doc, { preview: false });
+					return;
+				}
+
+				if (selection === 'Open Folder') {
+					await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(pluginDir));
+				}
+			}),
 			vscode.commands.registerCommand('contextManager.captureExchange', async () => {
 				if (!autoCapture) {
 					vscode.window.showWarningMessage('Auto-capture is not available.');

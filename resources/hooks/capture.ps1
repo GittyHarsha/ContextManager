@@ -310,41 +310,6 @@ switch ($hookType) {
             origin       = "vscode-extension"
         }
 
-        # Also scan Copilot transcript for any completed user+assistant turns
-        # (Stop hook never fires for VS Code Copilot; we harvest here with ID-based dedup)
-        $txPath = $data.transcript_path
-        if (-not $txPath -and $sessionId) {
-            $txPath = Find-CopilotTranscript $sessionId
-        }
-        if ($txPath) {
-            $turn = Get-LastCompletedTurn $txPath
-            if ($turn -and $turn.userId) {
-                # Only queue if this user message hasn't been queued before
-                $seenFile = "$cmDir\seen-turn-$sessionId"
-                $lastSeen = if (Test-Path $seenFile) { (Get-Content $seenFile -Raw).Trim() } else { '' }
-                if ($turn.userId -ne $lastSeen) {
-                    $p = if ($turn.user)      { $turn.user }      else { '' }
-                    $r = if ($turn.assistant) { $turn.assistant } else { '' }
-                    if ($p -or $r) {
-                        $tc = if ($turn.toolCalls -and $turn.toolCalls.Count -gt 0) { $turn.toolCalls } else { @() }
-                        Append-Queue @{
-                            hookType    = "Stop"
-                            prompt      = $p
-                            response    = $r
-                            toolCalls   = $tc
-                            participant = "copilot"
-                            sessionId   = $sessionId
-                            timestamp   = $ts
-                            cwd         = if ($data.cwd) { [string]$data.cwd } else { "" }
-                            rootHint    = if ($data.cwd) { [string]$data.cwd } else { "" }
-                            origin      = "vscode-extension"
-                        }
-                        Set-Content $seenFile $turn.userId -Encoding UTF8
-                    }
-                }
-            }
-        }
-
         Write-Output '{}'
         exit 0
     }

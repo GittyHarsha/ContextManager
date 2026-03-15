@@ -227,6 +227,13 @@ export class ConfigurationManager {
 		return Math.max(0, this.get('intelligence.autoLearn.expiryDays', 0));
 	}
 
+	// ─── Session Tracking ───────────────────────────────────────────
+
+	/** Track chat sessions in the Sessions tab. */
+	static get sessionTrackingEnabled(): boolean {
+		return this.get('sessionTracking.enabled', true);
+	}
+
 	// ─── Auto-Capture Settings ─────────────────────────────────────
 
 	/** Enable auto-capture of observations from all chat interactions. */

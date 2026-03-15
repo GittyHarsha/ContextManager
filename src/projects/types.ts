@@ -294,7 +294,69 @@ export interface CachedExplanation {
 
 // ─── Session Routing Types ────────────────────────────────────
 
-export type SessionOrigin = 'vscode-extension' | 'copilot-cli-plugin' | 'unknown';
+export type SessionOrigin = 'vscode-extension' | 'copilot-cli-plugin' | 'claude-code-plugin' | 'unknown';
+
+export type HookEventType =
+	| 'SessionStart'
+	| 'SessionEnd'
+	| 'UserPromptSubmitted'
+	| 'PreToolUse'
+	| 'PostToolUse'
+	| 'ErrorOccurred'
+	| 'Stop'
+	| 'PreCompact'
+	| 'WriteIntent';
+
+export type HookWriteIntentAction =
+	| 'save-card'
+	| 'learn-convention'
+	| 'learn-tool-hint'
+	| 'learn-working-note';
+
+export interface SaveCardHookWriteIntent {
+	action: 'save-card';
+	title: string;
+	content: string;
+	category?: KnowledgeCard['category'];
+	tags?: string[];
+	source?: string;
+	folderName?: string;
+	parentFolderName?: string;
+	createFolderIfMissing?: boolean;
+	trackToolUsage?: boolean;
+}
+
+export interface LearnConventionHookWriteIntent {
+	action: 'learn-convention';
+	category: Convention['category'];
+	title: string;
+	content: string;
+	confidence?: Convention['confidence'];
+	learnedFrom?: string;
+}
+
+export interface LearnToolHintHookWriteIntent {
+	action: 'learn-tool-hint';
+	toolName: string;
+	pattern: string;
+	example: string;
+	antiPattern?: string;
+}
+
+export interface LearnWorkingNoteHookWriteIntent {
+	action: 'learn-working-note';
+	subject: string;
+	insight: string;
+	relatedFiles?: string[];
+	relatedSymbols?: string[];
+	discoveredWhile?: string;
+}
+
+export type HookWriteIntent =
+	| SaveCardHookWriteIntent
+	| LearnConventionHookWriteIntent
+	| LearnToolHintHookWriteIntent
+	| LearnWorkingNoteHookWriteIntent;
 
 export type TrackedSessionStatus = 'pending' | 'bound' | 'ended' | 'dismissed';
 

@@ -14,13 +14,24 @@ All notable changes to ContextManager.
 
 ## [Unreleased]
 
+---
+
+## [2.11.0] - 2026-03-15
+
 ### Added
-- **Multi-project session routing** — Hook-driven capture now tracks chat sessions independently, queues unbound events, and lets you bind or rebind sessions from the Dashboard → Sessions tab.
-- **Explicit card queue LM flows** — `#ctx` can now list queued candidates, read a queue item, approve or reject it, distill queue items into card proposals, and clear the queue directly from chat.
+- **Session tracking opt-out** — Disable session tracking entirely via `contextManager.sessionTracking.enabled`.
+- **Bulk session operations** — Select and Dismiss or Delete multiple sessions at once.
+- **Copilot CLI plugin hooks** — Commands to install CLI plugin hooks for terminal-based Copilot.
+- **Installation section in README** — Marketplace and CLI install instructions.
 
 ### Changed
-- **Project-scoped LM tools in multi-project mode** — `#ctx`, `#getCard`, `#saveCard`, `#editCard`, and `#organizeCards` now require an explicit `project` target whenever multiple ContextManager projects exist.
-- **Hook upgrade behavior** — This is not a hard breaking change for existing installs: hook scripts are `cm-version`-tracked and auto-updated on activation. Sessions that were already open before the hook upgrade are picked up on the next `Stop`, `PostToolUse`, or `PreCompact` event; only the initial `SessionStart` metadata is not retroactive.
+- **PostToolUse capture off by default** — `hooks.postToolUse` defaults to `false` to prevent observation and card queue noise.
+- **Renamed Forget → Delete** — Destructive session actions now say "Delete".
+
+### Fixed
+- **Settings checkboxes not saving** — Webview settings toggles now persist correctly.
+- **Bulk session buttons not working** — Removed `confirm()` calls blocked by webview sandbox.
+- **Card queue spam** — Removed synthetic Stop entry generation from PostToolUse handler.
 
 ---
 
