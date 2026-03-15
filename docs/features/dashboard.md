@@ -67,9 +67,10 @@ The session-routing control plane for multi-project setups:
 - **Pending capture counts** — see how many hook events are waiting for assignment because no project was explicitly bound yet
 - **Bind & Import Pending** — attach an unbound session to a project and immediately materialize queued captures into that project's memory
 - **Rebind From Now** — switch future captures to a different project without rewriting past captures
-- **Dismiss / Forget** — hide noisy sessions or permanently drop stale, unbound routing state
+- **Dismiss / Delete** — hide noisy sessions or permanently remove stale, unbound routing state
+- **Bulk operations** — select multiple sessions with checkboxes and Dismiss or Delete them in one action
 
-Single-project setups usually do not need this tab, because tools and hook capture can resolve the only project automatically.
+Single-project setups usually do not need this tab, because tools and hook capture can resolve the only project automatically. See [Session Routing]({% link features/sessions.md %}) for the full walkthrough.
 
 ---
 
