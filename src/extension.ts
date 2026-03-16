@@ -415,6 +415,72 @@ export function activate(context: vscode.ExtensionContext) {
 					await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(pluginDir));
 				}
 			}),
+			vscode.commands.registerCommand('contextManager.installClaudeCodeHooks', async () => {
+				const fs = require('fs') as typeof import('fs');
+				const pathMod = require('path') as typeof import('path');
+				const activeProject = projectManager.getActiveProject();
+				if (!activeProject?.rootPaths?.[0]) {
+					vscode.window.showWarningMessage('No active project with a root path. Set one first.');
+					return;
+				}
+
+				const rootPath = activeProject.rootPaths[0];
+
+				try {
+					// 1. Ensure capture scripts are installed
+					fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
+					const resHooks = pathMod.join(context.extensionUri.fsPath, 'resources', 'hooks');
+					fs.copyFileSync(pathMod.join(resHooks, 'capture.ps1'), pathMod.join(SCRIPTS_DIR, 'capture.ps1'));
+					fs.copyFileSync(pathMod.join(resHooks, 'capture.sh'), pathMod.join(SCRIPTS_DIR, 'capture.sh'));
+					try { fs.chmodSync(pathMod.join(SCRIPTS_DIR, 'capture.sh'), 0o755); } catch {}
+
+					// 2. Build the Claude Code hook config
+					const captureShUnix = pathMod.join(SCRIPTS_DIR, 'capture.sh').replace(/\\/g, '/');
+					const capturePsWin = pathMod.join(SCRIPTS_DIR, 'capture.ps1');
+					const isWin = process.platform === 'win32';
+					const captureCmd = isWin
+						? `powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File "${capturePsWin}"`
+						: `bash "${captureShUnix}"`;
+
+					const hookEntry = [{ type: 'command' as const, command: captureCmd }];
+					const hookConfig: Record<string, unknown> = {
+						hooks: {
+							Stop: hookEntry,
+							PreToolUse: hookEntry,
+							PostToolUse: hookEntry,
+							PreCompact: hookEntry,
+						},
+					};
+
+					// 3. Write to .claude/settings.json, merging with existing
+					const claudeDir = pathMod.join(rootPath, '.claude');
+					const settingsPath = pathMod.join(claudeDir, 'settings.json');
+					fs.mkdirSync(claudeDir, { recursive: true });
+
+					let existing: Record<string, unknown> = {};
+					if (fs.existsSync(settingsPath)) {
+						try {
+							existing = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+						} catch { existing = {}; }
+					}
+					existing.hooks = hookConfig.hooks;
+					fs.writeFileSync(settingsPath, JSON.stringify(existing, null, '\t') + '\n', 'utf8');
+
+					vscode.window.showInformationMessage(
+						`✅ Claude Code hooks installed! Config → ${settingsPath}`,
+						'Open Settings'
+					).then(sel => {
+						if (sel === 'Open Settings') {
+							vscode.workspace.openTextDocument(vscode.Uri.file(settingsPath))
+								.then(doc => vscode.window.showTextDocument(doc, { preview: false }));
+						}
+					});
+					outputChannel.appendLine(`[ContextManager] Claude Code hooks installed to ${settingsPath}`);
+				} catch (err: any) {
+					vscode.window.showErrorMessage(`Failed to install Claude Code hooks: ${err.message}`);
+					console.error('[ContextManager] installClaudeCodeHooks failed:', err);
+				}
+			}),
 			vscode.commands.registerCommand('contextManager.captureExchange', async () => {
 				if (!autoCapture) {
 					vscode.window.showWarningMessage('Auto-capture is not available.');

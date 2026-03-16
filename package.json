@@ -191,6 +191,12 @@
 				"title": "Open Plugin Scaffold",
 				"category": "ContextManager",
 				"icon": "$(package)"
+			},
+			{
+				"command": "contextManager.installClaudeCodeHooks",
+				"title": "Install Claude Code Hooks",
+				"category": "ContextManager",
+				"icon": "$(plug)"
 			}
 		],
 		"menus": {

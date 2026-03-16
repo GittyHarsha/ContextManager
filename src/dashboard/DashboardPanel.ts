@@ -1806,6 +1806,10 @@ export class DashboardPanel {
 					<button onclick="vscode.postMessage({command:'runVscodeCommand',commandId:'contextManager.installHooks'})" style="margin-right: 8px;">⬇️ Install Hooks</button>
 					<span style="opacity: 0.6; font-size: 0.82em;">Copies scripts → ~/.contextmanager/scripts/ and hooks.json → .github/hooks/</span>
 				</div>
+				<div style="margin-top: 8px;">
+					<button onclick="vscode.postMessage({command:'runVscodeCommand',commandId:'contextManager.installClaudeCodeHooks'})" style="margin-right: 8px;">🟣 Install Claude Code Hooks</button>
+					<span style="opacity: 0.6; font-size: 0.82em;">Quick-start: writes hooks to .claude/settings.json. For full MCP access, run <code>claude plugin install GittyHarsha/ContextManager:claude-code-plugin</code></span>
+				</div>
 			</details>
 
 			<!-- Prompt Customization -->

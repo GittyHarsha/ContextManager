@@ -106,6 +106,41 @@ Hooks are optional. All core features (knowledge cards, search, dashboard, LM to
 
 ---
 
+## Claude Code Plugin (Optional)
+
+If you use [Claude Code](https://code.claude.com/) for terminal-based AI sessions, install the ContextManager plugin so Claude Code sessions capture knowledge and have MCP access to your project memory.
+
+### Plugin Install (Recommended)
+
+```bash
+claude plugin install GittyHarsha/ContextManager:claude-code-plugin
+```
+
+This installs hooks (`Stop`, `PostToolUse`, `PreCompact`, session events) **and** an MCP server that gives Claude Code read/write access to your knowledge cards.
+
+Verify inside a Claude Code session:
+
+```
+/mcp
+```
+
+### Quick-Start Alternative
+
+If you just want hooks without the MCP server:
+
+1. Open the Command Palette (`Ctrl+Shift+P`)
+2. Run **ContextManager: Install Claude Code Hooks**
+3. This writes hooks to `.claude/settings.json` in the active project root
+
+You can also click **🟣 Install Claude Code Hooks** on the Dashboard → Settings tab.
+
+{: .note }
+Unlike the Copilot CLI plugin, Claude Code exposes a `Stop` hook, so **automatic card queue population works fully** from Claude Code sessions.
+
+For more details, see the [plugin README](https://github.com/GittyHarsha/ContextManager/tree/main/claude-code-plugin).
+
+---
+
 ## Copilot CLI Plugin (Optional)
 
 If you use [GitHub Copilot in the terminal](https://docs.github.com/en/copilot/github-copilot-in-the-cli), you can install the ContextManager plugin so CLI sessions also capture knowledge and have access to your cards via MCP.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Claude Code plugin** — Full Claude Code plugin (`claude-code-plugin/`) with hooks and MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Captures Stop, PostToolUse, PreCompact, session events, and provides MCP read/write access to project memory. Unlike the Copilot CLI plugin, automatic card queue population works fully.
+- **Claude Code hook install command** — Quick-start command `ContextManager: Install Claude Code Hooks` writes hooks to `.claude/settings.json` for project-level setup without the full plugin. Also available as a dashboard button.
+
 ## [2.12.0] - 2026-03-15
 
 ### Changed

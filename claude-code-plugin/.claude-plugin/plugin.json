@@ -1,0 +1,17 @@
+{
+	"name": "context-manager",
+	"description": "ContextManager knowledge capture plugin for Claude Code — captures knowledge from sessions and provides MCP access to your project memory.",
+	"version": "2.12.0",
+	"author": {
+		"name": "Harsha Narayana P"
+	},
+	"repository": "https://github.com/GittyHarsha/ContextManager",
+	"license": "MIT",
+	"keywords": [
+		"claude-code",
+		"contextmanager",
+		"knowledge",
+		"hooks",
+		"mcp"
+	]
+}

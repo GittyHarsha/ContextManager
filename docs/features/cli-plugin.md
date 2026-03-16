@@ -99,6 +99,46 @@ Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteInte
 
 ---
 
+## Claude Code Plugin
+
+Unlike the Copilot CLI, **Claude Code fully supports the `Stop` hook**, so automatic card queue population works out of the box. ContextManager ships a dedicated Claude Code plugin with hooks **and** MCP access.
+
+### Install
+
+```bash
+claude plugin install GittyHarsha/ContextManager:claude-code-plugin
+```
+
+Or from a local clone:
+
+```bash
+claude plugin install ./claude-code-plugin
+```
+
+### What It Captures
+
+| Hook | Purpose |
+|:-----|:--------|
+| **Stop** | Captures the full prompt + response for card queue candidates |
+| **SubagentStop** | Same as Stop — captures subagent completions |
+| **SessionStart / SessionEnd** | Tracks session lifecycle |
+| **UserPromptSubmit** | Injects selected knowledge cards and custom instructions |
+| **PostToolUse** | Captures tool results for observation processing |
+| **PreCompact** | Extracts multi-turn context before conversation compaction |
+
+The plugin also bundles the same MCP server as the Copilot CLI plugin, giving Claude Code full read/write access to your project memory.
+
+All events are routed through `~/.contextmanager/hook-queue.jsonl` — the same pipeline as VS Code sessions. Events are tagged with `origin: "claude-code-plugin"`.
+
+### Quick-Start Alternative (Hooks Only)
+
+If you just want hooks without MCP, run **ContextManager: Install Claude Code Hooks** from the VS Code Command Palette. This writes hooks to `.claude/settings.json` in the project root.
+
+{: .tip }
+You can install both the Copilot CLI plugin and Claude Code plugin in the same project — they coexist without conflict.
+
+---
+
 ## How It Connects to VS Code
 
 ```
