@@ -24,7 +24,7 @@ if (-not $stdinText) {
 }
 
 try {
-	$data = $stdinText | ConvertFrom-Json -Depth 20
+	$data = $stdinText | ConvertFrom-Json
 } catch {
 	'{}'
 	exit 0
