@@ -135,7 +135,7 @@ If you just want hooks without the MCP server:
 You can also click **🟣 Install Claude Code Hooks** on the Dashboard → Settings tab.
 
 {: .note }
-Unlike the Copilot CLI plugin, Claude Code exposes a `Stop` hook, so **automatic card queue population works fully** from Claude Code sessions.
+Both the Copilot CLI plugin and Claude Code plugin support automatic card queue population. `agentStop` / `Stop` hooks fire when the agent completes a turn, producing card queue candidates.
 
 For more details, see the [plugin README](https://github.com/GittyHarsha/ContextManager/tree/main/claude-code-plugin).
 

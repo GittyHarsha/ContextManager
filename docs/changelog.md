@@ -22,6 +22,9 @@ All notable changes to ContextManager.
 
 ### Fixed
 - **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.
+- **CLI `agentStop` transcript path mismatch** — Scripts now check `transcriptPath` (camelCase) first, then fall back to `transcript_path`.
+- **`ConvertFrom-Json -Depth` on PS 5.1** — Removed unsupported parameter that silently broke all CLI hooks on Windows PowerShell 5.1.
+- **VS Code agent hooks file conflicts with Copilot CLI** — Gitignored the generated `.github/hooks/contextmanager-hooks.json` to prevent format conflicts.
 
 ---
 

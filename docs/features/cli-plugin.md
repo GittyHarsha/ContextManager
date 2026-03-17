@@ -195,7 +195,6 @@ copilot plugin uninstall contextmanager  # Remove the plugin
 
 ## Current Limitations
 
-- **No automatic card capture** — The Copilot CLI does not fire a `Stop` hook (agent turn complete with full response), so CLI sessions cannot auto-populate the card queue. VS Code sessions use this hook to create card candidates. Until the CLI exposes it, use the MCP `contextmanager_save_card_intent` tool to capture knowledge explicitly.
 - **Write intents require VS Code** — the MCP server queues writes but doesn't execute them directly. The VS Code extension must be running to materialize them.
 - **No plugin skills yet** — the plugin provides hooks and MCP tools but no Copilot CLI skills.
 - **Session ID is synthetic** — CLI sessions use a per-directory ID, not a true Copilot session ID.
