@@ -70,6 +70,48 @@
 				},
 				"timeoutSec": 15
 			}
+		],
+		"agentStop": [
+			{
+				"type": "command",
+				"bash": "./capture.sh",
+				"powershell": "./capture.ps1",
+				"cwd": "plugin/scripts",
+				"env": {
+					"CM_HOOK_TYPE": "AgentStop",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 20
+			}
+		],
+		"subagentStop": [
+			{
+				"type": "command",
+				"bash": "./capture.sh",
+				"powershell": "./capture.ps1",
+				"cwd": "plugin/scripts",
+				"env": {
+					"CM_HOOK_TYPE": "SubagentStop",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 20
+			}
+		],
+		"preToolUse": [
+			{
+				"type": "command",
+				"bash": "./capture.sh",
+				"powershell": "./capture.ps1",
+				"cwd": "plugin/scripts",
+				"env": {
+					"CM_HOOK_TYPE": "PreToolUse",
+					"CM_PLUGIN_ORIGIN": "copilot-cli-plugin",
+					"CM_PLUGIN_PARTICIPANT": "copilot-cli"
+				},
+				"timeoutSec": 15
+			}
 		]
 	}
 }

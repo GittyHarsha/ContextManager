@@ -17,6 +17,11 @@ All notable changes to ContextManager.
 ### Added
 - **Claude Code plugin** — Full plugin with hooks + MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Automatic card queue population works fully.
 - **Claude Code hook install command** — Quick-start: writes hooks to `.claude/settings.json` without the full plugin.
+- **Copilot CLI `agentStop` / `subagentStop` hooks** — Automatic card queue population now works from CLI sessions.
+- **Copilot CLI `preToolUse` hook** — Tool invocation logging.
+
+### Fixed
+- **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.
 
 ---
 

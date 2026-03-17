@@ -14,14 +14,14 @@ Current scope:
 - VS Code command `ContextManager: Install Copilot CLI Plugin Hooks` to generate a project-ready hook config
 
 Current behavior:
-- emits normalized `SessionStart`, `SessionEnd`, `UserPromptSubmitted`, `PostToolUse`, and `ErrorOccurred` events into `~/.contextmanager/hook-queue.jsonl`
+- emits normalized `SessionStart`, `SessionEnd`, `UserPromptSubmitted`, `PostToolUse`, `ErrorOccurred`, `AgentStop`, `SubagentStop`, and `PreToolUse` events into `~/.contextmanager/hook-queue.jsonl`
+- `AgentStop` and `SubagentStop` produce `Stop` queue entries with the full prompt + response, enabling **automatic card queue population** from CLI sessions
 - tags events with `origin = "copilot-cli-plugin"`
 - reuses `~/.contextmanager/session-context.txt` for prompt/session context injection
 - can append normalized `WriteIntent` entries for explicit save/learn operations without direct writes to project storage
 - exposes a local MCP server named `contextmanager` with project listing, knowledge search/read, session listing, and write-intent queue tools
 
 Current limitations:
-- **No automatic card capture** — Copilot CLI does not expose a `Stop` hook (agent turn complete with full prompt + response), which is the event VS Code sessions use to populate the card queue. CLI sessions capture observations and tool use but do not auto-create card candidates. Use the MCP `contextmanager_save_card_intent` tool to save knowledge explicitly.
 - no plugin skills yet
 - MCP write operations are currently queued as intents and materialized by the VS Code extension, not written directly by the MCP process
 - Copilot CLI hook docs do not document a stable session ID, so the scripts synthesize one locally per working directory
@@ -44,4 +44,4 @@ Alternate non-plugin setup:
 Planned next steps:
 1. Expand MCP tools from read plus queued writes into direct update/delete coverage.
 2. Add plugin install/status help inside the dashboard.
-3. Add shared Claude Code hook config using the same event contract.
+3. Add plugin skills for common ContextManager workflows.

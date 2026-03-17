@@ -280,6 +280,85 @@ PYEOF
 		echo '{}'
 		;;
 
+	"AgentStop"|"SubagentStop")
+		# agentStop / subagentStop — agent finished responding.
+		# Extract prompt + response from input if available.
+		PROMPT=$(json_get "prompt")
+		RESPONSE=$(json_get "response")
+		TRANSCRIPT_PATH=$(json_get "transcript_path")
+
+		# If no inline prompt/response, try transcript file
+		if [ -z "$PROMPT" ] && [ -z "$RESPONSE" ] && [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+			EXCHANGE=$(python3 - "$TRANSCRIPT_PATH" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+last_user = None
+last_assistant = None
+try:
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                role = entry.get('type', '')
+                if role in ('user', 'user.message'):
+                    content = (entry.get('message') or {}).get('content') or (entry.get('data') or {}).get('content')
+                    if isinstance(content, str) and content.strip():
+                        last_user = content.strip()
+                    elif isinstance(content, list):
+                        texts = [c.get('text','') for c in content if c.get('type')=='text']
+                        t = ' '.join(texts).strip()
+                        if t: last_user = t
+                elif role in ('assistant', 'assistant.message'):
+                    content = (entry.get('message') or {}).get('content') or (entry.get('data') or {}).get('content')
+                    text = None
+                    if isinstance(content, str) and content.strip():
+                        text = content.strip()
+                    elif isinstance(content, list):
+                        texts = [c.get('text','') for c in content if c.get('type')=='text']
+                        t = ' '.join(texts).strip()
+                        if t: text = t
+                    if text: last_assistant = text
+            except Exception:
+                continue
+except Exception:
+    pass
+print(json.dumps({'user': last_user or '', 'assistant': last_assistant or ''}, separators=(',',':')))
+PYEOF
+)
+			PROMPT=$(echo "$EXCHANGE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('user',''))")
+			RESPONSE=$(echo "$EXCHANGE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('assistant',''))")
+		fi
+
+		if [ -n "$PROMPT" ] || [ -n "$RESPONSE" ]; then
+			ENTRY=$(python3 - "$SESSION_ID" "$TIMESTAMP" "$CWD" "$PLUGIN_ORIGIN" "$PLUGIN_PARTICIPANT" "$PROMPT" "$RESPONSE" <<'PYEOF'
+import json, sys
+print(json.dumps({
+    'hookType': 'Stop',
+    'prompt': sys.argv[6],
+    'response': sys.argv[7],
+    'participant': sys.argv[5],
+    'sessionId': sys.argv[1],
+    'timestamp': int(sys.argv[2]),
+    'toolCalls': [],
+    'cwd': sys.argv[3],
+    'rootHint': sys.argv[3],
+    'origin': sys.argv[4],
+}, separators=(',', ':')))
+PYEOF
+)
+			append_queue "$ENTRY"
+		fi
+		echo '{}'
+		;;
+
+	"PreToolUse")
+		# PreToolUse — log but don't block
+		echo '{}'
+		;;
+
 	*)
 		echo '{}'
 		;;

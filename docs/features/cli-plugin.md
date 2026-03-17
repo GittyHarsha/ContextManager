@@ -63,11 +63,14 @@ The plugin hooks into Copilot CLI's event pipeline and writes normalized entries
 | **UserPromptSubmitted** | Injects session context (selected cards + custom instructions) into the prompt |
 | **PostToolUse** | Logs tool name, input, and result for observation capture |
 | **ErrorOccurred** | Captures error details for debugging patterns |
+| **AgentStop** | Records the full prompt + response for card queue candidates |
+| **SubagentStop** | Same as AgentStop — captures subagent completions |
+| **PreToolUse** | Logs tool invocations before execution |
 
 Events are tagged with `origin: "copilot-cli-plugin"` so you can distinguish them from VS Code sessions in the Dashboard → Sessions tab.
 
-{: .warning }
-**No automatic card capture from CLI sessions.** The Copilot CLI does not expose a `Stop` hook (the event that fires when the agent finishes a turn with the full prompt + response). This is the event that VS Code sessions use to populate the card queue. Until the CLI adds a `Stop`-equivalent hook, CLI sessions will track observations and tool use but will **not** automatically produce card queue candidates. Use the MCP write intent tools (`contextmanager_save_card_intent`) to manually save knowledge from CLI sessions.
+{: .note }
+Copilot CLI now supports `agentStop` and `subagentStop` hooks, which fire when the agent finishes a turn. This means **automatic card queue population works** from CLI sessions — the same way it works in VS Code.
 
 ---
 
