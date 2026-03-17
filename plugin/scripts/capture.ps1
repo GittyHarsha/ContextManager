@@ -205,10 +205,10 @@ switch ($hookType) {
 		$response = ''
 		if ($data.prompt) { $prompt = [string]$data.prompt }
 		if ($data.response) { $response = [string]$data.response }
-		# Some implementations pass transcript_path instead
-		if (-not $prompt -and -not $response -and $data.transcript_path) {
-			# Attempt to read last exchange from transcript if path provided
-			$tPath = [string]$data.transcript_path
+		# Copilot CLI sends transcriptPath (camelCase), other impls may use transcript_path
+		$tPathRaw = if ($data.transcriptPath) { $data.transcriptPath } elseif ($data.transcript_path) { $data.transcript_path } else { $null }
+		if (-not $prompt -and -not $response -and $tPathRaw) {
+			$tPath = [string]$tPathRaw
 			if (Test-Path $tPath) {
 				try {
 					$lines = Get-Content $tPath -Encoding UTF8

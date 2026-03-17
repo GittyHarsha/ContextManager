@@ -285,7 +285,9 @@ PYEOF
 		# Extract prompt + response from input if available.
 		PROMPT=$(json_get "prompt")
 		RESPONSE=$(json_get "response")
-		TRANSCRIPT_PATH=$(json_get "transcript_path")
+		# Copilot CLI sends transcriptPath (camelCase), others may use transcript_path
+		TRANSCRIPT_PATH=$(json_get "transcriptPath")
+		[ -z "$TRANSCRIPT_PATH" ] && TRANSCRIPT_PATH=$(json_get "transcript_path")
 
 		# If no inline prompt/response, try transcript file
 		if [ -z "$PROMPT" ] && [ -z "$RESPONSE" ] && [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
