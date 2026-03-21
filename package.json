@@ -518,6 +518,34 @@
 					"default": true,
 					"markdownDescription": "Capture the final session transcript when an agent session ends."
 				},
+				"contextManager.orchestrator.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable agent orchestration primitives (registry, message bus, context sync). Allows multiple CLI/VSCode/Claude sessions to coordinate via shared MCP tools."
+				},
+				"contextManager.orchestrator.injectBusMessages": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Auto-inject recent message bus messages into session context on each prompt."
+				},
+				"contextManager.orchestrator.maxInjectedMessages": {
+					"type": "integer",
+					"default": 5,
+					"minimum": 0,
+					"maximum": 20,
+					"markdownDescription": "Maximum number of bus messages to inject into session context per prompt."
+				},
+				"contextManager.orchestrator.injectFleetStatus": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Include a list of active peer agents in the session context."
+				},
+				"contextManager.orchestrator.agentStaleTimeout": {
+					"type": "integer",
+					"default": 1800,
+					"minimum": 300,
+					"markdownDescription": "Seconds without activity before an agent is pruned from the registry."
+				},
 				"contextManager.tools.backgroundMode": {
 					"type": "boolean",
 					"default": true,

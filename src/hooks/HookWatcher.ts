@@ -16,6 +16,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import type { AutoCaptureService } from '../autoCapture';
+import { AgentRegistry } from '../orchestrator/AgentRegistry';
+import { MessageBus } from '../orchestrator/MessageBus';
+import { ContextSync } from '../orchestrator/ContextSync';
 import type { ProjectManager } from '../projects/ProjectManager';
 import type { HookEventType, HookWriteIntent, KnowledgeCard, SessionOrigin } from '../projects/types';
 import { ConfigurationManager } from '../config';
@@ -61,12 +64,23 @@ export class HookWatcher implements vscode.Disposable {
 	readonly onStatusChange = this._statusEmitter.event;
 	private _workflowEngine: WorkflowEngine;
 
+	// ── Orchestrator primitives ──
+	readonly registry: AgentRegistry;
+	readonly bus: MessageBus;
+	readonly contextSync: ContextSync;
+
 	constructor(
 		private autoCapture: AutoCaptureService,
 		private projectManager: ProjectManager,
 		workflowEngine: WorkflowEngine,
 	) {
 		this._workflowEngine = workflowEngine;
+
+		// Initialize orchestrator primitives
+		this.registry = new AgentRegistry();
+		this.bus = new MessageBus();
+		this.contextSync = new ContextSync(this.registry, this.bus);
+
 		this._ensureDir();
 		this._loadOffset();
 		this._startWatching();
@@ -78,7 +92,8 @@ export class HookWatcher implements vscode.Disposable {
 
 		// Re-sync when the injection toggle changes
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('contextManager.hooks.sessionStart')) {
+			if (e.affectsConfiguration('contextManager.hooks.sessionStart')
+				|| e.affectsConfiguration('contextManager.orchestrator')) {
 				this._syncSessionContext();
 			}
 		});
@@ -229,6 +244,12 @@ export class HookWatcher implements vscode.Disposable {
 		// Skip PostToolUse entirely when disabled — avoids session churn + observations on every tool call
 		if (hookType === 'PostToolUse' && !cfg.get('hooks.postToolUse', false)) { return; }
 
+		// ── Orchestrator: heartbeat on every event ──
+		const orchestratorEnabled = cfg.get<boolean>('orchestrator.enabled', true);
+		if (orchestratorEnabled && entry.sessionId) {
+			this.registry.heartbeat(entry.sessionId);
+		}
+
 		if (entry.sessionId && cfg.get<boolean>('sessionTracking.enabled', true)) {
 			await this.projectManager.ensureTrackedSession(entry.sessionId, {
 				origin,
@@ -247,6 +268,15 @@ export class HookWatcher implements vscode.Disposable {
 		console.log(`[HookWatcher:DEBUG] _processEntry hookType=${hookType} participant=${participant} promptLen=${prompt.length} responseLen=${response.length}`);
 		switch (hookType) {
 			case 'SessionStart': {
+				// ── Orchestrator: register agent on session start ──
+				if (orchestratorEnabled && entry.sessionId) {
+					this.registry.register(
+						entry.sessionId,
+						origin,
+						entry.cwd || '',
+						prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
+					);
+				}
 				break;
 			}
 
@@ -895,6 +925,16 @@ export class HookWatcher implements vscode.Disposable {
 					}
 				}
 			}
+		}
+
+		// ── Orchestrator: inject fleet status + bus messages ──
+		const activeProject = this.projectManager.getActiveProject();
+		if (activeProject) {
+			const orchLines = this.contextSync.generateOrchestratorContext(
+				'vscode-session', // VS Code doesn't have a CLI session ID
+				activeProject.id,
+			);
+			lines.push(...orchLines);
 		}
 
 		this.updateSessionContext(lines.join('\n'));

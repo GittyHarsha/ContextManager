@@ -468,6 +468,216 @@ server.registerTool(
 	},
 );
 
+// ── Orchestrator Primitives ─────────────────────────────────────────
+
+const REGISTRY_FILE = path.join(os.homedir(), '.contextmanager', 'agent-registry.json');
+const BUS_FILE = path.join(os.homedir(), '.contextmanager', 'agent-bus.jsonl');
+const BUS_CURSORS_FILE = path.join(os.homedir(), '.contextmanager', 'bus-cursors.json');
+
+function readRegistry(): Record<string, unknown>[] {
+	try {
+		const data = JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8'));
+		return Object.values(data.agents || {});
+	} catch { return []; }
+}
+
+function updateRegistryMeta(sessionId: string, meta: Record<string, unknown>): void {
+	const { cmDir } = getQueuePaths();
+	fs.mkdirSync(cmDir, { recursive: true });
+	let data: { agents: Record<string, Record<string, unknown>>; updatedAt: number };
+	try { data = JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8')); } catch { data = { agents: {}, updatedAt: Date.now() }; }
+	const agent = data.agents[sessionId];
+	if (agent) {
+		agent.meta = { ...(agent.meta as Record<string, unknown> || {}), ...meta };
+		agent.lastSeenAt = Date.now();
+	} else {
+		// Auto-register if not found
+		const cwd = process.cwd();
+		data.agents[sessionId] = {
+			sessionId, origin: 'copilot-cli-plugin', cwd,
+			registeredAt: Date.now(), lastSeenAt: Date.now(), meta,
+		};
+	}
+	data.updatedAt = Date.now();
+	const tmp = REGISTRY_FILE + '.tmp';
+	fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+	fs.renameSync(tmp, REGISTRY_FILE);
+}
+
+function generateBusId(): string {
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function readBusCursors(): Record<string, { offset: number }> {
+	try { return JSON.parse(fs.readFileSync(BUS_CURSORS_FILE, 'utf8')); } catch { return {}; }
+}
+
+function saveBusCursors(cursors: Record<string, { offset: number }>): void {
+	fs.writeFileSync(BUS_CURSORS_FILE, JSON.stringify(cursors, null, 2), 'utf8');
+}
+
+// ── Orchestrator MCP Tools ──────────────────────────────────────────
+
+server.registerTool(
+	'orchestrator_list_agents',
+	{
+		description: 'List all active agent sessions in the orchestrator registry. Optionally filter by project.',
+		inputSchema: z.object({
+			project: z.string().optional().describe('Filter agents by project name'),
+		}),
+	},
+	async ({ project }) => {
+		let agents = readRegistry() as Array<Record<string, unknown>>;
+		if (project) {
+			agents = agents.filter(a => a.project === project);
+		}
+		if (agents.length === 0) {
+			return textResult('No active agents found.', { agents: [] });
+		}
+		const summary = agents.map(a => {
+			const meta = Object.keys(a.meta as Record<string, unknown> || {}).length > 0
+				? ` | meta: ${JSON.stringify(a.meta)}` : '';
+			const age = Math.round((Date.now() - (a.lastSeenAt as number)) / 1000);
+			return `- [${a.origin}] ${a.label || 'unnamed'} | project: ${a.project || 'unbound'} | cwd: ${a.cwd} | last seen: ${age}s ago${meta}`;
+		}).join('\n');
+		return textResult(`Active agents (${agents.length}):\n${summary}`, { agents });
+	},
+);
+
+server.registerTool(
+	'orchestrator_get_agent',
+	{
+		description: 'Get full details for a specific agent session by its session ID.',
+		inputSchema: z.object({
+			sessionId: z.string().min(1).describe('The session ID of the agent to look up'),
+		}),
+	},
+	async ({ sessionId }) => {
+		const agents = readRegistry() as Array<Record<string, unknown>>;
+		const agent = agents.find(a => a.sessionId === sessionId);
+		if (!agent) { return textResult(`Agent ${sessionId} not found.`); }
+		return textResult(JSON.stringify(agent, null, 2), { agent });
+	},
+);
+
+server.registerTool(
+	'orchestrator_set_agent_meta',
+	{
+		description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Creates entry if missing.',
+		inputSchema: z.object({
+			meta: z.record(z.unknown()).describe('Key-value metadata to merge into your agent entry'),
+		}),
+	},
+	async ({ meta }) => {
+		const cwd = process.cwd();
+		const sessionId = getOrCreateSessionId(cwd);
+		updateRegistryMeta(sessionId, meta);
+		return textResult(`Updated meta for agent ${sessionId}: ${JSON.stringify(meta)}`);
+	},
+);
+
+server.registerTool(
+	'orchestrator_post_message',
+	{
+		description: 'Post a message to the agent bus. Other agents will see it on their next read. Payload can be any JSON.',
+		inputSchema: z.object({
+			to: z.string().optional().describe('Recipient session ID (omit for broadcast)'),
+			project: z.string().optional().describe('Scope message to a project (omit for global)'),
+			payload: z.unknown().describe('Message content — any JSON'),
+		}),
+	},
+	async ({ to, project, payload }) => {
+		const { cmDir } = getQueuePaths();
+		fs.mkdirSync(cmDir, { recursive: true });
+		const cwd = process.cwd();
+		const sessionId = getOrCreateSessionId(cwd);
+		const msg = { id: generateBusId(), from: sessionId, to, project, timestamp: Date.now(), ttl: 86400, payload };
+		fs.appendFileSync(BUS_FILE, JSON.stringify(msg) + '\n', 'utf8');
+		return textResult(`Message posted (id: ${msg.id}, from: ${sessionId}${to ? `, to: ${to}` : ''})`);
+	},
+);
+
+server.registerTool(
+	'orchestrator_read_messages',
+	{
+		description: 'Read unread messages for this agent from the bus. Advances your read cursor.',
+		inputSchema: z.object({
+			project: z.string().optional().describe('Filter messages by project'),
+			limit: z.number().int().min(1).max(50).default(10).describe('Max messages to return'),
+		}),
+	},
+	async ({ project, limit }) => {
+		const cwd = process.cwd();
+		const sessionId = getOrCreateSessionId(cwd);
+		const cursors = readBusCursors();
+		const offset = cursors[sessionId]?.offset ?? 0;
+		const now = Date.now();
+
+		let content: string;
+		try {
+			const fd = fs.openSync(BUS_FILE, 'r');
+			const stat = fs.fstatSync(fd);
+			const readSize = stat.size - offset;
+			if (readSize <= 0) { fs.closeSync(fd); return textResult('No new messages.', { messages: [] }); }
+			const buf = Buffer.alloc(readSize);
+			fs.readSync(fd, buf, 0, readSize, offset);
+			fs.closeSync(fd);
+			content = buf.toString('utf8');
+			// Advance cursor
+			cursors[sessionId] = { offset: stat.size };
+			saveBusCursors(cursors);
+		} catch { return textResult('No messages (bus file not found).', { messages: [] }); }
+
+		const messages: unknown[] = [];
+		for (const line of content.split('\n')) {
+			if (!line.trim()) { continue; }
+			try {
+				const msg = JSON.parse(line);
+				if (msg.ttl && (now - msg.timestamp) > msg.ttl * 1000) { continue; }
+				if (msg.to && msg.to !== sessionId) { continue; }
+				if (project && msg.project && msg.project !== project) { continue; }
+				messages.push(msg);
+			} catch { /* skip */ }
+		}
+
+		const result = messages.slice(-limit);
+		if (result.length === 0) { return textResult('No new messages.', { messages: [] }); }
+		const summary = result.map((m: any) => `- [${m.from}${m.to ? ` → ${m.to}` : ''}]: ${JSON.stringify(m.payload)}`).join('\n');
+		return textResult(`${result.length} message(s):\n${summary}`, { messages: result });
+	},
+);
+
+server.registerTool(
+	'orchestrator_peek_messages',
+	{
+		description: 'Peek at messages without advancing your read cursor. Good for monitoring.',
+		inputSchema: z.object({
+			project: z.string().optional().describe('Filter messages by project'),
+			limit: z.number().int().min(1).max(50).default(10).describe('Max messages to return'),
+		}),
+	},
+	async ({ project, limit }) => {
+		const now = Date.now();
+		let lines: string[];
+		try { lines = fs.readFileSync(BUS_FILE, 'utf8').split('\n').filter(l => l.trim()); } catch { return textResult('No messages.', { messages: [] }); }
+
+		const messages: unknown[] = [];
+		for (const line of lines) {
+			try {
+				const msg = JSON.parse(line);
+				if (msg.ttl && (now - msg.timestamp) > msg.ttl * 1000) { continue; }
+				if (project && msg.project && msg.project !== project) { continue; }
+				messages.push(msg);
+			} catch { /* skip */ }
+		}
+
+		const result = messages.slice(-limit);
+		if (result.length === 0) { return textResult('No messages.', { messages: [] }); }
+		const summary = result.map((m: any) => `- [${m.from}${m.to ? ` → ${m.to}` : ''}]: ${JSON.stringify(m.payload)}`).join('\n');
+		return textResult(`${result.length} message(s):\n${summary}`, { messages: result });
+	},
+);
+
 async function main(): Promise<void> {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
