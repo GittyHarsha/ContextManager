@@ -1192,6 +1192,7 @@
 		"zod": "^4.3.6"
 	},
 	"dependencies": {
+		"@agentclientprotocol/sdk": "^0.16.1",
 		"@vscode/prompt-tsx": "^0.3.0-alpha.12",
 		"katex": "^0.16.28",
 		"sql.js": "^1.14.0"
