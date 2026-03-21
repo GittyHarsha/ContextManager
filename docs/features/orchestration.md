@@ -1,6 +1,17 @@
-# Agent Orchestration
+---
+layout: default
+title: Agent Orchestration
+parent: Features
+nav_order: 11
+---
 
-ContextManager provides primitives for coordinating multiple Copilot CLI sessions, VS Code Copilot, and Claude Code agents working on the same project.
+# Agent Orchestration
+{: .fs-8 }
+
+Coordinate multiple Copilot CLI sessions, VS Code Copilot, and Claude Code agents working on the same project.
+{: .fs-5 .fw-300 }
+
+---
 
 ## Overview
 

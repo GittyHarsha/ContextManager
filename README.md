@@ -68,6 +68,17 @@ ContextManager automatically learns from your interactions:
 - **Tiered injection** — confirmed conventions are always injected; task-relevant notes are matched by keywords
 - **Staleness tracking** — items are flagged when their referenced files change
 
+### 🚀 Agent Orchestration — Multi-Session Coordination
+
+Coordinate multiple Copilot CLI sessions working on the same project. Agents communicate, share knowledge, and stay synchronized without manual intervention.
+
+- **Agent Registry** — live directory of all active sessions (CLI, VS Code, Claude Code)
+- **Message Bus** — shared communication channel with broadcast and directed messages
+- **Context Sync** — recent bus messages and fleet status auto-injected into every prompt
+- **ACP Control** — programmatically push prompts to agents via Agent Client Protocol
+- **6 MCP tools** — `orchestrator_list_agents`, `get_agent`, `set_agent_meta`, `post_message`, `read_messages`, `peek_messages`
+- **Plugin ships agents** — `fleet-monitor`, `build-coordinator`, `session-reviewer` + `orchestrate` skill
+
 ### 💾 Explanation Cache
 
 Right-click context menu explanations are automatically cached:
@@ -270,6 +281,16 @@ All settings are accessible from the **Settings** tab in the dashboard.
 | `contextManager.prompts.distillQueue` | _(empty)_ | Custom prompt for card queue distillation |
 | `contextManager.prompts.synthesizeCard` | _(empty)_ | Custom prompt for AI card synthesis |
 
+### Orchestration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `contextManager.orchestrator.enabled` | ✅ | Enable agent orchestration primitives (registry, bus, context sync) |
+| `contextManager.orchestrator.injectBusMessages` | ✅ | Auto-inject recent bus messages into session context on each prompt |
+| `contextManager.orchestrator.maxInjectedMessages` | 5 | Max bus messages to inject per prompt (0–20) |
+| `contextManager.orchestrator.injectFleetStatus` | ❌ | Include list of active peer agents in session context |
+| `contextManager.orchestrator.agentStaleTimeout` | 1800 | Seconds without activity before an agent is pruned from registry |
+
 ---
 
 ## Architecture
@@ -288,6 +309,13 @@ Auto-Capture Pipeline
   ├── Auto-learn: conventions, tool hints, working notes
   ├── Card Queue: card-worthy responses staged for review
   └── Auto-distill: periodic observation compaction
+
+Agent Orchestration (multi-session coordination)
+  ├── Agent Registry — tracks active sessions across CLI/VSCode/Claude
+  ├── Message Bus — append-only JSONL channel with cursors and TTL
+  ├── Context Sync — injects fleet status + bus messages into prompts
+  ├── ACP Control — programmatic agent spawning and prompt pushing
+  └── 6 MCP tools — list/get/set agents, post/read/peek messages
 
 Workflow Engine
   ├── Template resolution with project, queue, card, and observation variables

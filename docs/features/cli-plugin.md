@@ -76,7 +76,7 @@ Copilot CLI now supports `agentStop` and `subagentStop` hooks, which fire when t
 
 ## MCP Tools
 
-The plugin bundles a local MCP server that gives the CLI agent read access to your project memory:
+The plugin bundles a local MCP server that gives the CLI agent read access to your project memory and orchestration primitives:
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -97,8 +97,39 @@ These tools queue write requests that the VS Code extension materializes:
 | `contextmanager_learn_tool_hint_intent` | Queue a tool hint to be learned |
 | `contextmanager_learn_working_note_intent` | Queue a working note to be learned |
 
+### Orchestrator Tools
+
+These tools enable multi-session coordination — agents can see each other and communicate:
+
+| Tool | Purpose |
+|:-----|:--------|
+| `orchestrator_list_agents` | List all active agent sessions (filter by project) |
+| `orchestrator_get_agent` | Get full details for a specific agent |
+| `orchestrator_set_agent_meta` | Set arbitrary metadata on your agent entry (status, task, phase — anything) |
+| `orchestrator_post_message` | Post a message to the bus (broadcast or directed, any JSON payload) |
+| `orchestrator_read_messages` | Read unread messages, advances read cursor |
+| `orchestrator_peek_messages` | Read without advancing cursor (good for monitoring) |
+
 {: .tip }
 Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteIntent` entries. The VS Code extension's HookWatcher picks them up and materializes them into the target project.
+
+---
+
+## Bundled Agents
+
+The plugin ships 3 custom agents, available immediately after install:
+
+| Agent | Usage | Purpose |
+|:------|:------|:--------|
+| `fleet-monitor` | `copilot --agent=fleet-monitor` | Show active agents and recent bus messages |
+| `build-coordinator` | `copilot --agent=build-coordinator` | Serialize builds across worktrees |
+| `session-reviewer` | `copilot --agent=session-reviewer` | Analyze sessions for repeated mistakes |
+
+## Bundled Skills
+
+| Skill | Purpose |
+|:------|:--------|
+| `orchestrate` | Coordination patterns and workflows for multi-agent setups |
 
 ---
 

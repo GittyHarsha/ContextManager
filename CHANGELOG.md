@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Agent Orchestration Primitives** — New `src/orchestrator/` module with AgentRegistry, MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. Enables multi-session coordination across Copilot CLI, VS Code, and Claude Code agents.
+- **6 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Available in every CLI session via the ContextManager plugin.
+- **ACP Orchestrator** — `AcpOrchestrator` module spawns Copilot CLI as ACP servers (`copilot --acp --port X`) and pushes prompts programmatically via `@agentclientprotocol/sdk`. Enables fully autonomous agent workflows.
+- **Message Bus** — Append-only JSONL message channel (`~/.contextmanager/agent-bus.jsonl`) with per-agent read cursors, TTL expiry, broadcast + directed messages. Auto-posts `cm:convention-learned` and `cm:card-created` system messages when knowledge is materialized.
+- **Context Sync** — Automatically injects fleet status and recent bus messages into `session-context.txt` on every prompt, configurable via `contextManager.orchestrator.*` settings.
+- **Plugin ships agents and skills** — Plugin v2.14.0 bundles 3 custom agents (`fleet-monitor`, `build-coordinator`, `session-reviewer`) and 1 skill (`orchestrate`) for coordination patterns. Available immediately on `copilot plugin install`.
+- **5 orchestrator settings** — `orchestrator.enabled`, `orchestrator.injectBusMessages`, `orchestrator.maxInjectedMessages`, `orchestrator.injectFleetStatus`, `orchestrator.agentStaleTimeout`.
+
+### Fixed
+- **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
+- **Session file hash mismatch** — Aligned MCP server session file key (SHA256) with capture script, so the real Copilot session UUID flows through to orchestrator tools instead of synthetic `cm-*` IDs.
+
+### Changed
+- **Plugin v2.14.0** — Updated description, keywords, and added `agents` + `skills` fields to `plugin.json`.
+
+### Added
 - **Claude Code plugin** — Full Claude Code plugin (`claude-code-plugin/`) with hooks and MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Captures Stop, PostToolUse, PreCompact, session events, and provides MCP read/write access to project memory. Unlike the Copilot CLI plugin, automatic card queue population works fully.
 - **Claude Code hook install command** — Quick-start command `ContextManager: Install Claude Code Hooks` writes hooks to `.claude/settings.json` for project-level setup without the full plugin. Also available as a dashboard button.
 - **Copilot CLI `agentStop` / `subagentStop` hooks** — Copilot CLI now supports `agentStop` and `subagentStop` events. The plugin hooks into both, producing `Stop` queue entries with the full prompt + response. **Automatic card queue population now works from CLI sessions.**
