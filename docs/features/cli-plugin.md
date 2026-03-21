@@ -87,6 +87,7 @@ The plugin bundles a local MCP server that gives the CLI agent read access to yo
 | `contextmanager_search_knowledge` | Search cards, conventions, tool hints, and working notes |
 | `contextmanager_get_knowledge_card` | Read a specific card by ID or title |
 | `contextmanager_list_sessions` | List tracked sessions and binding status |
+| `contextmanager_bind_session` | Bind an unbound session to a project |
 | `contextmanager_storage_info` | Show storage directory and queue file paths |
 
 ### Write Intent Tools
@@ -112,6 +113,7 @@ These tools enable multi-session coordination — agents can see each other and 
 | `orchestrator_post_message` | Post a message to the bus (broadcast or directed, any JSON payload) |
 | `orchestrator_read_messages` | Read unread messages, advances read cursor |
 | `orchestrator_peek_messages` | Read without advancing cursor (good for monitoring) |
+| `orchestrator_resume_session` | Resume a previous session in terminal (interactive) or as ACP server (headless) |
 
 {: .tip }
 Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteIntent` entries. The VS Code extension's HookWatcher picks them up and materializes them into the target project.

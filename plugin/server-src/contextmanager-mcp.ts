@@ -469,6 +469,91 @@ server.registerTool(
 );
 
 server.registerTool(
+	'contextmanager_bind_session',
+	{
+		description: 'Bind a tracked session to a ContextManager project. Pending captures will be assigned to that project.',
+		inputSchema: z.object({
+			sessionId: z.string().min(1).describe('Session ID to bind'),
+			project: z.string().min(1).describe('Project name or ID to bind to'),
+		}),
+	},
+	async ({ sessionId, project: projectSelector }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const target = resolveProject(projects, projectSelector);
+		if (!target) { return textResult(`Project "${projectSelector}" not found.`); }
+
+		const routingPath = path.join(storageDir, 'session-routing.json');
+		const state = readJsonFile<{ trackedSessions?: SessionRecord[]; updatedAt?: number }>(routingPath, { trackedSessions: [] });
+		const sessions = state.trackedSessions || [];
+		const session = sessions.find(s => s.sessionId === sessionId);
+		if (!session) { return textResult(`Session "${sessionId}" not found.`); }
+
+		// End any active binding
+		const segments = session.bindingSegments || [];
+		for (const seg of segments) {
+			if (seg.endSequence === undefined) {
+				seg.endSequence = 0; // close previous binding
+			}
+		}
+		// Add new binding
+		segments.push({ projectId: target.id });
+		session.bindingSegments = segments;
+		session.status = 'bound';
+		state.updatedAt = Date.now();
+		fs.writeFileSync(routingPath, JSON.stringify(state, null, 2), 'utf8');
+		return textResult(`Bound session "${session.label || sessionId}" to project "${target.name}".`);
+	},
+);
+
+server.registerTool(
+	'orchestrator_resume_session',
+	{
+		description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive) or spawns as ACP server (headless).',
+		inputSchema: z.object({
+			sessionId: z.string().min(1).describe('Session ID to resume (UUID from Copilot CLI)'),
+			prompt: z.string().optional().describe('Optional initial prompt to send after resuming'),
+			acp: z.boolean().optional().describe('If true, spawn as ACP server (headless). If false/omitted, open in VS Code terminal.'),
+			port: z.number().int().optional().describe('ACP port (required if acp=true)'),
+		}),
+	},
+	async ({ sessionId, prompt, acp: useAcp, port }) => {
+		if (useAcp) {
+			if (!port) { return textResult('ACP mode requires a port. Provide port parameter.'); }
+			// Spawn as ACP server with --resume
+			const { spawn: nodeSpawn } = require('node:child_process') as typeof import('node:child_process');
+			const args = ['--acp', '--port', String(port), `--resume=${sessionId}`, '--allow-all'];
+			const proc = nodeSpawn('copilot', args, {
+				cwd: process.cwd(),
+				stdio: ['pipe', 'pipe', 'pipe'],
+				detached: true,
+			});
+			proc.unref();
+			return textResult(`Resumed session ${sessionId} as ACP server on port ${port} (PID: ${proc.pid}).`);
+		}
+
+		// Queue a WriteIntent that the VS Code extension will handle to open a terminal
+		const { cmDir, queueFile } = getQueuePaths();
+		const entry = {
+			hookType: 'WriteIntent',
+			sessionId: getOrCreateSessionId(process.cwd()),
+			timestamp: Date.now(),
+			cwd: process.cwd(),
+			rootHint: process.cwd(),
+			origin: 'copilot-cli-plugin',
+			participant: 'copilot-cli',
+			writeIntent: {
+				action: 'resume-session',
+				targetSessionId: sessionId,
+				prompt: prompt || '',
+			},
+		};
+		fs.appendFileSync(queueFile, JSON.stringify(entry) + '\n', 'utf8');
+		return textResult(`Queued resume request for session ${sessionId}. VS Code extension will open it in a terminal.${prompt ? ` Initial prompt: "${prompt}"` : ''}`);
+	},
+);
+
+server.registerTool(
 	'contextmanager_save_card_intent',
 	{
 		description: 'Queue a save-card write intent for ContextManager.',
