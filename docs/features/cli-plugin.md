@@ -81,6 +81,9 @@ The plugin bundles a local MCP server that gives the CLI agent read access to yo
 | Tool | Purpose |
 |:-----|:--------|
 | `contextmanager_list_projects` | List all ContextManager projects |
+| `contextmanager_create_project` | Create a new project with name, description, root paths |
+| `contextmanager_rename_project` | Rename an existing project |
+| `contextmanager_update_project` | Update description, root paths, goals, conventions, key files |
 | `contextmanager_search_knowledge` | Search cards, conventions, tool hints, and working notes |
 | `contextmanager_get_knowledge_card` | Read a specific card by ID or title |
 | `contextmanager_list_sessions` | List tracked sessions and binding status |

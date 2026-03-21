@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Project management MCP tools** — New `contextmanager_create_project`, `contextmanager_rename_project`, and `contextmanager_update_project` MCP tools let CLI agents create projects, rename them, and update context (description, goals, conventions, key files). Delete stays dashboard-only for safety.
 - **Agent Orchestration Primitives** — New `src/orchestrator/` module with AgentRegistry, MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. Enables multi-session coordination across Copilot CLI, VS Code, and Claude Code agents.
 - **6 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Available in every CLI session via the ContextManager plugin.
 - **ACP Orchestrator** — `AcpOrchestrator` module spawns Copilot CLI as ACP servers (`copilot --acp --port X`) and pushes prompts programmatically via `@agentclientprotocol/sdk`. Enables fully autonomous agent workflows.

@@ -129,6 +129,10 @@ function loadProjects(storageDir: string): ProjectRecord[] {
 	return Array.isArray(projects) ? projects : [];
 }
 
+function saveProjects(storageDir: string, projects: ProjectRecord[]): void {
+	fs.writeFileSync(path.join(storageDir, 'projects.json'), JSON.stringify(projects, null, 2), 'utf8');
+}
+
 function loadSessions(storageDir: string): SessionRecord[] {
 	const state = readJsonFile<{ trackedSessions?: SessionRecord[] }>(path.join(storageDir, 'session-routing.json'), {});
 	return Array.isArray(state.trackedSessions) ? state.trackedSessions : [];
@@ -246,6 +250,96 @@ server.registerTool(
 				: 'No ContextManager projects found.',
 			{ storageDir, count: projects.length, projects: projects.map(project => ({ id: project.id, name: project.name, rootPaths: project.rootPaths || [] })) },
 		);
+	},
+);
+
+server.registerTool(
+	'contextmanager_create_project',
+	{
+		description: 'Create a new ContextManager project. Projects scope knowledge cards, conventions, and agent sessions.',
+		inputSchema: z.object({
+			name: z.string().min(1).describe('Project name'),
+			description: z.string().optional().describe('Short project description'),
+			rootPaths: z.array(z.string()).optional().describe('Root filesystem paths for this project'),
+		}),
+	},
+	async ({ name, description, rootPaths }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		if (projects.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+			return textResult(`Project "${name}" already exists.`);
+		}
+		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+		const project: ProjectRecord = {
+			id, name,
+			description: description || '',
+			rootPaths: rootPaths || [process.cwd()],
+			knowledgeCards: [],
+			conventions: [],
+			toolHints: [],
+			workingNotes: [],
+		};
+		projects.push(project);
+		saveProjects(storageDir, projects);
+		return textResult(`Created project "${name}" (id: ${id})`, { project: { id, name, rootPaths: project.rootPaths } });
+	},
+);
+
+server.registerTool(
+	'contextmanager_rename_project',
+	{
+		description: 'Rename an existing ContextManager project.',
+		inputSchema: z.object({
+			project: z.string().min(1).describe('Current project name or ID'),
+			newName: z.string().min(1).describe('New project name'),
+		}),
+	},
+	async ({ project: selector, newName }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const target = resolveProject(projects, selector);
+		if (!target) { return textResult(`Project "${selector}" not found.`); }
+		if (projects.some(p => p.id !== target.id && p.name.toLowerCase() === newName.toLowerCase())) {
+			return textResult(`A project named "${newName}" already exists.`);
+		}
+		const oldName = target.name;
+		target.name = newName;
+		saveProjects(storageDir, projects);
+		return textResult(`Renamed "${oldName}" → "${newName}" (id: ${target.id})`);
+	},
+);
+
+server.registerTool(
+	'contextmanager_update_project',
+	{
+		description: 'Update a project\'s description, root paths, or context (goals, conventions text, key files).',
+		inputSchema: z.object({
+			project: z.string().min(1).describe('Project name or ID'),
+			description: z.string().optional().describe('New project description'),
+			rootPaths: z.array(z.string()).optional().describe('Updated root filesystem paths'),
+			goals: z.string().optional().describe('Project goals text'),
+			conventions: z.string().optional().describe('Project conventions text (free-form, separate from auto-learned conventions)'),
+			keyFiles: z.array(z.string()).optional().describe('Key files list'),
+		}),
+	},
+	async ({ project: selector, description, rootPaths, goals, conventions, keyFiles }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const target = resolveProject(projects, selector);
+		if (!target) { return textResult(`Project "${selector}" not found.`); }
+		const changes: string[] = [];
+		if (description !== undefined) { target.description = description; changes.push('description'); }
+		if (rootPaths !== undefined) { target.rootPaths = rootPaths; changes.push('rootPaths'); }
+		// Context fields are stored under target.context (may not exist yet)
+		const ctx = (target as any).context || {};
+		if (goals !== undefined) { ctx.goals = goals; changes.push('goals'); }
+		if (conventions !== undefined) { ctx.conventions = conventions; changes.push('conventions'); }
+		if (keyFiles !== undefined) { ctx.keyFiles = keyFiles; changes.push('keyFiles'); }
+		if (changes.length > 0) { (target as any).context = ctx; }
+		saveProjects(storageDir, projects);
+		return textResult(changes.length > 0
+			? `Updated project "${target.name}": ${changes.join(', ')}`
+			: `No changes made to "${target.name}".`);
 	},
 );
 

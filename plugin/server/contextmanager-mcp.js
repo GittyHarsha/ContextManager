@@ -108,6 +108,9 @@ function loadProjects(storageDir) {
     const projects = readJsonFile(path.join(storageDir, 'projects.json'), []);
     return Array.isArray(projects) ? projects : [];
 }
+function saveProjects(storageDir, projects) {
+    fs.writeFileSync(path.join(storageDir, 'projects.json'), JSON.stringify(projects, null, 2), 'utf8');
+}
 function loadSessions(storageDir) {
     const state = readJsonFile(path.join(storageDir, 'session-routing.json'), {});
     return Array.isArray(state.trackedSessions) ? state.trackedSessions : [];
@@ -212,6 +215,101 @@ server.registerTool('contextmanager_list_projects', {
     return textResult(projects.length
         ? projects.map(project => `- ${project.name} (${project.id})${project.rootPaths?.[0] ? ` — ${project.rootPaths[0]}` : ''}`).join('\n')
         : 'No ContextManager projects found.', { storageDir, count: projects.length, projects: projects.map(project => ({ id: project.id, name: project.name, rootPaths: project.rootPaths || [] })) });
+});
+server.registerTool('contextmanager_create_project', {
+    description: 'Create a new ContextManager project. Projects scope knowledge cards, conventions, and agent sessions.',
+    inputSchema: zod_1.z.object({
+        name: zod_1.z.string().min(1).describe('Project name'),
+        description: zod_1.z.string().optional().describe('Short project description'),
+        rootPaths: zod_1.z.array(zod_1.z.string()).optional().describe('Root filesystem paths for this project'),
+    }),
+}, async ({ name, description, rootPaths }) => {
+    const storageDir = resolveStorageDir();
+    const projects = loadProjects(storageDir);
+    if (projects.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+        return textResult(`Project "${name}" already exists.`);
+    }
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    const project = {
+        id, name,
+        description: description || '',
+        rootPaths: rootPaths || [process.cwd()],
+        knowledgeCards: [],
+        conventions: [],
+        toolHints: [],
+        workingNotes: [],
+    };
+    projects.push(project);
+    saveProjects(storageDir, projects);
+    return textResult(`Created project "${name}" (id: ${id})`, { project: { id, name, rootPaths: project.rootPaths } });
+});
+server.registerTool('contextmanager_rename_project', {
+    description: 'Rename an existing ContextManager project.',
+    inputSchema: zod_1.z.object({
+        project: zod_1.z.string().min(1).describe('Current project name or ID'),
+        newName: zod_1.z.string().min(1).describe('New project name'),
+    }),
+}, async ({ project: selector, newName }) => {
+    const storageDir = resolveStorageDir();
+    const projects = loadProjects(storageDir);
+    const target = resolveProject(projects, selector);
+    if (!target) {
+        return textResult(`Project "${selector}" not found.`);
+    }
+    if (projects.some(p => p.id !== target.id && p.name.toLowerCase() === newName.toLowerCase())) {
+        return textResult(`A project named "${newName}" already exists.`);
+    }
+    const oldName = target.name;
+    target.name = newName;
+    saveProjects(storageDir, projects);
+    return textResult(`Renamed "${oldName}" → "${newName}" (id: ${target.id})`);
+});
+server.registerTool('contextmanager_update_project', {
+    description: 'Update a project\'s description, root paths, or context (goals, conventions text, key files).',
+    inputSchema: zod_1.z.object({
+        project: zod_1.z.string().min(1).describe('Project name or ID'),
+        description: zod_1.z.string().optional().describe('New project description'),
+        rootPaths: zod_1.z.array(zod_1.z.string()).optional().describe('Updated root filesystem paths'),
+        goals: zod_1.z.string().optional().describe('Project goals text'),
+        conventions: zod_1.z.string().optional().describe('Project conventions text (free-form, separate from auto-learned conventions)'),
+        keyFiles: zod_1.z.array(zod_1.z.string()).optional().describe('Key files list'),
+    }),
+}, async ({ project: selector, description, rootPaths, goals, conventions, keyFiles }) => {
+    const storageDir = resolveStorageDir();
+    const projects = loadProjects(storageDir);
+    const target = resolveProject(projects, selector);
+    if (!target) {
+        return textResult(`Project "${selector}" not found.`);
+    }
+    const changes = [];
+    if (description !== undefined) {
+        target.description = description;
+        changes.push('description');
+    }
+    if (rootPaths !== undefined) {
+        target.rootPaths = rootPaths;
+        changes.push('rootPaths');
+    }
+    const ctx = target.context || {};
+    if (goals !== undefined) {
+        ctx.goals = goals;
+        changes.push('goals');
+    }
+    if (conventions !== undefined) {
+        ctx.conventions = conventions;
+        changes.push('conventions');
+    }
+    if (keyFiles !== undefined) {
+        ctx.keyFiles = keyFiles;
+        changes.push('keyFiles');
+    }
+    if (changes.length > 0) {
+        target.context = ctx;
+    }
+    saveProjects(storageDir, projects);
+    return textResult(changes.length > 0
+        ? `Updated project "${target.name}": ${changes.join(', ')}`
+        : `No changes made to "${target.name}".`);
 });
 server.registerTool('contextmanager_search_knowledge', {
     description: 'Search knowledge cards, conventions, tool hints, and working notes across ContextManager projects.',
