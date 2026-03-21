@@ -113,7 +113,7 @@ These tools enable multi-session coordination — agents can see each other and 
 | `orchestrator_post_message` | Post a message to the bus (broadcast or directed, any JSON payload) |
 | `orchestrator_read_messages` | Read unread messages, advances read cursor |
 | `orchestrator_peek_messages` | Read without advancing cursor (good for monitoring) |
-| `orchestrator_resume_session` | Resume a previous session in terminal (interactive) or as ACP server (headless) |
+| `orchestrator_resume_session` | Resume a previous session in a VS Code terminal |
 
 {: .tip }
 Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteIntent` entries. The VS Code extension's HookWatcher picks them up and materializes them into the target project.

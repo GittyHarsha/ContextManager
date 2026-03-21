@@ -142,6 +142,7 @@ function ensureQueueDirs() {
 }
 function getSessionFile(cwd) {
     const { sessionRoot } = getQueuePaths();
+    // Match the capture script's SHA256-based key (PowerShell: SHA256(cwd).Substring(0, 24))
     const crypto = require('node:crypto');
     const hash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 24);
     return path.join(sessionRoot, `${hash}.json`);
@@ -290,6 +291,7 @@ server.registerTool('contextmanager_update_project', {
         target.rootPaths = rootPaths;
         changes.push('rootPaths');
     }
+    // Context fields are stored under target.context (may not exist yet)
     const ctx = target.context || {};
     if (goals !== undefined) {
         ctx.goals = goals;
@@ -434,12 +436,14 @@ server.registerTool('contextmanager_bind_session', {
     if (!session) {
         return textResult(`Session "${sessionId}" not found.`);
     }
+    // End any active binding
     const segments = session.bindingSegments || [];
     for (const seg of segments) {
         if (seg.endSequence === undefined) {
-            seg.endSequence = 0;
+            seg.endSequence = 0; // close previous binding
         }
     }
+    // Add new binding
     segments.push({ projectId: target.id });
     session.bindingSegments = segments;
     session.status = 'bound';
@@ -448,28 +452,13 @@ server.registerTool('contextmanager_bind_session', {
     return textResult(`Bound session "${session.label || sessionId}" to project "${target.name}".`);
 });
 server.registerTool('orchestrator_resume_session', {
-    description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive) or spawns as ACP server (headless).',
+    description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive).',
     inputSchema: zod_1.z.object({
         sessionId: zod_1.z.string().min(1).describe('Session ID to resume (UUID from Copilot CLI)'),
         prompt: zod_1.z.string().optional().describe('Optional initial prompt to send after resuming'),
-        acp: zod_1.z.boolean().optional().describe('If true, spawn as ACP server (headless). If false/omitted, open in VS Code terminal.'),
-        port: zod_1.z.number().int().optional().describe('ACP port (required if acp=true)'),
     }),
-}, async ({ sessionId, prompt, acp: useAcp, port }) => {
-    if (useAcp) {
-        if (!port) {
-            return textResult('ACP mode requires a port. Provide port parameter.');
-        }
-        const { spawn: nodeSpawn } = require('node:child_process');
-        const args = ['--acp', '--port', String(port), `--resume=${sessionId}`, '--allow-all'];
-        const proc = nodeSpawn('copilot', args, {
-            cwd: process.cwd(),
-            stdio: ['pipe', 'pipe', 'pipe'],
-            detached: true,
-        });
-        proc.unref();
-        return textResult(`Resumed session ${sessionId} as ACP server on port ${port} (PID: ${proc.pid}).`);
-    }
+}, async ({ sessionId, prompt }) => {
+    // Queue a WriteIntent that the VS Code extension will handle to open a terminal
     const { cmDir, queueFile } = getQueuePaths();
     const entry = {
         hookType: 'WriteIntent',
@@ -557,6 +546,7 @@ server.registerTool('contextmanager_storage_info', {
     const queuePaths = getQueuePaths();
     return textResult(`Storage: ${storageDir}\nQueue: ${queuePaths.queueFile}\nSessions: ${queuePaths.sessionRoot}`, { storageDir, ...queuePaths });
 });
+// ── Orchestrator Primitives ─────────────────────────────────────────
 const REGISTRY_FILE = path.join(os.homedir(), '.contextmanager', 'agent-registry.json');
 const BUS_FILE = path.join(os.homedir(), '.contextmanager', 'agent-bus.jsonl');
 const BUS_CURSORS_FILE = path.join(os.homedir(), '.contextmanager', 'bus-cursors.json');
@@ -585,6 +575,7 @@ function updateRegistryMeta(sessionId, meta) {
         agent.lastSeenAt = Date.now();
     }
     else {
+        // Auto-register if not found
         const cwd = process.cwd();
         data.agents[sessionId] = {
             sessionId, origin: 'copilot-cli-plugin', cwd,
@@ -610,6 +601,7 @@ function readBusCursors() {
 function saveBusCursors(cursors) {
     fs.writeFileSync(BUS_CURSORS_FILE, JSON.stringify(cursors, null, 2), 'utf8');
 }
+// ── Orchestrator MCP Tools ──────────────────────────────────────────
 server.registerTool('orchestrator_list_agents', {
     description: 'List all active agent sessions in the orchestrator registry. Optionally filter by project.',
     inputSchema: zod_1.z.object({
@@ -696,6 +688,7 @@ server.registerTool('orchestrator_read_messages', {
         fs.readSync(fd, buf, 0, readSize, offset);
         fs.closeSync(fd);
         content = buf.toString('utf8');
+        // Advance cursor
         cursors[sessionId] = { offset: stat.size };
         saveBusCursors(cursors);
     }
@@ -720,7 +713,7 @@ server.registerTool('orchestrator_read_messages', {
             }
             messages.push(msg);
         }
-        catch { }
+        catch { /* skip */ }
     }
     const result = messages.slice(-limit);
     if (result.length === 0) {
@@ -756,7 +749,7 @@ server.registerTool('orchestrator_peek_messages', {
             }
             messages.push(msg);
         }
-        catch { }
+        catch { /* skip */ }
     }
     const result = messages.slice(-limit);
     if (result.length === 0) {

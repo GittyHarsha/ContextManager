@@ -509,29 +509,13 @@ server.registerTool(
 server.registerTool(
 	'orchestrator_resume_session',
 	{
-		description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive) or spawns as ACP server (headless).',
+		description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive).',
 		inputSchema: z.object({
 			sessionId: z.string().min(1).describe('Session ID to resume (UUID from Copilot CLI)'),
 			prompt: z.string().optional().describe('Optional initial prompt to send after resuming'),
-			acp: z.boolean().optional().describe('If true, spawn as ACP server (headless). If false/omitted, open in VS Code terminal.'),
-			port: z.number().int().optional().describe('ACP port (required if acp=true)'),
 		}),
 	},
-	async ({ sessionId, prompt, acp: useAcp, port }) => {
-		if (useAcp) {
-			if (!port) { return textResult('ACP mode requires a port. Provide port parameter.'); }
-			// Spawn as ACP server with --resume
-			const { spawn: nodeSpawn } = require('node:child_process') as typeof import('node:child_process');
-			const args = ['--acp', '--port', String(port), `--resume=${sessionId}`, '--allow-all'];
-			const proc = nodeSpawn('copilot', args, {
-				cwd: process.cwd(),
-				stdio: ['pipe', 'pipe', 'pipe'],
-				detached: true,
-			});
-			proc.unref();
-			return textResult(`Resumed session ${sessionId} as ACP server on port ${port} (PID: ${proc.pid}).`);
-		}
-
+	async ({ sessionId, prompt }) => {
 		// Queue a WriteIntent that the VS Code extension will handle to open a terminal
 		const { cmDir, queueFile } = getQueuePaths();
 		const entry = {
@@ -860,7 +844,7 @@ server.registerTool(
 	},
 );
 
-async function main(): Promise<void> {
+async function main(): Promise<void>{
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 }

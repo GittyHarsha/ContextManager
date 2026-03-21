@@ -7,5 +7,4 @@ export { AgentLauncher } from './AgentLauncher';
 export type { LaunchOptions } from './AgentLauncher';
 export { AgentDiscovery } from './AgentDiscovery';
 export type { DiscoveredAgent } from './AgentDiscovery';
-export { AcpOrchestrator } from './AcpOrchestrator';
-export type { AcpAgentConfig, AcpAgentState } from './AcpOrchestrator';
+

@@ -75,7 +75,6 @@ Coordinate multiple Copilot CLI sessions working on the same project. Agents com
 - **Agent Registry** — live directory of all active sessions (CLI, VS Code, Claude Code)
 - **Message Bus** — shared communication channel with broadcast and directed messages
 - **Context Sync** — recent bus messages and fleet status auto-injected into every prompt
-- **ACP Control** — programmatically push prompts to agents via Agent Client Protocol
 - **6 MCP tools** — `orchestrator_list_agents`, `get_agent`, `set_agent_meta`, `post_message`, `read_messages`, `peek_messages`
 - **Plugin ships agents** — `fleet-monitor`, `build-coordinator`, `session-reviewer` + `orchestrate` skill
 
@@ -314,7 +313,6 @@ Agent Orchestration (multi-session coordination)
   ├── Agent Registry — tracks active sessions across CLI/VSCode/Claude
   ├── Message Bus — append-only JSONL channel with cursors and TTL
   ├── Context Sync — injects fleet status + bus messages into prompts
-  ├── ACP Control — programmatic agent spawning and prompt pushing
   └── 6 MCP tools — list/get/set agents, post/read/peek messages
 
 Workflow Engine

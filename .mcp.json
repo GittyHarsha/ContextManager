@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "contextmanager": {
+      "type": "local",
+      "args": [
+        "C:/Users/harshanp/.copilot/installed-plugins/_direct/plugin/server/contextmanager-mcp.js"
+      ],
+      "tools": [
+        "*"
+      ],
+      "command": "node"
+    }
+  }
+}

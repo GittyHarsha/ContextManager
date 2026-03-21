@@ -10,10 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Project management MCP tools** — New `contextmanager_create_project`, `contextmanager_rename_project`, and `contextmanager_update_project` MCP tools let CLI agents create projects, rename them, and update context (description, goals, conventions, key files). Delete stays dashboard-only for safety.
 - **Session bind MCP tool** — New `contextmanager_bind_session` lets CLI agents bind unbound sessions to projects, triggering pending capture backfill.
-- **Session resume MCP tool** — New `orchestrator_resume_session` resumes a previous Copilot CLI session either in a VS Code terminal (interactive) or as an ACP server (headless, for programmatic control).
+- **Session resume MCP tool** — New `orchestrator_resume_session` resumes a previous Copilot CLI session in a VS Code terminal.
 - **Agent Orchestration Primitives** — New `src/orchestrator/` module with AgentRegistry, MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. Enables multi-session coordination across Copilot CLI, VS Code, and Claude Code agents.
 - **6 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Available in every CLI session via the ContextManager plugin.
-- **ACP Orchestrator** — `AcpOrchestrator` module spawns Copilot CLI as ACP servers (`copilot --acp --port X`) and pushes prompts programmatically via `@agentclientprotocol/sdk`. Enables fully autonomous agent workflows.
 - **Message Bus** — Append-only JSONL message channel (`~/.contextmanager/agent-bus.jsonl`) with per-agent read cursors, TTL expiry, broadcast + directed messages. Auto-posts `cm:convention-learned` and `cm:card-created` system messages when knowledge is materialized.
 - **Context Sync** — Automatically injects fleet status and recent bus messages into `session-context.txt` on every prompt, configurable via `contextManager.orchestrator.*` settings.
 - **Plugin ships agents and skills** — Plugin v2.14.0 bundles 3 custom agents (`fleet-monitor`, `build-coordinator`, `session-reviewer`) and 1 skill (`orchestrate`) for coordination patterns. Available immediately on `copilot plugin install`.
@@ -22,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
 - **Session file hash mismatch** — Aligned MCP server session file key (SHA256) with capture script, so the real Copilot session UUID flows through to orchestrator tools instead of synthetic `cm-*` IDs.
+
+### Removed
+- **ACP Orchestrator removed** — Removed `AcpOrchestrator` module and all headless ACP agent spawning. Agents should not silently spawn other agents with elevated permissions; users control their own sessions. `orchestrator_resume_session` now only resumes sessions in VS Code terminals.
 
 ### Changed
 - **Plugin v2.14.0** — Updated description, keywords, and added `agents` + `skills` fields to `plugin.json`.

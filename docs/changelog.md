@@ -14,6 +14,9 @@ All notable changes to ContextManager.
 
 ## [Unreleased]
 
+### Removed
+- **ACP Orchestrator** — Removed headless ACP agent spawning. `orchestrator_resume_session` now only resumes in VS Code terminals.
+
 ### Added
 - **Claude Code plugin** — Full plugin with hooks + MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Automatic card queue population works fully.
 - **Claude Code hook install command** — Quick-start: writes hooks to `.claude/settings.json` without the full plugin.
