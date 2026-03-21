@@ -16,6 +16,11 @@ All notable changes to ContextManager.
 
 ### Removed
 - **ACP Orchestrator** — Removed headless ACP agent spawning. `orchestrator_resume_session` now only resumes in VS Code terminals.
+- **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` from the plugin. Replaced by a single flexible `orchestrate` agent.
+- **Orchestrate skill** — Skill content consolidated into the `orchestrate` agent.
+
+### Changed
+- **Plugin ships single orchestrate agent** — One flexible agent that knows all orchestrator primitives replaces 3 narrow agents + 1 skill.
 
 ### Added
 - **Claude Code plugin** — Full plugin with hooks + MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Automatic card queue population works fully.

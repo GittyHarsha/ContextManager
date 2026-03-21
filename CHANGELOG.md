@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **6 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Available in every CLI session via the ContextManager plugin.
 - **Message Bus** — Append-only JSONL message channel (`~/.contextmanager/agent-bus.jsonl`) with per-agent read cursors, TTL expiry, broadcast + directed messages. Auto-posts `cm:convention-learned` and `cm:card-created` system messages when knowledge is materialized.
 - **Context Sync** — Automatically injects fleet status and recent bus messages into `session-context.txt` on every prompt, configurable via `contextManager.orchestrator.*` settings.
-- **Plugin ships agents and skills** — Plugin v2.14.0 bundles 3 custom agents (`fleet-monitor`, `build-coordinator`, `session-reviewer`) and 1 skill (`orchestrate`) for coordination patterns. Available immediately on `copilot plugin install`.
+- **Plugin ships orchestrate agent** — Plugin bundles the `orchestrate` agent — a single flexible agent that knows all orchestrator primitives (registry, bus, knowledge, sessions) and follows the user's lead. Available immediately on `copilot plugin install`.
 - **5 orchestrator settings** — `orchestrator.enabled`, `orchestrator.injectBusMessages`, `orchestrator.maxInjectedMessages`, `orchestrator.injectFleetStatus`, `orchestrator.agentStaleTimeout`.
 
 ### Fixed
@@ -24,9 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - **ACP Orchestrator removed** — Removed `AcpOrchestrator` module and all headless ACP agent spawning. Agents should not silently spawn other agents with elevated permissions; users control their own sessions. `orchestrator_resume_session` now only resumes sessions in VS Code terminals.
+- **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents from the plugin. They were too rigid — users want flexibility, not narrow single-purpose agents.
+- **Orchestrate skill** — Removed `plugin/skills/` directory. Skill content consolidated into the `orchestrate` agent.
 
 ### Changed
-- **Plugin v2.14.0** — Updated description, keywords, and added `agents` + `skills` fields to `plugin.json`.
+- **Plugin ships single orchestrate agent** — Replaced 3 narrow agents + 1 skill with a single `orchestrate` agent that knows all orchestrator primitives and follows the user's direction.
+- **Plugin v2.14.0** — Updated description, keywords, and added `agents` field to `plugin.json`.
 
 ### Added
 - **Claude Code plugin** — Full Claude Code plugin (`claude-code-plugin/`) with hooks and MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Captures Stop, PostToolUse, PreCompact, session events, and provides MCP read/write access to project memory. Unlike the Copilot CLI plugin, automatic card queue population works fully.

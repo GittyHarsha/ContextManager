@@ -81,36 +81,18 @@ Configure injection via VS Code settings:
 - `contextManager.orchestrator.maxInjectedMessages` (default: 5)
 - `contextManager.orchestrator.injectFleetStatus` (default: false)
 
-## Example Agents
+## Orchestrate Agent
 
-ContextManager ships example agents in `.github/agents/` that demonstrate common orchestration patterns:
-
-### fleet-monitor
-
-Shows who's running and what they're communicating. Read-only.
+The plugin ships a single `orchestrate` agent that knows all orchestrator primitives — registry, bus, knowledge, sessions — and follows your lead:
 
 ```
-copilot --agent=fleet-monitor
-> "Show me fleet status"
+copilot --agent=orchestrate
+> "Show me who's running and what they're saying"
+> "Coordinate builds across my worktrees"
+> "Review recent sessions for repeated mistakes"
 ```
 
-### build-coordinator
-
-Reads build requests from the bus, runs builds one at a time, posts results back.
-
-```
-copilot --agent=build-coordinator
-> "Process pending build requests"
-```
-
-### session-reviewer
-
-Analyzes recent sessions for repeated mistakes and suggests convention improvements.
-
-```
-copilot --agent=session-reviewer
-> "Review last week's sessions"
-```
+This replaces the previous `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents. Instead of 3 narrow agents that each prescribe a single workflow, one flexible agent lets you direct the orchestration however you want.
 
 ## Building Your Own Orchestration
 

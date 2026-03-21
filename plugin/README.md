@@ -22,9 +22,11 @@ Current behavior:
 - exposes a local MCP server named `contextmanager` with project listing, knowledge search/read, session listing, and write-intent queue tools
 
 Current limitations:
-- no plugin skills yet
 - MCP write operations are currently queued as intents and materialized by the VS Code extension, not written directly by the MCP process
 - Copilot CLI hook docs do not document a stable session ID, so the scripts synthesize one locally per working directory
+
+Current agents:
+- single `orchestrate` agent — flexible agent that knows all orchestrator primitives (registry, bus, knowledge, sessions)
 
 Preferred setup for GitHub Copilot CLI:
 1. From this repository root, run `copilot plugin install ./plugin`.
@@ -44,4 +46,4 @@ Alternate non-plugin setup:
 Planned next steps:
 1. Expand MCP tools from read plus queued writes into direct update/delete coverage.
 2. Add plugin install/status help inside the dashboard.
-3. Add plugin skills for common ContextManager workflows.
+3. Expand the orchestrate agent with more examples and patterns.

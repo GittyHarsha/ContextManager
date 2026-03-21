@@ -120,21 +120,15 @@ Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteInte
 
 ---
 
-## Bundled Agents
+## Bundled Agent
 
-The plugin ships 3 custom agents, available immediately after install:
+The plugin ships one flexible agent, available immediately after install:
 
 | Agent | Usage | Purpose |
 |:------|:------|:--------|
-| `fleet-monitor` | `copilot --agent=fleet-monitor` | Show active agents and recent bus messages |
-| `build-coordinator` | `copilot --agent=build-coordinator` | Serialize builds across worktrees |
-| `session-reviewer` | `copilot --agent=session-reviewer` | Analyze sessions for repeated mistakes |
+| `orchestrate` | `copilot --agent=orchestrate` | Knows all orchestrator primitives (registry, bus, knowledge, sessions) — direct it however you want |
 
-## Bundled Skills
-
-| Skill | Purpose |
-|:------|:--------|
-| `orchestrate` | Coordination patterns and workflows for multi-agent setups |
+The `orchestrate` agent replaces the previous `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents with a single agent that follows your lead instead of prescribing a narrow workflow.
 
 ---
 
@@ -232,5 +226,5 @@ copilot plugin uninstall contextmanager  # Remove the plugin
 ## Current Limitations
 
 - **Write intents require VS Code** — the MCP server queues writes but doesn't execute them directly. The VS Code extension must be running to materialize them.
-- **No plugin skills yet** — the plugin provides hooks and MCP tools but no Copilot CLI skills.
+- **Single orchestrate agent** — the plugin bundles one flexible agent instead of multiple narrow agents.
 - **Session ID is synthetic** — CLI sessions use a per-directory ID, not a true Copilot session ID.

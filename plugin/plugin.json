@@ -16,7 +16,6 @@
 		"multi-agent"
 	],
 	"agents": "agents/",
-	"skills": "skills/",
 	"hooks": "hooks.json",
 	"mcpServers": ".mcp.json"
 }

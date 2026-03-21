@@ -76,7 +76,7 @@ Coordinate multiple Copilot CLI sessions working on the same project. Agents com
 - **Message Bus** — shared communication channel with broadcast and directed messages
 - **Context Sync** — recent bus messages and fleet status auto-injected into every prompt
 - **6 MCP tools** — `orchestrator_list_agents`, `get_agent`, `set_agent_meta`, `post_message`, `read_messages`, `peek_messages`
-- **Plugin ships agents** — `fleet-monitor`, `build-coordinator`, `session-reviewer` + `orchestrate` skill
+- **Plugin ships orchestrate agent** — a single flexible agent that knows all orchestrator primitives and follows your lead
 
 ### 💾 Explanation Cache
 
