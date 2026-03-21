@@ -566,7 +566,7 @@ server.registerTool(
 	{
 		description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Creates entry if missing.',
 		inputSchema: z.object({
-			meta: z.record(z.unknown()).describe('Key-value metadata to merge into your agent entry'),
+			meta: z.record(z.string(), z.unknown()).describe('Key-value metadata to merge into your agent entry'),
 		}),
 	},
 	async ({ meta }) => {
