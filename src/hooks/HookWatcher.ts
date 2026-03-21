@@ -378,7 +378,7 @@ export class HookWatcher implements vscode.Disposable {
 					writeIntent: entry.writeIntent,
 				});
 				if (!projectId) { return; }
-				await this._materializeWriteIntent(entry.writeIntent, projectId);
+				await this._materializeWriteIntent(entry.writeIntent, projectId, entry.sessionId);
 				break;
 			}
 
@@ -618,7 +618,8 @@ export class HookWatcher implements vscode.Disposable {
 		});
 	}
 
-	private async _materializeWriteIntent(intent: HookWriteIntent, projectId: string): Promise<void> {
+	private async _materializeWriteIntent(intent: HookWriteIntent, projectId: string, sessionId?: string): Promise<void> {
+		const cfg = vscode.workspace.getConfiguration('contextManager');
 		switch (intent.action) {
 			case 'save-card': {
 				if (!intent.title?.trim() || !intent.content?.trim()) { return; }
@@ -639,6 +640,15 @@ export class HookWatcher implements vscode.Disposable {
 					folderId,
 					intent.trackToolUsage,
 				);
+				// Orchestrator: broadcast card creation to bus
+				if (cfg.get<boolean>('orchestrator.enabled', true)) {
+					this.bus.post({
+						from: sessionId || 'system',
+						project: this.projectManager.getActiveProject()?.name,
+						payload: { type: 'cm:card-created', title: intent.title.trim() },
+					});
+					this._syncSessionContext();
+				}
 				break;
 			}
 
@@ -652,6 +662,15 @@ export class HookWatcher implements vscode.Disposable {
 					intent.confidence || 'observed',
 					intent.learnedFrom || 'external plugin write intent',
 				);
+				// Orchestrator: broadcast convention to bus
+				if (cfg.get<boolean>('orchestrator.enabled', true)) {
+					this.bus.post({
+						from: sessionId || 'system',
+						project: this.projectManager.getActiveProject()?.name,
+						payload: { type: 'cm:convention-learned', title: intent.title.trim(), content: intent.content.trim() },
+					});
+					this._syncSessionContext();
+				}
 				break;
 			}
 
