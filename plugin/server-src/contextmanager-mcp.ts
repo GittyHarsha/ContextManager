@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { McpServer, StdioServerTransport } from '@modelcontextprotocol/server';
-import * as z from 'zod';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
 
 type SessionOrigin = 'vscode-extension' | 'copilot-cli-plugin' | 'claude-code-plugin' | 'unknown';
 

@@ -1180,6 +1180,7 @@
 		"test": "vitest run"
 	},
 	"devDependencies": {
+		"@modelcontextprotocol/sdk": "^1.27.1",
 		"@types/node": "^22",
 		"@types/sql.js": "^1.4.9",
 		"@types/vscode": "^1.100.0",
@@ -1187,7 +1188,8 @@
 		"esbuild": "^0.27.3",
 		"npm-run-all2": "^8.0.4",
 		"typescript": "^5.9.2",
-		"vitest": "^4.0.18"
+		"vitest": "^4.0.18",
+		"zod": "^4.3.6"
 	},
 	"dependencies": {
 		"@vscode/prompt-tsx": "^0.3.0-alpha.12",
