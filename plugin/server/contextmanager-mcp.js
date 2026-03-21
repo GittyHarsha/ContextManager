@@ -139,8 +139,9 @@ function ensureQueueDirs() {
 }
 function getSessionFile(cwd) {
     const { sessionRoot } = getQueuePaths();
-    const key = Buffer.from(cwd).toString('base64url').slice(0, 48) || 'default';
-    return path.join(sessionRoot, `${key}.json`);
+    const crypto = require('node:crypto');
+    const hash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 24);
+    return path.join(sessionRoot, `${hash}.json`);
 }
 function newSessionId() {
     return `cm-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;

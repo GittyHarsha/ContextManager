@@ -166,8 +166,10 @@ function ensureQueueDirs(): void {
 
 function getSessionFile(cwd: string): string {
 	const { sessionRoot } = getQueuePaths();
-	const key = Buffer.from(cwd).toString('base64url').slice(0, 48) || 'default';
-	return path.join(sessionRoot, `${key}.json`);
+	// Match the capture script's SHA256-based key (PowerShell: SHA256(cwd).Substring(0, 24))
+	const crypto = require('node:crypto') as typeof import('node:crypto');
+	const hash = crypto.createHash('sha256').update(cwd).digest('hex').slice(0, 24);
+	return path.join(sessionRoot, `${hash}.json`);
 }
 
 function newSessionId(): string {
