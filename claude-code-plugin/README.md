@@ -8,7 +8,7 @@ Extend **ContextManager** to [Claude Code](https://code.claude.com/) — capture
 |:-----------|:----|
 | **Capture knowledge** | Hook scripts fire on Stop, PostToolUse, PreCompact, and session events — writing normalized entries to the shared hook queue |
 | **Read your cards** | An MCP server exposes your knowledge cards, conventions, and project data to Claude Code |
-| **Queue write intents** | Claude Code can request card saves and convention learns, materialized by the VS Code extension |
+| **Write directly** | Claude Code can save cards, conventions, tool hints, and working notes directly to project storage with deduplication |
 | **Full card queue support** | Unlike the Copilot CLI plugin, Claude Code exposes a `Stop` hook — so **automatic card queue population works** |
 
 ## Installation
@@ -65,16 +65,16 @@ The plugin bundles a local MCP server that gives Claude Code read access to your
 | `contextmanager_list_sessions` | List tracked sessions and binding status |
 | `contextmanager_storage_info` | Show storage directory and queue file paths |
 
-### Write Intent Tools
+### Direct Write Tools
 
-These tools queue write requests that the VS Code extension materializes:
+These tools write directly to project storage (no VS Code extension needed for writes):
 
 | Tool | Purpose |
 |:-----|:--------|
-| `contextmanager_save_card_intent` | Queue a new knowledge card to be saved |
-| `contextmanager_learn_convention_intent` | Queue a coding convention to be learned |
-| `contextmanager_learn_tool_hint_intent` | Queue a tool hint to be learned |
-| `contextmanager_learn_working_note_intent` | Queue a working note to be learned |
+| `contextmanager_save_card` | Save a knowledge card (updates existing if title matches) |
+| `contextmanager_learn_convention` | Save a coding convention (updates existing if title matches) |
+| `contextmanager_learn_tool_hint` | Save a tool hint (updates existing if title matches) |
+| `contextmanager_learn_working_note` | Save a working note (updates existing if title matches) |
 
 ## How It Connects to VS Code
 
@@ -93,7 +93,7 @@ Claude Code session
 
 1. **Capture path** — Hook scripts append JSONL entries to the shared queue file. The VS Code extension watches this file and processes new entries, routing them to the correct project.
 2. **Read path** — The MCP server reads project data directly from ContextManager's storage directory. No extension required for reads.
-3. **Write path** — Write intents go through the queue file → HookWatcher → ProjectManager.
+3. **Write path** — Direct write tools (`save_card`, `learn_convention`, etc.) write to `projects.json` immediately. No VS Code extension required for writes.
 
 ## Quick-Start Alternative
 

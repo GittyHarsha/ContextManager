@@ -19,7 +19,7 @@ The Copilot CLI plugin bridges terminal-based Copilot sessions with your Context
 
 - **Capture knowledge** — tool use, conversation turns, and errors flow into the same hook queue that VS Code uses
 - **Read your cards** — an MCP server exposes your knowledge cards, conventions, and project data to the CLI agent
-- **Queue write intents** — the CLI can request card saves and convention learns, materialized by the VS Code extension
+- **Write directly** — the CLI can save cards, conventions, tool hints, and working notes directly to project storage with deduplication
 
 ---
 
@@ -90,16 +90,16 @@ The plugin bundles a local MCP server that gives the CLI agent read access to yo
 | `contextmanager_bind_session` | Bind an unbound session to a project |
 | `contextmanager_storage_info` | Show storage directory and queue file paths |
 
-### Write Intent Tools
+### Direct Write Tools
 
-These tools queue write requests that the VS Code extension materializes:
+These tools write directly to project storage (no VS Code extension needed for writes):
 
 | Tool | Purpose |
 |:-----|:--------|
-| `contextmanager_save_card_intent` | Queue a new knowledge card to be saved |
-| `contextmanager_learn_convention_intent` | Queue a coding convention to be learned |
-| `contextmanager_learn_tool_hint_intent` | Queue a tool hint to be learned |
-| `contextmanager_learn_working_note_intent` | Queue a working note to be learned |
+| `contextmanager_save_card` | Save a knowledge card (updates existing if title matches) |
+| `contextmanager_learn_convention` | Save a coding convention (updates existing if title matches) |
+| `contextmanager_learn_tool_hint` | Save a tool hint (updates existing if title matches) |
+| `contextmanager_learn_working_note` | Save a working note (updates existing if title matches) |
 
 ### Orchestrator Tools
 
@@ -107,13 +107,13 @@ These tools enable multi-session coordination — agents can see each other and 
 
 | Tool | Purpose |
 |:-----|:--------|
-| `orchestrator_list_agents` | List all active agent sessions (filter by project) |
+| `orchestrator_list_agents` | List agent sessions with status and terminal info (filter by project or status) |
 | `orchestrator_get_agent` | Get full details for a specific agent |
-| `orchestrator_set_agent_meta` | Set arbitrary metadata on your agent entry (status, task, phase — anything) |
+| `orchestrator_set_agent_meta` | Set metadata and terminal info on your agent entry (status, task, phase, terminal — anything) |
 | `orchestrator_send` | Send a message to another agent by typing into its psmux/tmux pane |
 
 {: .tip }
-Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteIntent` entries. The VS Code extension's HookWatcher picks them up and materializes them into the target project.
+Direct write tools resolve the target project from a name, ID, or the session's working directory. Each tool uses title-based deduplication — if a card or convention with the same title already exists, it's updated instead of duplicated.
 
 ---
 
@@ -186,7 +186,7 @@ Copilot CLI session
 
 1. **Capture path** — CLI hook scripts append JSONL entries to the shared queue file. The VS Code extension watches this file and processes new entries, routing them to the correct project.
 2. **Read path** — The MCP server reads project data directly from ContextManager's storage directory (VS Code `globalStorage`). No extension required for reads.
-3. **Write path** — Write intents go through the queue file → HookWatcher → ProjectManager. The MCP server does not write to storage directly.
+3. **Write path** — Direct write tools (`save_card`, `learn_convention`, etc.) write to `projects.json` immediately. No VS Code extension required for writes.
 
 ---
 
@@ -222,6 +222,6 @@ copilot plugin uninstall contextmanager  # Remove the plugin
 
 ## Current Limitations
 
-- **Write intents require VS Code** — the MCP server queues writes but doesn't execute them directly. The VS Code extension must be running to materialize them.
 - **Single orchestrate agent** — the plugin bundles one flexible agent instead of multiple narrow agents.
 - **Session ID is synthetic** — CLI sessions use a per-directory ID, not a true Copilot session ID.
+- **Capture processing requires VS Code** — hook events queue up in `hook-queue.jsonl` but aren't processed until the VS Code extension's HookWatcher ingests them. Direct writes (cards, conventions, etc.) do NOT require VS Code.

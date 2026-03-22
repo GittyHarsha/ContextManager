@@ -21,11 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Claude Code hook install command** — Quick-start command `ContextManager: Install Claude Code Hooks` writes hooks to `.claude/settings.json` for project-level setup without the full plugin. Also available as a dashboard button.
 - **Copilot CLI `agentStop` / `subagentStop` hooks** — Copilot CLI now supports `agentStop` and `subagentStop` events. The plugin hooks into both, producing `Stop` queue entries with the full prompt + response. **Automatic card queue population now works from CLI sessions.**
 - **Copilot CLI `preToolUse` hook** — Registers a `preToolUse` hook for tool invocation logging.
+- **psmux/tmux terminal detection and tracking** — Capture script auto-detects psmux (via `$env:PSMUX` or `Get-Command psmux`), falls back to tmux. Captures `paneId`, `windowId`, `sessionName` and stores full `TerminalInfo` in the agent registry.
+- **`orchestrator_set_agent_meta` terminal parameter** — Accepts a `terminal` object (`{ type, paneId, windowId, sessionName }`) to update an agent's psmux/tmux pane info.
 
 ### Changed
 - **Orchestrator simplified to registry + psmux send-keys** — Removed MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. The orchestrator is now just the AgentRegistry (who's running, pane IDs, project bindings) and `orchestrator_send` (type into another agent's pane). No shared files, no context injection — one agent looks up another and sends it a message directly.
 - **Plugin ships single orchestrate agent** — Replaced 3 narrow agents + 1 skill with a single `orchestrate` agent that knows registry + psmux send-keys and follows the user's direction.
 - **Plugin v2.14.0** — Updated description, keywords, and added `agents` field to `plugin.json`.
+- **Agent registry is now persistent with status tracking** — Agents have `status` (`active` / `idle` / `stopped`) and `terminal` fields. `prune()` marks agents as `stopped` instead of deleting them — history is preserved. New `purge()` method deletes entries stopped 7+ days ago. `list()` accepts an optional `status` filter.
+- **Direct-write MCP tools replace `_intent` queue tools** — `contextmanager_save_card`, `contextmanager_learn_convention`, `contextmanager_learn_tool_hint`, `contextmanager_learn_working_note` write directly to `projects.json` with title-based deduplication. No more queuing WriteIntents for VS Code to process.
+- **`orchestrator_list_agents` shows status and terminal info** — Output includes agent status (`active`/`idle`/`stopped`) and terminal info (type, paneId, windowId, sessionName), filterable by status.
 
 ### Fixed
 - **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
@@ -46,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ACP Orchestrator** — Removed `AcpOrchestrator` module and all headless ACP agent spawning.
 - **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents from the plugin.
 - **Orchestrate skill** — Removed `plugin/skills/` directory. Skill content consolidated into the `orchestrate` agent.
+- **4 `_intent` MCP write tools** — Removed `contextmanager_save_card_intent`, `contextmanager_learn_convention_intent`, `contextmanager_learn_tool_hint_intent`, `contextmanager_learn_working_note_intent`. Replaced by direct-write tools (`contextmanager_save_card`, etc.).
 
 ## [2.12.0] - 2026-03-15
 

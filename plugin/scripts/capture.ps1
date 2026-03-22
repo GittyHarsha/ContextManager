@@ -35,7 +35,29 @@ $origin = if ($env:CM_PLUGIN_ORIGIN) { $env:CM_PLUGIN_ORIGIN } else { 'copilot-c
 $participant = if ($env:CM_PLUGIN_PARTICIPANT) { $env:CM_PLUGIN_PARTICIPANT } else { 'copilot-cli' }
 $cwd = if ($data.cwd) { [string]$data.cwd } else { (Get-Location).Path }
 $timestamp = if ($data.timestamp) { [long]$data.timestamp } else { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
-$tmuxPane = if ($env:TMUX_PANE) { $env:TMUX_PANE } else { '' }
+# Detect terminal multiplexer: psmux first, then tmux
+$terminalType = ''
+$terminalPane = ''
+$terminalWindow = ''
+$terminalSession = ''
+if ($env:PSMUX -or (Get-Command psmux -ErrorAction SilentlyContinue)) {
+	try {
+		$paneInfo = psmux display-message -p '#{pane_id}' 2>$null
+		if ($paneInfo) {
+			$terminalType = 'psmux'
+			$terminalPane = $paneInfo.Trim()
+			try { $terminalWindow = (psmux display-message -p '#{window_id}' 2>$null).Trim() } catch {}
+			try { $terminalSession = (psmux display-message -p '#{session_name}' 2>$null).Trim() } catch {}
+		}
+	} catch {}
+}
+if (-not $terminalType -and $env:TMUX_PANE) {
+	$terminalType = 'tmux'
+	$terminalPane = $env:TMUX_PANE
+	try { $terminalWindow = (tmux display-message -p '#{window_id}' 2>$null).Trim() } catch {}
+	try { $terminalSession = (tmux display-message -p '#{session_name}' 2>$null).Trim() } catch {}
+}
+$tmuxPane = if ($terminalPane) { $terminalPane } else { '' }
 $providedSessionId = if ($data.sessionId) {
 	[string]$data.sessionId
 } elseif ($data.session_id) {
@@ -124,6 +146,9 @@ switch ($hookType) {
 			participant = $participant
 			prompt = if ($data.initialPrompt) { [string]$data.initialPrompt } else { '' }
 			tmuxPane = $tmuxPane
+			terminalType = $terminalType
+			terminalWindow = $terminalWindow
+			terminalSession = $terminalSession
 		}
 
 		if (Test-Path $sessionCtx) {

@@ -28,9 +28,9 @@ All tools are available in any Copilot CLI or Claude Code session with the Conte
 
 | Tool | Description |
 |---|---|
-| `orchestrator_list_agents` | List active agents, optionally filter by project |
+| `orchestrator_list_agents` | List agents with status and terminal info, optionally filter by project or status |
 | `orchestrator_get_agent` | Get full details for a specific agent by session ID |
-| `orchestrator_set_agent_meta` | Set arbitrary metadata on your agent (status, task, phase — anything) |
+| `orchestrator_set_agent_meta` | Set metadata and terminal info on your agent (status, task, phase, terminal — anything) |
 | `orchestrator_send` | Send a message to another agent by typing into its psmux/tmux pane |
 
 ## How It Works
@@ -41,22 +41,28 @@ Every Copilot CLI, VS Code, or Claude Code session that fires hook events is aut
 
 - **Session ID** and **origin** (CLI, VS Code, Claude Code)
 - **Working directory** and **bound project** (auto-detected from cwd)
-- **Pane ID** — the psmux/tmux pane the session runs in (captured automatically on SessionStart)
+- **Status** — `active`, `idle`, or `stopped` (tracked automatically via SessionStart/SessionEnd hooks)
+- **Terminal info** — multiplexer type (`psmux`, `tmux`, `vscode`, `raw`), pane ID, window ID, and session name (auto-detected on SessionStart)
 - **Last activity timestamp** (heartbeat)
 - **Custom metadata blob** (open schema — set anything you want)
 
-Stale agents (no activity for 30 minutes by default) are automatically pruned.
+Stale agents (no activity for 30 minutes by default) are marked as `stopped` instead of being deleted — history is preserved. A separate `purge()` removes entries that have been stopped for 7+ days.
 
 ### Auto-Bind by Working Directory
 
 When a session starts, HookWatcher matches the session's working directory against each project's `rootPaths`. If the cwd falls under a project root, the session is automatically bound to that project. No manual binding needed for standard setups.
 
-### Pane ID Capture
+### Pane ID and Terminal Capture
 
-The capture script reads `$env:TMUX_PANE` on every `SessionStart` event and writes it to the hook queue. HookWatcher picks it up and stores it in the agent's registry metadata under the `pane` key. This means `orchestrator_send` can resolve any registered agent to its terminal pane automatically.
+The capture script auto-detects the terminal multiplexer on every `SessionStart` event:
+
+1. **psmux** — detected via `$env:PSMUX` or `Get-Command psmux`. Captures `paneId`, `windowId`, and `sessionName`.
+2. **tmux** — falls back to `$env:TMUX_PANE`. Captures pane ID and optionally window/session.
+
+HookWatcher stores full `TerminalInfo` (type, paneId, windowId, sessionName) in the agent's registry entry via `registry.setTerminal()`. This means `orchestrator_send` can resolve any registered agent to its terminal pane automatically.
 
 {: .note }
-If `$env:TMUX_PANE` is not set (e.g. the session isn't running inside psmux/tmux), agents can set their pane manually via `orchestrator_set_agent_meta({ meta: { pane: "<pane-id>" } })`.
+If the session isn't running inside a multiplexer, agents can set their terminal info manually via `orchestrator_set_agent_meta({ terminal: { type: "psmux", paneId: "0" } })`.
 
 ### Sending Messages (psmux send-keys)
 

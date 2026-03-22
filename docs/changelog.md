@@ -22,10 +22,14 @@ All notable changes to ContextManager.
 - **ACP Orchestrator** — Removed headless ACP agent spawning.
 - **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` from the plugin. Replaced by a single flexible `orchestrate` agent.
 - **Orchestrate skill** — Skill content consolidated into the `orchestrate` agent.
+- **4 `_intent` MCP write tools** — `save_card_intent`, `learn_convention_intent`, `learn_tool_hint_intent`, `learn_working_note_intent` replaced by direct-write tools.
 
 ### Changed
 - **Orchestrator simplified to registry + psmux send-keys** — No bus, no context sync. Agents look each other up in the registry and send messages by typing into psmux/tmux panes.
 - **Plugin ships single orchestrate agent** — One flexible agent that knows registry + psmux send-keys replaces 3 narrow agents + 1 skill.
+- **Agent registry is persistent with status tracking** — Agents have `status` (active/idle/stopped). `prune()` marks stopped instead of deleting. New `purge()` cleans entries stopped 7+ days.
+- **Direct-write MCP tools** — `save_card`, `learn_convention`, `learn_tool_hint`, `learn_working_note` write directly to `projects.json` with deduplication. No more queuing intents.
+- **`orchestrator_list_agents` filterable by status** — Shows agent status and terminal info.
 
 ### Added
 - **`orchestrator_send` psmux tool** — Send a message to another agent via `psmux send-keys` (resolves session → pane ID in registry).
@@ -35,6 +39,8 @@ All notable changes to ContextManager.
 - **Claude Code hook install command** — Quick-start: writes hooks to `.claude/settings.json` without the full plugin.
 - **Copilot CLI `agentStop` / `subagentStop` hooks** — Automatic card queue population now works from CLI sessions.
 - **Copilot CLI `preToolUse` hook** — Tool invocation logging.
+- **psmux/tmux terminal detection and tracking** — Capture script auto-detects psmux or tmux; stores full terminal info (type, paneId, windowId, sessionName) in agent registry.
+- **`orchestrator_set_agent_meta` terminal parameter** — Update psmux/tmux pane info on your agent entry.
 
 ### Fixed
 - **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.

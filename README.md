@@ -72,10 +72,11 @@ ContextManager automatically learns from your interactions:
 
 Coordinate multiple Copilot CLI sessions working on the same project. Agents see each other in the registry and send messages directly into each other's terminal panes via psmux/tmux send-keys.
 
-- **Agent Registry** — live directory of all active sessions (CLI, VS Code, Claude Code) with pane IDs and project bindings
+- **Agent Registry** — live directory of all sessions (CLI, VS Code, Claude Code) with status tracking (active/idle/stopped), terminal info, and project bindings
 - **Direct messaging** — `orchestrator_send` types a message into another agent's psmux/tmux pane
 - **Auto-bind** — sessions automatically bind to projects by matching cwd to project root paths
 - **4 MCP tools** — `orchestrator_list_agents`, `get_agent`, `set_agent_meta`, `orchestrator_send`
+- **Terminal tracking** — psmux/tmux pane, window, and session info auto-detected and stored per agent
 - **Plugin ships orchestrate agent** — a single flexible agent that knows registry + psmux send-keys and follows your lead
 
 ### 💾 Explanation Cache
@@ -306,7 +307,7 @@ Auto-Capture Pipeline
   └── Auto-distill: periodic observation compaction
 
 Agent Orchestration (multi-session coordination)
-  ├── Agent Registry — tracks active sessions, pane IDs, project bindings
+  ├── Agent Registry — tracks sessions with status (active/idle/stopped), terminal info, project bindings
   ├── psmux/tmux send-keys — direct messaging into agent terminal panes
   └── 4 MCP tools — list/get/set agents, send messages
 

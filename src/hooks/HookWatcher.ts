@@ -268,10 +268,23 @@ export class HookWatcher implements vscode.Disposable {
 						entry.cwd || '',
 						prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
 					);
-					// Store psmux/tmux pane ID if available
+					// Store terminal info (psmux/tmux) if available
 					const tmuxPane = (entry as any).tmuxPane as string | undefined;
-					if (tmuxPane) {
-						this.registry.setMeta(entry.sessionId, { pane: tmuxPane });
+					const terminalType = (entry as any).terminalType as string | undefined;
+					const terminalWindow = (entry as any).terminalWindow as string | undefined;
+					const terminalSession = (entry as any).terminalSession as string | undefined;
+					if (tmuxPane && terminalType) {
+						this.registry.setTerminal(entry.sessionId, {
+							type: terminalType as 'psmux' | 'tmux',
+							paneId: tmuxPane,
+							windowId: terminalWindow || undefined,
+							sessionName: terminalSession || undefined,
+						});
+					} else if (tmuxPane) {
+						this.registry.setTerminal(entry.sessionId, {
+							type: 'tmux',
+							paneId: tmuxPane,
+						});
 					}
 					// Auto-bind to project by matching cwd to rootPaths
 					const cwd = (entry.cwd || '').toLowerCase();
@@ -292,6 +305,10 @@ export class HookWatcher implements vscode.Disposable {
 			}
 
 			case 'SessionEnd': {
+				// Mark agent as stopped in registry
+				if (orchestratorEnabled && entry.sessionId) {
+					this.registry.setStatus(entry.sessionId, 'stopped');
+				}
 				const projectId = await this._resolveProjectIdForHookEntry(entry, 'SessionEnd', {
 					participant,
 					reason: entry.reason || 'complete',

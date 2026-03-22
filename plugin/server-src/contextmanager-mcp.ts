@@ -506,84 +506,190 @@ server.registerTool(
 	},
 );
 
+function generateId(): string {
+	return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
+function resolveProjectForWrite(projects: ProjectRecord[], project?: string, cwd?: string): ProjectRecord | undefined {
+	if (project) { return resolveProject(projects, project); }
+	if (cwd) {
+		const normalized = cwd.toLowerCase();
+		const match = projects.find(p =>
+			(p.rootPaths || []).some((rp: string) =>
+				normalized === rp.toLowerCase() || normalized.startsWith(rp.toLowerCase() + path.sep)),
+		);
+		if (match) { return match; }
+	}
+	if (projects.length === 1) { return projects[0]; }
+	return undefined;
+}
+
 server.registerTool(
-	'contextmanager_save_card_intent',
+	'contextmanager_save_card',
 	{
-		description: 'Queue a save-card write intent for ContextManager.',
+		description: 'Save a knowledge card to a ContextManager project. Writes directly to storage.',
 		inputSchema: z.object({
-			title: z.string().min(1),
-			content: z.string().min(1),
-			category: z.string().optional(),
-			tags: z.array(z.string()).optional(),
-			projectIdHint: z.string().optional(),
-			cwd: z.string().optional(),
-			folderName: z.string().optional(),
-			parentFolderName: z.string().optional(),
-			source: z.string().optional(),
+			title: z.string().min(1).describe('Card title'),
+			content: z.string().min(1).describe('Card content (markdown supported)'),
+			project: z.string().optional().describe('Project name or ID. Auto-resolved from cwd if omitted.'),
+			category: z.string().optional().describe('Card category (e.g. architecture, explanation, note)'),
+			tags: z.array(z.string()).optional().describe('Tags for the card'),
+			source: z.string().optional().describe('Where this knowledge came from'),
 		}),
 	},
-	async ({ cwd, projectIdHint, ...intent }) => {
-		const result = appendWriteIntent({ action: 'save-card', ...intent }, cwd || process.cwd(), projectIdHint);
-		return textResult(`Queued save-card intent for "${intent.title}".`, result);
+	async ({ title, content, project: projectHint, category, tags, source }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const proj = resolveProjectForWrite(projects, projectHint, process.cwd());
+		if (!proj) { return textResult('Could not resolve project. Provide project name or ensure cwd matches a project root path.'); }
+
+		if (!proj.knowledgeCards) { proj.knowledgeCards = []; }
+		// Dedup by title + category
+		const existing = proj.knowledgeCards.find((c: any) =>
+			c.title?.toLowerCase() === title.toLowerCase() && (c.category || 'note') === (category || 'note'));
+		if (existing) {
+			existing.content = content;
+			existing.updated = Date.now();
+			if (tags) { existing.tags = tags; }
+			if (source) { existing.source = source; }
+			saveProjects(storageDir, projects);
+			return textResult(`Updated existing card "${title}" in project "${proj.name}".`, { cardId: existing.id });
+		}
+
+		const card = {
+			id: generateId(), title, content,
+			category: category || 'note',
+			tags: tags || [], source: source || 'MCP tool',
+			created: Date.now(), updated: Date.now(),
+			pinned: false, archived: false, includeInContext: true, isGlobal: false,
+		};
+		proj.knowledgeCards.push(card as any);
+		saveProjects(storageDir, projects);
+		return textResult(`Saved card "${title}" to project "${proj.name}".`, { cardId: card.id });
 	},
 );
 
 server.registerTool(
-	'contextmanager_learn_convention_intent',
+	'contextmanager_learn_convention',
 	{
-		description: 'Queue a learn-convention write intent for ContextManager.',
+		description: 'Save a convention to a ContextManager project. Writes directly to storage.',
 		inputSchema: z.object({
-			category: z.string().min(1),
-			title: z.string().min(1),
-			content: z.string().min(1),
-			confidence: z.string().optional(),
-			learnedFrom: z.string().optional(),
-			projectIdHint: z.string().optional(),
-			cwd: z.string().optional(),
+			category: z.string().min(1).describe('Convention category (architecture, naming, patterns, testing, tooling, pitfalls)'),
+			title: z.string().min(1).describe('Convention title'),
+			content: z.string().min(1).describe('Convention description'),
+			project: z.string().optional().describe('Project name or ID'),
+			confidence: z.string().optional().describe('Confidence level (observed, inferred)'),
+			learnedFrom: z.string().optional().describe('Source of this convention'),
 		}),
 	},
-	async ({ cwd, projectIdHint, ...intent }) => {
-		const result = appendWriteIntent({ action: 'learn-convention', ...intent }, cwd || process.cwd(), projectIdHint);
-		return textResult(`Queued learn-convention intent for "${intent.title}".`, result);
+	async ({ category, title, content, project: projectHint, confidence, learnedFrom }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const proj = resolveProjectForWrite(projects, projectHint, process.cwd());
+		if (!proj) { return textResult('Could not resolve project.'); }
+
+		if (!proj.conventions) { proj.conventions = []; }
+		const existing = proj.conventions.find((c: any) => c.title?.toLowerCase() === title.toLowerCase()) as any;
+		if (existing) {
+			existing.content = content;
+			existing.updatedAt = Date.now();
+			if (confidence) { existing.confidence = confidence; }
+			saveProjects(storageDir, projects);
+			return textResult(`Updated convention "${title}" in project "${proj.name}".`, { id: existing.id });
+		}
+
+		const conv = {
+			id: generateId(), category, title, content,
+			confidence: confidence || 'observed',
+			learnedFrom: learnedFrom || 'MCP tool',
+			enabled: true,
+			createdAt: Date.now(), updatedAt: Date.now(),
+		};
+		proj.conventions.push(conv as any);
+		saveProjects(storageDir, projects);
+		return textResult(`Saved convention "${title}" to project "${proj.name}".`, { id: conv.id });
 	},
 );
 
 server.registerTool(
-	'contextmanager_learn_tool_hint_intent',
+	'contextmanager_learn_tool_hint',
 	{
-		description: 'Queue a learn-tool-hint write intent for ContextManager.',
+		description: 'Save a tool hint to a ContextManager project. Writes directly to storage.',
 		inputSchema: z.object({
-			toolName: z.string().min(1),
-			pattern: z.string().min(1),
-			example: z.string().min(1),
-			antiPattern: z.string().optional(),
-			projectIdHint: z.string().optional(),
-			cwd: z.string().optional(),
+			toolName: z.string().min(1).describe('Name of the tool'),
+			pattern: z.string().min(1).describe('Usage pattern'),
+			example: z.string().min(1).describe('Example usage'),
+			antiPattern: z.string().optional().describe('Anti-pattern to avoid'),
+			project: z.string().optional().describe('Project name or ID'),
 		}),
 	},
-	async ({ cwd, projectIdHint, ...intent }) => {
-		const result = appendWriteIntent({ action: 'learn-tool-hint', ...intent }, cwd || process.cwd(), projectIdHint);
-		return textResult(`Queued learn-tool-hint intent for ${intent.toolName}.`, result);
+	async ({ toolName, pattern, example, antiPattern, project: projectHint }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const proj = resolveProjectForWrite(projects, projectHint, process.cwd());
+		if (!proj) { return textResult('Could not resolve project.'); }
+
+		if (!proj.toolHints) { proj.toolHints = []; }
+		const existing = proj.toolHints.find((h: any) =>
+			h.toolName?.toLowerCase() === toolName.toLowerCase() && h.pattern?.toLowerCase() === pattern.toLowerCase()) as any;
+		if (existing) {
+			existing.useCount = (existing.useCount || 0) + 1;
+			existing.updatedAt = Date.now();
+			saveProjects(storageDir, projects);
+			return textResult(`Updated tool hint for "${toolName}" (use count: ${existing.useCount}).`, { id: existing.id });
+		}
+
+		const hint = {
+			id: generateId(), toolName, pattern, example,
+			antiPattern: antiPattern || '',
+			useCount: 1,
+			createdAt: Date.now(), updatedAt: Date.now(),
+		};
+		proj.toolHints.push(hint as any);
+		saveProjects(storageDir, projects);
+		return textResult(`Saved tool hint for "${toolName}" to project "${proj.name}".`, { id: hint.id });
 	},
 );
 
 server.registerTool(
-	'contextmanager_learn_working_note_intent',
+	'contextmanager_learn_working_note',
 	{
-		description: 'Queue a learn-working-note write intent for ContextManager.',
+		description: 'Save a working note to a ContextManager project. Writes directly to storage.',
 		inputSchema: z.object({
-			subject: z.string().min(1),
-			insight: z.string().min(1),
-			relatedFiles: z.array(z.string()).optional(),
-			relatedSymbols: z.array(z.string()).optional(),
-			discoveredWhile: z.string().optional(),
-			projectIdHint: z.string().optional(),
-			cwd: z.string().optional(),
+			subject: z.string().min(1).describe('Note subject'),
+			insight: z.string().min(1).describe('The insight or observation'),
+			relatedFiles: z.array(z.string()).optional().describe('Related file paths'),
+			relatedSymbols: z.array(z.string()).optional().describe('Related code symbols'),
+			discoveredWhile: z.string().optional().describe('What task this was discovered during'),
+			project: z.string().optional().describe('Project name or ID'),
 		}),
 	},
-	async ({ cwd, projectIdHint, ...intent }) => {
-		const result = appendWriteIntent({ action: 'learn-working-note', ...intent }, cwd || process.cwd(), projectIdHint);
-		return textResult(`Queued learn-working-note intent for "${intent.subject}".`, result);
+	async ({ subject, insight, relatedFiles, relatedSymbols, discoveredWhile, project: projectHint }) => {
+		const storageDir = resolveStorageDir();
+		const projects = loadProjects(storageDir);
+		const proj = resolveProjectForWrite(projects, projectHint, process.cwd());
+		if (!proj) { return textResult('Could not resolve project.'); }
+
+		if (!proj.workingNotes) { proj.workingNotes = []; }
+		const existing = proj.workingNotes.find((n: any) => n.subject?.toLowerCase() === subject.toLowerCase()) as any;
+		if (existing) {
+			existing.insight = insight;
+			existing.updatedAt = Date.now();
+			if (relatedFiles) { existing.relatedFiles = relatedFiles; }
+			saveProjects(storageDir, projects);
+			return textResult(`Updated working note "${subject}" in project "${proj.name}".`, { id: existing.id });
+		}
+
+		const note = {
+			id: generateId(), subject, insight,
+			relatedFiles: relatedFiles || [], relatedSymbols: relatedSymbols || [],
+			discoveredWhile: discoveredWhile || '',
+			confidence: 'observed', enabled: true, staleness: 'fresh',
+			createdAt: Date.now(), updatedAt: Date.now(),
+		};
+		proj.workingNotes.push(note as any);
+		saveProjects(storageDir, projects);
+		return textResult(`Saved working note "${subject}" to project "${proj.name}".`, { id: note.id });
 	},
 );
 
@@ -644,23 +750,29 @@ server.registerTool(
 		description: 'List all active agent sessions in the orchestrator registry. Optionally filter by project.',
 		inputSchema: z.object({
 			project: z.string().optional().describe('Filter agents by project name'),
+			status: z.string().optional().describe('Filter by status: active, idle, stopped. Omit for all.'),
 		}),
 	},
-	async ({ project }) => {
+	async ({ project, status }) => {
 		let agents = readRegistry() as Array<Record<string, unknown>>;
 		if (project) {
 			agents = agents.filter(a => a.project === project);
 		}
+		if (status) {
+			agents = agents.filter(a => (a.status || 'active') === status);
+		}
 		if (agents.length === 0) {
-			return textResult('No active agents found.', { agents: [] });
+			return textResult('No agents found.', { agents: [] });
 		}
 		const summary = agents.map(a => {
 			const meta = Object.keys(a.meta as Record<string, unknown> || {}).length > 0
 				? ` | meta: ${JSON.stringify(a.meta)}` : '';
 			const age = Math.round((Date.now() - (a.lastSeenAt as number)) / 1000);
-			return `- [${a.origin}] ${a.label || 'unnamed'} | project: ${a.project || 'unbound'} | cwd: ${a.cwd} | last seen: ${age}s ago${meta}`;
+			const st = (a.status as string) || 'active';
+			const term = a.terminal ? ` | ${(a.terminal as any).type}:${(a.terminal as any).paneId || '?'}` : '';
+			return `- [${st}] ${a.label || 'unnamed'} | project: ${a.project || 'unbound'} | cwd: ${a.cwd} | last seen: ${age}s ago${term}${meta}`;
 		}).join('\n');
-		return textResult(`Active agents (${agents.length}):\n${summary}`, { agents });
+		return textResult(`Agents (${agents.length}):\n${summary}`, { agents });
 	},
 );
 
@@ -683,23 +795,55 @@ server.registerTool(
 server.registerTool(
 	'orchestrator_set_agent_meta',
 	{
-		description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Creates entry if missing.',
+		description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Can also set/update terminal info (psmux/tmux pane, window, session). Creates entry if missing.',
 		inputSchema: z.object({
-			meta: z.record(z.string(), z.unknown()).describe('Key-value metadata to merge into your agent entry'),
+			meta: z.record(z.string(), z.unknown()).optional().describe('Key-value metadata to merge into your agent entry'),
+			terminal: z.object({
+				type: z.string().describe('Terminal multiplexer type: psmux, tmux, vscode, raw'),
+				paneId: z.string().optional().describe('Pane identifier (e.g. %3 for tmux/psmux)'),
+				windowId: z.string().optional().describe('Window identifier'),
+				sessionName: z.string().optional().describe('Multiplexer session name'),
+			}).optional().describe('Terminal/pane info for this agent session'),
 		}),
 	},
-	async ({ meta }) => {
+	async ({ meta, terminal }) => {
 		const cwd = process.cwd();
 		const sessionId = getOrCreateSessionId(cwd);
-		updateRegistryMeta(sessionId, meta);
-		return textResult(`Updated meta for agent ${sessionId}: ${JSON.stringify(meta)}`);
+		if (meta) {
+			updateRegistryMeta(sessionId, meta);
+		}
+		if (terminal) {
+			// Write terminal info directly to registry
+			const data = (() => {
+				try { return JSON.parse(fs.readFileSync(REGISTRY_FILE, 'utf8')); }
+				catch { return { agents: {}, updatedAt: Date.now() }; }
+			})();
+			if (data.agents[sessionId]) {
+				data.agents[sessionId].terminal = terminal;
+				data.agents[sessionId].lastSeenAt = Date.now();
+			} else {
+				data.agents[sessionId] = {
+					sessionId, origin: 'copilot-cli-plugin', cwd,
+					registeredAt: Date.now(), lastSeenAt: Date.now(),
+					status: 'active', terminal, meta: meta || {},
+				};
+			}
+			data.updatedAt = Date.now();
+			const tmp = REGISTRY_FILE + '.tmp';
+			fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+			fs.renameSync(tmp, REGISTRY_FILE);
+		}
+		const parts = [];
+		if (meta) { parts.push(`meta: ${JSON.stringify(meta)}`); }
+		if (terminal) { parts.push(`terminal: ${terminal.type}:${terminal.paneId || '?'} (session: ${terminal.sessionName || 'default'})`); }
+		return textResult(`Updated agent ${sessionId}: ${parts.join(', ')}`);
 	},
 );
 
 server.registerTool(
 	'orchestrator_send',
 	{
-		description: 'Send a message to another agent session via psmux/tmux send-keys. The message is typed into the target terminal pane. Requires agents to be running inside psmux/tmux with their pane ID stored in registry metadata.',
+		description: 'Send a message to another agent session via psmux/tmux send-keys. The message is typed into the target terminal pane. Requires agents to be running inside psmux/tmux with terminal info in registry.',
 		inputSchema: z.object({
 			sessionId: z.string().min(1).describe('Target agent session ID'),
 			message: z.string().min(1).describe('Message to send (will be typed into the target pane followed by Enter)'),
@@ -710,21 +854,24 @@ server.registerTool(
 		const agent = agents.find((a: any) => a.sessionId === sessionId) as Record<string, unknown> | undefined;
 		if (!agent) { return textResult(`Agent "${sessionId}" not found in registry.`); }
 
+		// Check terminal info (new format) or legacy meta.pane
+		const terminal = agent.terminal as { type?: string; paneId?: string } | undefined;
 		const meta = (agent.meta || {}) as Record<string, unknown>;
-		const pane = meta.pane as string | undefined;
+		const pane = terminal?.paneId || meta.pane as string | undefined;
+		const muxType = terminal?.type || (process.platform === 'win32' ? 'psmux' : 'tmux');
+
 		if (!pane) {
-			return textResult(`Agent "${sessionId}" has no pane ID in metadata. It may not be running inside psmux/tmux. Set it via orchestrator_set_agent_meta with meta: { pane: "$TMUX_PANE" }.`);
+			return textResult(`Agent "${sessionId}" has no terminal pane ID. It may not be running inside psmux/tmux.`);
 		}
 
-		// Determine multiplexer command (psmux on Windows, tmux on Unix)
-		const mux = process.platform === 'win32' ? 'psmux' : 'tmux';
+		const mux = muxType === 'psmux' ? 'psmux' : 'tmux';
 		const { execSync } = require('node:child_process') as typeof import('node:child_process');
 		try {
 			const escaped = message.replace(/"/g, '\\"');
 			execSync(`${mux} send-keys -t ${pane} "${escaped}" Enter`, { timeout: 5000 });
-			return textResult(`Sent to ${sessionId} (pane ${pane}): "${message}"`);
+			return textResult(`Sent to ${sessionId} (${mux} pane ${pane}): "${message}"`);
 		} catch (err: any) {
-			return textResult(`Failed to send to pane ${pane}: ${err.message}. Is psmux/tmux running?`);
+			return textResult(`Failed to send to pane ${pane}: ${err.message}. Is ${mux} running?`);
 		}
 	},
 );

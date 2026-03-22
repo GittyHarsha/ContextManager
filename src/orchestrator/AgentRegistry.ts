@@ -5,14 +5,26 @@ import * as os from 'os';
 export const CM_DIR = path.join(os.homedir(), '.contextmanager');
 const REGISTRY_FILE = path.join(CM_DIR, 'agent-registry.json');
 
+export type AgentStatus = 'active' | 'idle' | 'stopped';
+
+export interface TerminalInfo {
+	type: 'psmux' | 'tmux' | 'vscode' | 'raw';
+	paneId?: string;
+	windowId?: string;
+	sessionName?: string;
+}
+
 export interface AgentEntry {
 	sessionId: string;
 	origin: string;
 	cwd: string;
 	project?: string;
 	label?: string;
+	status: AgentStatus;
+	terminal?: TerminalInfo;
 	registeredAt: number;
 	lastSeenAt: number;
+	stoppedAt?: number;
 	meta: Record<string, unknown>;
 }
 
@@ -29,6 +41,10 @@ export class AgentRegistry {
 		try {
 			const raw = fs.readFileSync(REGISTRY_FILE, 'utf8');
 			this._state = JSON.parse(raw);
+			// Backfill status for old entries
+			for (const agent of Object.values(this._state!.agents)) {
+				if (!agent.status) { agent.status = 'active'; }
+			}
 			return this._state!;
 		} catch {
 			this._state = { agents: {}, updatedAt: Date.now() };
@@ -61,6 +77,8 @@ export class AgentRegistry {
 
 		if (existing) {
 			existing.lastSeenAt = now;
+			existing.status = 'active';
+			existing.stoppedAt = undefined;
 			if (label) { existing.label = label; }
 			if (cwd) { existing.cwd = cwd; }
 			this._save();
@@ -72,6 +90,7 @@ export class AgentRegistry {
 			origin,
 			cwd,
 			label,
+			status: 'active',
 			registeredAt: now,
 			lastSeenAt: now,
 			meta: {},
@@ -86,6 +105,7 @@ export class AgentRegistry {
 		const agent = state.agents[sessionId];
 		if (agent) {
 			agent.lastSeenAt = Date.now();
+			if (agent.status === 'stopped') { agent.status = 'active'; }
 			this._save();
 		}
 	}
@@ -108,16 +128,38 @@ export class AgentRegistry {
 		}
 	}
 
+	setTerminal(sessionId: string, terminal: TerminalInfo): void {
+		const state = this._load();
+		const agent = state.agents[sessionId];
+		if (agent) {
+			agent.terminal = terminal;
+			this._save();
+		}
+	}
+
+	setStatus(sessionId: string, status: AgentStatus): void {
+		const state = this._load();
+		const agent = state.agents[sessionId];
+		if (agent) {
+			agent.status = status;
+			if (status === 'stopped') { agent.stoppedAt = Date.now(); }
+			this._save();
+		}
+	}
+
 	get(sessionId: string): AgentEntry | undefined {
 		const state = this._load();
 		return state.agents[sessionId];
 	}
 
-	list(filter?: { project?: string }): AgentEntry[] {
+	list(filter?: { project?: string; status?: AgentStatus }): AgentEntry[] {
 		const state = this._load();
 		let agents = Object.values(state.agents);
 		if (filter?.project) {
 			agents = agents.filter(a => a.project === filter.project);
+		}
+		if (filter?.status) {
+			agents = agents.filter(a => a.status === filter.status);
 		}
 		return agents.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
 	}
@@ -128,16 +170,33 @@ export class AgentRegistry {
 		this._save();
 	}
 
-	/** Remove agents not seen within staleMs (default 30 minutes). Returns count pruned. */
+	/** Mark stale agents as stopped instead of deleting. Returns count marked. */
 	prune(staleMs: number = 30 * 60 * 1000): number {
 		const state = this._load();
 		const cutoff = Date.now() - staleMs;
-		const staleIds = Object.keys(state.agents).filter(id => state.agents[id].lastSeenAt < cutoff);
-		for (const id of staleIds) {
-			delete state.agents[id];
+		let count = 0;
+		for (const agent of Object.values(state.agents)) {
+			if (agent.status !== 'stopped' && agent.lastSeenAt < cutoff) {
+				agent.status = 'stopped';
+				agent.stoppedAt = Date.now();
+				count++;
+			}
 		}
-		if (staleIds.length > 0) { this._save(); }
-		return staleIds.length;
+		if (count > 0) { this._save(); }
+		return count;
+	}
+
+	/** Actually delete agents stopped longer than maxAge (default 7 days). */
+	purge(maxAge: number = 7 * 24 * 60 * 60 * 1000): number {
+		const state = this._load();
+		const cutoff = Date.now() - maxAge;
+		const purgeIds = Object.keys(state.agents).filter(id => {
+			const a = state.agents[id];
+			return a.status === 'stopped' && (a.stoppedAt || a.lastSeenAt) < cutoff;
+		});
+		for (const id of purgeIds) { delete state.agents[id]; }
+		if (purgeIds.length > 0) { this._save(); }
+		return purgeIds.length;
 	}
 
 	dispose(): void {

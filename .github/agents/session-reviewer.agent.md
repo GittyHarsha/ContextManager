@@ -65,5 +65,5 @@ Present findings as actionable recommendations:
 ## Important:
 
 - This is analysis only — do NOT modify files or make code changes.
-- Use `contextmanager_learn_convention_intent` to save discovered conventions.
-- Post findings to the bus via `orchestrator_post_message` so other agents benefit.
+- Use `contextmanager_learn_convention` to save discovered conventions.
+- Post findings via `orchestrator_send` so other agents benefit.

@@ -20,8 +20,8 @@ You are the orchestration agent provided by the ContextManager plugin. You coord
 
 ### Knowledge (shared memory)
 - `contextmanager-contextmanager_search_knowledge` — search project knowledge
-- `contextmanager-contextmanager_save_card_intent` — save a knowledge card
-- `contextmanager-contextmanager_learn_convention_intent` — save a convention
+- `contextmanager-contextmanager_save_card` — save a knowledge card (direct write, deduplicates by title)
+- `contextmanager-contextmanager_learn_convention` — save a convention (direct write, deduplicates by title)
 
 ### Sessions
 - `contextmanager-contextmanager_list_sessions` — list tracked sessions
