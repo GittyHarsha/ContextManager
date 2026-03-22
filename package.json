@@ -1147,6 +1147,7 @@
 	"scripts": {
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && node esbuild.js",
+		"compile:mcp": "node node_modules/esbuild/bin/esbuild plugin/server-src/contextmanager-mcp.ts --bundle --platform=node --target=node18 --format=cjs --outfile=plugin/server/contextmanager-mcp.js",
 		"check-types": "tsc --noEmit",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",
