@@ -797,7 +797,7 @@ server.registerTool(
 	{
 		description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Can also set/update terminal info (psmux/tmux pane, window, session). Creates entry if missing.',
 		inputSchema: z.object({
-			meta: z.record(z.string(), z.unknown()).optional().describe('Key-value metadata to merge into your agent entry'),
+			meta: z.record(z.string(), z.unknown()).default({}).describe('Key-value metadata to merge into your agent entry'),
 			terminal: z.object({
 				type: z.string().describe('Terminal multiplexer type: psmux, tmux, vscode, raw'),
 				paneId: z.string().optional().describe('Pane identifier (e.g. %3 for tmux/psmux)'),
@@ -809,7 +809,7 @@ server.registerTool(
 	async ({ meta, terminal }) => {
 		const cwd = process.cwd();
 		const sessionId = getOrCreateSessionId(cwd);
-		if (meta) {
+		if (meta && Object.keys(meta).length > 0) {
 			updateRegistryMeta(sessionId, meta);
 		}
 		if (terminal) {
@@ -834,7 +834,7 @@ server.registerTool(
 			fs.renameSync(tmp, REGISTRY_FILE);
 		}
 		const parts = [];
-		if (meta) { parts.push(`meta: ${JSON.stringify(meta)}`); }
+		if (meta && Object.keys(meta).length > 0) { parts.push(`meta: ${JSON.stringify(meta)}`); }
 		if (terminal) { parts.push(`terminal: ${terminal.type}:${terminal.paneId || '?'} (session: ${terminal.sessionName || 'default'})`); }
 		return textResult(`Updated agent ${sessionId}: ${parts.join(', ')}`);
 	},

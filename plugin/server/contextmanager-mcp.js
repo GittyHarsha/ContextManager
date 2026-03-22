@@ -723,7 +723,7 @@ server.registerTool('orchestrator_get_agent', {
 server.registerTool('orchestrator_set_agent_meta', {
     description: 'Set arbitrary metadata on your agent entry (status, task, phase, or any custom data). Can also set/update terminal info (psmux/tmux pane, window, session). Creates entry if missing.',
     inputSchema: zod_1.z.object({
-        meta: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).optional().describe('Key-value metadata to merge into your agent entry'),
+        meta: zod_1.z.record(zod_1.z.string(), zod_1.z.unknown()).default({}).describe('Key-value metadata to merge into your agent entry'),
         terminal: zod_1.z.object({
             type: zod_1.z.string().describe('Terminal multiplexer type: psmux, tmux, vscode, raw'),
             paneId: zod_1.z.string().optional().describe('Pane identifier (e.g. %3 for tmux/psmux)'),
@@ -734,7 +734,7 @@ server.registerTool('orchestrator_set_agent_meta', {
 }, async ({ meta, terminal }) => {
     const cwd = process.cwd();
     const sessionId = getOrCreateSessionId(cwd);
-    if (meta) {
+    if (meta && Object.keys(meta).length > 0) {
         updateRegistryMeta(sessionId, meta);
     }
     if (terminal) {
@@ -764,7 +764,7 @@ server.registerTool('orchestrator_set_agent_meta', {
         fs.renameSync(tmp, REGISTRY_FILE);
     }
     const parts = [];
-    if (meta) {
+    if (meta && Object.keys(meta).length > 0) {
         parts.push(`meta: ${JSON.stringify(meta)}`);
     }
     if (terminal) {
