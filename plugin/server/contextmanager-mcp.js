@@ -30865,7 +30865,7 @@ server.registerTool(
   },
   async ({ meta: meta3, terminal }) => {
     const cwd = process.cwd();
-    const sessionId = getOrCreateSessionId(cwd);
+    const sessionId = meta3?.copilotSessionId || getOrCreateSessionId(cwd);
     if (meta3 && Object.keys(meta3).length > 0) {
       updateRegistryMeta(sessionId, meta3);
     }

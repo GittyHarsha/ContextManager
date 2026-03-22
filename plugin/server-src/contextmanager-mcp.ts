@@ -808,7 +808,9 @@ server.registerTool(
 	},
 	async ({ meta, terminal }) => {
 		const cwd = process.cwd();
-		const sessionId = getOrCreateSessionId(cwd);
+		// Use copilotSessionId from meta as the key so each agent gets its own entry.
+		// Fallback to the MCP session ID only if not provided.
+		const sessionId = (meta?.copilotSessionId as string | undefined) || getOrCreateSessionId(cwd);
 		if (meta && Object.keys(meta).length > 0) {
 			updateRegistryMeta(sessionId, meta);
 		}
