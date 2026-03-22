@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-03-22
+
 ### Added
 - **Project management MCP tools** — New `contextmanager_create_project`, `contextmanager_rename_project`, and `contextmanager_update_project` MCP tools let CLI agents create projects, rename them, and update context (description, goals, conventions, key files). Delete stays dashboard-only for safety.
 - **Session bind MCP tool** — New `contextmanager_bind_session` lets CLI agents bind unbound sessions to projects, triggering pending capture backfill.
@@ -33,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`orchestrator_list_agents` shows status and terminal info** — Output includes agent status (`active`/`idle`/`stopped`) and terminal info (type, paneId, windowId, sessionName), filterable by status.
 
 ### Fixed
+- **MCP server bundled deps (esbuild)** — Switched back to esbuild bundle (1.1 MB, all deps inlined). Fixes `MODULE_NOT_FOUND` crash on fresh plugin installs where `node_modules/` is absent.
+- **`orchestrator_set_agent_meta` registry key** — Used the shared MCP connection session ID as the registry key, causing all 9 agents to overwrite the same entry. Now uses `meta.copilotSessionId` so each agent gets its own entry.
 - **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
 - **Session file hash mismatch** — Aligned MCP server session file key (SHA256) with capture script, so the real Copilot session UUID flows through to orchestrator tools instead of synthetic `cm-*` IDs.
 - **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.

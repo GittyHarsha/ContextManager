@@ -14,6 +14,8 @@ All notable changes to ContextManager.
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-03-22
+
 ### Removed
 - **MessageBus, ContextSync, AgentLauncher, AgentDiscovery** — Orchestrator stripped to registry + psmux send-keys.
 - **4 bus MCP tools** — `orchestrator_post_message`, `read_messages`, `peek_messages` replaced by `orchestrator_send`.
@@ -43,6 +45,8 @@ All notable changes to ContextManager.
 - **`orchestrator_set_agent_meta` terminal parameter** — Update psmux/tmux pane info on your agent entry.
 
 ### Fixed
+- **MCP server bundled deps** — Esbuild bundle (all deps inlined) fixes `MODULE_NOT_FOUND` on fresh plugin installs.
+- **`orchestrator_set_agent_meta` registry key** — Was overwriting a single entry for all agents sharing the MCP connection. Now uses `meta.copilotSessionId` so each agent gets its own entry.
 - **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.
 - **CLI `agentStop` transcript path mismatch** — Scripts now check `transcriptPath` (camelCase) first, then fall back to `transcript_path`.
 - **`ConvertFrom-Json -Depth` on PS 5.1** — Removed unsupported parameter that silently broke all CLI hooks on Windows PowerShell 5.1.
