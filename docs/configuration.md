@@ -154,6 +154,14 @@ Customize the system prompts used by the distill pipelines. Leave empty to use d
 
 ---
 
+## Orchestration
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `contextManager.orchestrator.enabled` | `true` | Enable agent orchestration (registry + psmux send). Allows multiple CLI/VS Code/Claude sessions to coordinate. |
+
+---
+
 ## Context
 
 | Setting | Default | Description |

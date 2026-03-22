@@ -507,37 +507,6 @@ server.registerTool(
 );
 
 server.registerTool(
-	'orchestrator_resume_session',
-	{
-		description: 'Resume a previous Copilot CLI session. Opens in a VS Code terminal (interactive).',
-		inputSchema: z.object({
-			sessionId: z.string().min(1).describe('Session ID to resume (UUID from Copilot CLI)'),
-			prompt: z.string().optional().describe('Optional initial prompt to send after resuming'),
-		}),
-	},
-	async ({ sessionId, prompt }) => {
-		// Queue a WriteIntent that the VS Code extension will handle to open a terminal
-		const { cmDir, queueFile } = getQueuePaths();
-		const entry = {
-			hookType: 'WriteIntent',
-			sessionId: getOrCreateSessionId(process.cwd()),
-			timestamp: Date.now(),
-			cwd: process.cwd(),
-			rootHint: process.cwd(),
-			origin: 'copilot-cli-plugin',
-			participant: 'copilot-cli',
-			writeIntent: {
-				action: 'resume-session',
-				targetSessionId: sessionId,
-				prompt: prompt || '',
-			},
-		};
-		fs.appendFileSync(queueFile, JSON.stringify(entry) + '\n', 'utf8');
-		return textResult(`Queued resume request for session ${sessionId}. VS Code extension will open it in a terminal.${prompt ? ` Initial prompt: "${prompt}"` : ''}`);
-	},
-);
-
-server.registerTool(
 	'contextmanager_save_card_intent',
 	{
 		description: 'Queue a save-card write intent for ContextManager.',
@@ -637,8 +606,6 @@ server.registerTool(
 // ── Orchestrator Primitives ─────────────────────────────────────────
 
 const REGISTRY_FILE = path.join(os.homedir(), '.contextmanager', 'agent-registry.json');
-const BUS_FILE = path.join(os.homedir(), '.contextmanager', 'agent-bus.jsonl');
-const BUS_CURSORS_FILE = path.join(os.homedir(), '.contextmanager', 'bus-cursors.json');
 
 function readRegistry(): Record<string, unknown>[] {
 	try {
@@ -657,7 +624,6 @@ function updateRegistryMeta(sessionId: string, meta: Record<string, unknown>): v
 		agent.meta = { ...(agent.meta as Record<string, unknown> || {}), ...meta };
 		agent.lastSeenAt = Date.now();
 	} else {
-		// Auto-register if not found
 		const cwd = process.cwd();
 		data.agents[sessionId] = {
 			sessionId, origin: 'copilot-cli-plugin', cwd,
@@ -668,18 +634,6 @@ function updateRegistryMeta(sessionId: string, meta: Record<string, unknown>): v
 	const tmp = REGISTRY_FILE + '.tmp';
 	fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
 	fs.renameSync(tmp, REGISTRY_FILE);
-}
-
-function generateBusId(): string {
-	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function readBusCursors(): Record<string, { offset: number }> {
-	try { return JSON.parse(fs.readFileSync(BUS_CURSORS_FILE, 'utf8')); } catch { return {}; }
-}
-
-function saveBusCursors(cursors: Record<string, { offset: number }>): void {
-	fs.writeFileSync(BUS_CURSORS_FILE, JSON.stringify(cursors, null, 2), 'utf8');
 }
 
 // ── Orchestrator MCP Tools ──────────────────────────────────────────
@@ -743,104 +697,35 @@ server.registerTool(
 );
 
 server.registerTool(
-	'orchestrator_post_message',
+	'orchestrator_send',
 	{
-		description: 'Post a message to the agent bus. Other agents will see it on their next read. Payload can be any JSON.',
+		description: 'Send a message to another agent session via psmux/tmux send-keys. The message is typed into the target terminal pane. Requires agents to be running inside psmux/tmux with their pane ID stored in registry metadata.',
 		inputSchema: z.object({
-			to: z.string().optional().describe('Recipient session ID (omit for broadcast)'),
-			project: z.string().optional().describe('Scope message to a project (omit for global)'),
-			payload: z.unknown().describe('Message content — any JSON'),
+			sessionId: z.string().min(1).describe('Target agent session ID'),
+			message: z.string().min(1).describe('Message to send (will be typed into the target pane followed by Enter)'),
 		}),
 	},
-	async ({ to, project, payload }) => {
-		const { cmDir } = getQueuePaths();
-		fs.mkdirSync(cmDir, { recursive: true });
-		const cwd = process.cwd();
-		const sessionId = getOrCreateSessionId(cwd);
-		const msg = { id: generateBusId(), from: sessionId, to, project, timestamp: Date.now(), ttl: 86400, payload };
-		fs.appendFileSync(BUS_FILE, JSON.stringify(msg) + '\n', 'utf8');
-		return textResult(`Message posted (id: ${msg.id}, from: ${sessionId}${to ? `, to: ${to}` : ''})`);
-	},
-);
+	async ({ sessionId, message }) => {
+		const agents = readRegistry();
+		const agent = agents.find((a: any) => a.sessionId === sessionId) as Record<string, unknown> | undefined;
+		if (!agent) { return textResult(`Agent "${sessionId}" not found in registry.`); }
 
-server.registerTool(
-	'orchestrator_read_messages',
-	{
-		description: 'Read unread messages for this agent from the bus. Advances your read cursor.',
-		inputSchema: z.object({
-			project: z.string().optional().describe('Filter messages by project'),
-			limit: z.number().int().min(1).max(50).default(10).describe('Max messages to return'),
-		}),
-	},
-	async ({ project, limit }) => {
-		const cwd = process.cwd();
-		const sessionId = getOrCreateSessionId(cwd);
-		const cursors = readBusCursors();
-		const offset = cursors[sessionId]?.offset ?? 0;
-		const now = Date.now();
+		const meta = (agent.meta || {}) as Record<string, unknown>;
+		const pane = meta.pane as string | undefined;
+		if (!pane) {
+			return textResult(`Agent "${sessionId}" has no pane ID in metadata. It may not be running inside psmux/tmux. Set it via orchestrator_set_agent_meta with meta: { pane: "$TMUX_PANE" }.`);
+		}
 
-		let content: string;
+		// Determine multiplexer command (psmux on Windows, tmux on Unix)
+		const mux = process.platform === 'win32' ? 'psmux' : 'tmux';
+		const { execSync } = require('node:child_process') as typeof import('node:child_process');
 		try {
-			const fd = fs.openSync(BUS_FILE, 'r');
-			const stat = fs.fstatSync(fd);
-			const readSize = stat.size - offset;
-			if (readSize <= 0) { fs.closeSync(fd); return textResult('No new messages.', { messages: [] }); }
-			const buf = Buffer.alloc(readSize);
-			fs.readSync(fd, buf, 0, readSize, offset);
-			fs.closeSync(fd);
-			content = buf.toString('utf8');
-			// Advance cursor
-			cursors[sessionId] = { offset: stat.size };
-			saveBusCursors(cursors);
-		} catch { return textResult('No messages (bus file not found).', { messages: [] }); }
-
-		const messages: unknown[] = [];
-		for (const line of content.split('\n')) {
-			if (!line.trim()) { continue; }
-			try {
-				const msg = JSON.parse(line);
-				if (msg.ttl && (now - msg.timestamp) > msg.ttl * 1000) { continue; }
-				if (msg.to && msg.to !== sessionId) { continue; }
-				if (project && msg.project && msg.project !== project) { continue; }
-				messages.push(msg);
-			} catch { /* skip */ }
+			const escaped = message.replace(/"/g, '\\"');
+			execSync(`${mux} send-keys -t ${pane} "${escaped}" Enter`, { timeout: 5000 });
+			return textResult(`Sent to ${sessionId} (pane ${pane}): "${message}"`);
+		} catch (err: any) {
+			return textResult(`Failed to send to pane ${pane}: ${err.message}. Is psmux/tmux running?`);
 		}
-
-		const result = messages.slice(-limit);
-		if (result.length === 0) { return textResult('No new messages.', { messages: [] }); }
-		const summary = result.map((m: any) => `- [${m.from}${m.to ? ` → ${m.to}` : ''}]: ${JSON.stringify(m.payload)}`).join('\n');
-		return textResult(`${result.length} message(s):\n${summary}`, { messages: result });
-	},
-);
-
-server.registerTool(
-	'orchestrator_peek_messages',
-	{
-		description: 'Peek at messages without advancing your read cursor. Good for monitoring.',
-		inputSchema: z.object({
-			project: z.string().optional().describe('Filter messages by project'),
-			limit: z.number().int().min(1).max(50).default(10).describe('Max messages to return'),
-		}),
-	},
-	async ({ project, limit }) => {
-		const now = Date.now();
-		let lines: string[];
-		try { lines = fs.readFileSync(BUS_FILE, 'utf8').split('\n').filter(l => l.trim()); } catch { return textResult('No messages.', { messages: [] }); }
-
-		const messages: unknown[] = [];
-		for (const line of lines) {
-			try {
-				const msg = JSON.parse(line);
-				if (msg.ttl && (now - msg.timestamp) > msg.ttl * 1000) { continue; }
-				if (project && msg.project && msg.project !== project) { continue; }
-				messages.push(msg);
-			} catch { /* skip */ }
-		}
-
-		const result = messages.slice(-limit);
-		if (result.length === 0) { return textResult('No messages.', { messages: [] }); }
-		const summary = result.map((m: any) => `- [${m.from}${m.to ? ` → ${m.to}` : ''}]: ${JSON.stringify(m.payload)}`).join('\n');
-		return textResult(`${result.length} message(s):\n${summary}`, { messages: result });
 	},
 );
 

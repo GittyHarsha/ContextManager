@@ -35,6 +35,7 @@ $origin = if ($env:CM_PLUGIN_ORIGIN) { $env:CM_PLUGIN_ORIGIN } else { 'copilot-c
 $participant = if ($env:CM_PLUGIN_PARTICIPANT) { $env:CM_PLUGIN_PARTICIPANT } else { 'copilot-cli' }
 $cwd = if ($data.cwd) { [string]$data.cwd } else { (Get-Location).Path }
 $timestamp = if ($data.timestamp) { [long]$data.timestamp } else { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
+$tmuxPane = if ($env:TMUX_PANE) { $env:TMUX_PANE } else { '' }
 $providedSessionId = if ($data.sessionId) {
 	[string]$data.sessionId
 } elseif ($data.session_id) {
@@ -122,6 +123,7 @@ switch ($hookType) {
 			origin = $origin
 			participant = $participant
 			prompt = if ($data.initialPrompt) { [string]$data.initialPrompt } else { '' }
+			tmuxPane = $tmuxPane
 		}
 
 		if (Test-Path $sessionCtx) {

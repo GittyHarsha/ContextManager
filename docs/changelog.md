@@ -15,14 +15,22 @@ All notable changes to ContextManager.
 ## [Unreleased]
 
 ### Removed
-- **ACP Orchestrator** — Removed headless ACP agent spawning. `orchestrator_resume_session` now only resumes in VS Code terminals.
+- **MessageBus, ContextSync, AgentLauncher, AgentDiscovery** — Orchestrator stripped to registry + psmux send-keys.
+- **4 bus MCP tools** — `orchestrator_post_message`, `read_messages`, `peek_messages` replaced by `orchestrator_send`.
+- **`orchestrator_resume_session`** — Users run `copilot --resume` themselves.
+- **4 orchestrator settings** — `injectBusMessages`, `maxInjectedMessages`, `injectFleetStatus`, `agentStaleTimeout` removed. Only `orchestrator.enabled` remains.
+- **ACP Orchestrator** — Removed headless ACP agent spawning.
 - **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` from the plugin. Replaced by a single flexible `orchestrate` agent.
 - **Orchestrate skill** — Skill content consolidated into the `orchestrate` agent.
 
 ### Changed
-- **Plugin ships single orchestrate agent** — One flexible agent that knows all orchestrator primitives replaces 3 narrow agents + 1 skill.
+- **Orchestrator simplified to registry + psmux send-keys** — No bus, no context sync. Agents look each other up in the registry and send messages by typing into psmux/tmux panes.
+- **Plugin ships single orchestrate agent** — One flexible agent that knows registry + psmux send-keys replaces 3 narrow agents + 1 skill.
 
 ### Added
+- **`orchestrator_send` psmux tool** — Send a message to another agent via `psmux send-keys` (resolves session → pane ID in registry).
+- **Auto-bind sessions by cwd** — HookWatcher matches session working directory to project rootPaths on SessionStart.
+- **Pane ID capture** — Capture script reads `$env:TMUX_PANE` on SessionStart; stored in registry metadata.
 - **Claude Code plugin** — Full plugin with hooks + MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Automatic card queue population works fully.
 - **Claude Code hook install command** — Quick-start: writes hooks to `.claude/settings.json` without the full plugin.
 - **Copilot CLI `agentStop` / `subagentStop` hooks** — Automatic card queue population now works from CLI sessions.

@@ -17,8 +17,6 @@ import * as path from 'path';
 import * as os from 'os';
 import type { AutoCaptureService } from '../autoCapture';
 import { AgentRegistry } from '../orchestrator/AgentRegistry';
-import { MessageBus } from '../orchestrator/MessageBus';
-import { ContextSync } from '../orchestrator/ContextSync';
 import type { ProjectManager } from '../projects/ProjectManager';
 import type { HookEventType, HookWriteIntent, KnowledgeCard, SessionOrigin } from '../projects/types';
 import { ConfigurationManager } from '../config';
@@ -66,8 +64,6 @@ export class HookWatcher implements vscode.Disposable {
 
 	// ── Orchestrator primitives ──
 	readonly registry: AgentRegistry;
-	readonly bus: MessageBus;
-	readonly contextSync: ContextSync;
 
 	constructor(
 		private autoCapture: AutoCaptureService,
@@ -78,13 +74,10 @@ export class HookWatcher implements vscode.Disposable {
 
 		// Initialize orchestrator primitives
 		this.registry = new AgentRegistry();
-		this.bus = new MessageBus();
-		this.contextSync = new ContextSync(this.registry, this.bus);
 
 		this._ensureDir();
 		this._loadOffset();
 		this._startWatching();
-		this._syncSessionContext();
 
 		// Re-write session-context.txt when project changes
 		projectManager.onDidChangeActiveProject(() => this._syncSessionContext());
@@ -92,8 +85,7 @@ export class HookWatcher implements vscode.Disposable {
 
 		// Re-sync when the injection toggle changes
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('contextManager.hooks.sessionStart')
-				|| e.affectsConfiguration('contextManager.orchestrator')) {
+			if (e.affectsConfiguration('contextManager.hooks.sessionStart')) {
 				this._syncSessionContext();
 			}
 		});
@@ -276,6 +268,25 @@ export class HookWatcher implements vscode.Disposable {
 						entry.cwd || '',
 						prompt?.trim() ? prompt.trim().replace(/\s+/g, ' ').slice(0, 60) : undefined,
 					);
+					// Store psmux/tmux pane ID if available
+					const tmuxPane = (entry as any).tmuxPane as string | undefined;
+					if (tmuxPane) {
+						this.registry.setMeta(entry.sessionId, { pane: tmuxPane });
+					}
+					// Auto-bind to project by matching cwd to rootPaths
+					const cwd = (entry.cwd || '').toLowerCase();
+					if (cwd) {
+						const projects = this.projectManager.getAllProjects?.() || [];
+						for (const p of projects) {
+							const match = (p.rootPaths || []).some(
+								(rp: string) => cwd === rp.toLowerCase() || cwd.startsWith(rp.toLowerCase() + '\\') || cwd.startsWith(rp.toLowerCase() + '/'),
+							);
+							if (match) {
+								this.registry.setProject(entry.sessionId, p.name);
+								break;
+							}
+						}
+					}
 				}
 				break;
 			}
@@ -640,15 +651,6 @@ export class HookWatcher implements vscode.Disposable {
 					folderId,
 					intent.trackToolUsage,
 				);
-				// Orchestrator: broadcast card creation to bus
-				if (cfg.get<boolean>('orchestrator.enabled', true)) {
-					this.bus.post({
-						from: sessionId || 'system',
-						project: this.projectManager.getActiveProject()?.name,
-						payload: { type: 'cm:card-created', title: intent.title.trim() },
-					});
-					this._syncSessionContext();
-				}
 				break;
 			}
 
@@ -662,15 +664,6 @@ export class HookWatcher implements vscode.Disposable {
 					intent.confidence || 'observed',
 					intent.learnedFrom || 'external plugin write intent',
 				);
-				// Orchestrator: broadcast convention to bus
-				if (cfg.get<boolean>('orchestrator.enabled', true)) {
-					this.bus.post({
-						from: sessionId || 'system',
-						project: this.projectManager.getActiveProject()?.name,
-						payload: { type: 'cm:convention-learned', title: intent.title.trim(), content: intent.content.trim() },
-					});
-					this._syncSessionContext();
-				}
 				break;
 			}
 
@@ -944,16 +937,6 @@ export class HookWatcher implements vscode.Disposable {
 					}
 				}
 			}
-		}
-
-		// ── Orchestrator: inject fleet status + bus messages ──
-		const activeProject = this.projectManager.getActiveProject();
-		if (activeProject) {
-			const orchLines = this.contextSync.generateOrchestratorContext(
-				'vscode-session', // VS Code doesn't have a CLI session ID
-				activeProject.id,
-			);
-			lines.push(...orchLines);
 		}
 
 		this.updateSessionContext(lines.join('\n'));

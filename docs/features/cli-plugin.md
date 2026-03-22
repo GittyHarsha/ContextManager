@@ -76,7 +76,7 @@ Copilot CLI now supports `agentStop` and `subagentStop` hooks, which fire when t
 
 ## MCP Tools
 
-The plugin bundles a local MCP server that gives the CLI agent read access to your project memory and orchestration primitives:
+The plugin bundles a local MCP server that gives the CLI agent read access to your project memory and orchestration tools:
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -103,17 +103,14 @@ These tools queue write requests that the VS Code extension materializes:
 
 ### Orchestrator Tools
 
-These tools enable multi-session coordination — agents can see each other and communicate:
+These tools enable multi-session coordination — agents can see each other and communicate via psmux/tmux send-keys:
 
 | Tool | Purpose |
 |:-----|:--------|
 | `orchestrator_list_agents` | List all active agent sessions (filter by project) |
 | `orchestrator_get_agent` | Get full details for a specific agent |
 | `orchestrator_set_agent_meta` | Set arbitrary metadata on your agent entry (status, task, phase — anything) |
-| `orchestrator_post_message` | Post a message to the bus (broadcast or directed, any JSON payload) |
-| `orchestrator_read_messages` | Read unread messages, advances read cursor |
-| `orchestrator_peek_messages` | Read without advancing cursor (good for monitoring) |
-| `orchestrator_resume_session` | Resume a previous session in a VS Code terminal |
+| `orchestrator_send` | Send a message to another agent by typing into its psmux/tmux pane |
 
 {: .tip }
 Write intents are appended to `~/.contextmanager/hook-queue.jsonl` as `WriteIntent` entries. The VS Code extension's HookWatcher picks them up and materializes them into the target project.
@@ -126,7 +123,7 @@ The plugin ships one flexible agent, available immediately after install:
 
 | Agent | Usage | Purpose |
 |:------|:------|:--------|
-| `orchestrate` | `copilot --agent=orchestrate` | Knows all orchestrator primitives (registry, bus, knowledge, sessions) — direct it however you want |
+| `orchestrate` | `copilot --agent=orchestrate` | Knows registry + psmux send-keys for multi-agent coordination — direct it however you want |
 
 The `orchestrate` agent replaces the previous `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents with a single agent that follows your lead instead of prescribing a narrow workflow.
 

@@ -10,38 +10,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Project management MCP tools** — New `contextmanager_create_project`, `contextmanager_rename_project`, and `contextmanager_update_project` MCP tools let CLI agents create projects, rename them, and update context (description, goals, conventions, key files). Delete stays dashboard-only for safety.
 - **Session bind MCP tool** — New `contextmanager_bind_session` lets CLI agents bind unbound sessions to projects, triggering pending capture backfill.
-- **Session resume MCP tool** — New `orchestrator_resume_session` resumes a previous Copilot CLI session in a VS Code terminal.
-- **Agent Orchestration Primitives** — New `src/orchestrator/` module with AgentRegistry, MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. Enables multi-session coordination across Copilot CLI, VS Code, and Claude Code agents.
-- **6 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Available in every CLI session via the ContextManager plugin.
-- **Message Bus** — Append-only JSONL message channel (`~/.contextmanager/agent-bus.jsonl`) with per-agent read cursors, TTL expiry, broadcast + directed messages. Auto-posts `cm:convention-learned` and `cm:card-created` system messages when knowledge is materialized.
-- **Context Sync** — Automatically injects fleet status and recent bus messages into `session-context.txt` on every prompt, configurable via `contextManager.orchestrator.*` settings.
-- **Plugin ships orchestrate agent** — Plugin bundles the `orchestrate` agent — a single flexible agent that knows all orchestrator primitives (registry, bus, knowledge, sessions) and follows the user's lead. Available immediately on `copilot plugin install`.
-- **5 orchestrator settings** — `orchestrator.enabled`, `orchestrator.injectBusMessages`, `orchestrator.maxInjectedMessages`, `orchestrator.injectFleetStatus`, `orchestrator.agentStaleTimeout`.
-
-### Fixed
-- **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
-- **Session file hash mismatch** — Aligned MCP server session file key (SHA256) with capture script, so the real Copilot session UUID flows through to orchestrator tools instead of synthetic `cm-*` IDs.
-
-### Removed
-- **ACP Orchestrator removed** — Removed `AcpOrchestrator` module and all headless ACP agent spawning. Agents should not silently spawn other agents with elevated permissions; users control their own sessions. `orchestrator_resume_session` now only resumes sessions in VS Code terminals.
-- **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents from the plugin. They were too rigid — users want flexibility, not narrow single-purpose agents.
-- **Orchestrate skill** — Removed `plugin/skills/` directory. Skill content consolidated into the `orchestrate` agent.
-
-### Changed
-- **Plugin ships single orchestrate agent** — Replaced 3 narrow agents + 1 skill with a single `orchestrate` agent that knows all orchestrator primitives and follows the user's direction.
-- **Plugin v2.14.0** — Updated description, keywords, and added `agents` field to `plugin.json`.
-
-### Added
+- **Agent Orchestration Primitives** — New `src/orchestrator/` module with AgentRegistry. Enables multi-session coordination across Copilot CLI, VS Code, and Claude Code agents.
+- **4 orchestrator MCP tools** — `orchestrator_list_agents`, `orchestrator_get_agent`, `orchestrator_set_agent_meta`, `orchestrator_send`. Available in every CLI session via the ContextManager plugin.
+- **`orchestrator_send` psmux tool** — Sends a message to another agent by typing into its psmux/tmux pane via `send-keys`. Resolves session → pane ID from the agent registry.
+- **Auto-bind sessions by cwd** — HookWatcher automatically binds sessions to projects by matching working directory against project rootPaths on SessionStart.
+- **Pane ID capture** — Capture script reads `$env:TMUX_PANE` on SessionStart; HookWatcher stores it in agent registry metadata for `orchestrator_send` resolution.
+- **Plugin ships orchestrate agent** — Plugin bundles the `orchestrate` agent — a single flexible agent that knows registry + psmux send-keys and follows the user's lead. Available immediately on `copilot plugin install`.
+- **1 orchestrator setting** — `orchestrator.enabled`.
 - **Claude Code plugin** — Full Claude Code plugin (`claude-code-plugin/`) with hooks and MCP server. Install via `claude plugin install GittyHarsha/ContextManager:claude-code-plugin`. Captures Stop, PostToolUse, PreCompact, session events, and provides MCP read/write access to project memory. Unlike the Copilot CLI plugin, automatic card queue population works fully.
 - **Claude Code hook install command** — Quick-start command `ContextManager: Install Claude Code Hooks` writes hooks to `.claude/settings.json` for project-level setup without the full plugin. Also available as a dashboard button.
 - **Copilot CLI `agentStop` / `subagentStop` hooks** — Copilot CLI now supports `agentStop` and `subagentStop` events. The plugin hooks into both, producing `Stop` queue entries with the full prompt + response. **Automatic card queue population now works from CLI sessions.**
 - **Copilot CLI `preToolUse` hook** — Registers a `preToolUse` hook for tool invocation logging.
 
+### Changed
+- **Orchestrator simplified to registry + psmux send-keys** — Removed MessageBus, ContextSync, AgentLauncher, and AgentDiscovery. The orchestrator is now just the AgentRegistry (who's running, pane IDs, project bindings) and `orchestrator_send` (type into another agent's pane). No shared files, no context injection — one agent looks up another and sends it a message directly.
+- **Plugin ships single orchestrate agent** — Replaced 3 narrow agents + 1 skill with a single `orchestrate` agent that knows registry + psmux send-keys and follows the user's direction.
+- **Plugin v2.14.0** — Updated description, keywords, and added `agents` field to `plugin.json`.
+
 ### Fixed
-- **Removed CLI card capture gap warning** — The original limitation (no `Stop` hook in Copilot CLI) is resolved. Documentation warnings replaced with notes confirming full support.
-- **CLI `agentStop` transcript path mismatch** — Copilot CLI sends `transcriptPath` (camelCase) in the `agentStop` payload, but capture scripts only checked `transcript_path` (snake_case). The prompt + response were never extracted, so `Stop` queue entries were silently skipped. Fixed in both PowerShell and bash scripts.
-- **`ConvertFrom-Json -Depth` on PowerShell 5.1** — The `-Depth` parameter isn't supported in Windows PowerShell 5.1 (the default `powershell.exe`). All CLI hook invocations silently failed. Removed the unsupported parameter.
-- **VS Code agent hooks file conflicts with Copilot CLI** — The generated `.github/hooks/contextmanager-hooks.json` uses VS Code agent hook format (`command`/`windows`/`timeout`), which Copilot CLI misinterprets as its own format (`bash`/`powershell`/`timeoutSec`). Removed the file from version control and added it to `.gitignore` since it contains user-specific paths and is auto-generated by the Install Hooks command.
+- **MCP server zod compatibility** — Switched from esbuild to tsc for MCP server compilation to fix zod v4 instance mismatch (`_zod` property error) with `@modelcontextprotocol/sdk`.
+- **Session file hash mismatch** — Aligned MCP server session file key (SHA256) with capture script, so the real Copilot session UUID flows through to orchestrator tools instead of synthetic `cm-*` IDs.
+- **Removed CLI card capture gap warning** — `agentStop` is now available, resolving the original limitation.
+- **CLI `agentStop` transcript path mismatch** — Scripts now check `transcriptPath` (camelCase) first, then fall back to `transcript_path`.
+- **`ConvertFrom-Json -Depth` on PS 5.1** — Removed unsupported parameter that silently broke all CLI hooks on Windows PowerShell 5.1.
+- **VS Code agent hooks file conflicts with Copilot CLI** — Gitignored the generated `.github/hooks/contextmanager-hooks.json` to prevent format conflicts.
+
+### Removed
+- **MessageBus** — Removed `src/orchestrator/MessageBus.ts`. Agents communicate directly via psmux send-keys instead of a shared JSONL bus file.
+- **ContextSync** — Removed `src/orchestrator/ContextSync.ts`. No more automatic injection of bus messages or fleet status into session context.
+- **AgentLauncher** — Removed `src/orchestrator/AgentLauncher.ts`. Terminal launch bridge no longer needed.
+- **AgentDiscovery** — Removed `src/orchestrator/AgentDiscovery.ts`. Agent discovery no longer needed.
+- **4 bus MCP tools** — Removed `orchestrator_post_message`, `orchestrator_read_messages`, `orchestrator_peek_messages`. Replaced by `orchestrator_send` psmux tool.
+- **`orchestrator_resume_session` MCP tool** — Removed. Users run `copilot --resume` themselves.
+- **4 orchestrator settings** — Removed `orchestrator.injectBusMessages`, `orchestrator.maxInjectedMessages`, `orchestrator.injectFleetStatus`, `orchestrator.agentStaleTimeout`. Only `orchestrator.enabled` remains.
+- **ACP Orchestrator** — Removed `AcpOrchestrator` module and all headless ACP agent spawning.
+- **3 prescriptive plugin agents** — Removed `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents from the plugin.
+- **Orchestrate skill** — Removed `plugin/skills/` directory. Skill content consolidated into the `orchestrate` agent.
 
 ## [2.12.0] - 2026-03-15
 

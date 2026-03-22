@@ -15,112 +15,99 @@ Coordinate multiple Copilot CLI sessions, VS Code Copilot, and Claude Code agent
 
 ## Overview
 
-When you run multiple agent sessions simultaneously — each in its own terminal — they're isolated by default. Agent A doesn't know what Agent B learned. ContextManager's orchestration primitives connect them:
+When you run multiple agent sessions simultaneously — each in its own terminal pane — they're isolated by default. Agent A doesn't know what Agent B is doing. ContextManager connects them with two primitives:
 
-- **Agent Registry** — a live directory of who's running
-- **Message Bus** — a shared channel for agents to communicate
-- **Context Sync** — automatic injection of cross-session knowledge
+- **Agent Registry** — a live directory of who's running, what pane they're in, and what project they're bound to
+- **Direct messaging via psmux/tmux send-keys** — type a message directly into another agent's terminal pane
 
-These are generic, unopinionated primitives exposed as MCP tools. You compose them into whatever orchestration patterns you need via custom agents.
+No message bus, no shared files, no context injection. One agent looks up another in the registry and sends it a message by typing into its pane. Simple and direct.
 
 ## MCP Tools
 
-All tools are available in any Copilot CLI session with the ContextManager plugin installed.
-
-### Registry
+All tools are available in any Copilot CLI or Claude Code session with the ContextManager plugin installed.
 
 | Tool | Description |
 |---|---|
 | `orchestrator_list_agents` | List active agents, optionally filter by project |
-| `orchestrator_get_agent` | Get full details for a specific agent |
+| `orchestrator_get_agent` | Get full details for a specific agent by session ID |
 | `orchestrator_set_agent_meta` | Set arbitrary metadata on your agent (status, task, phase — anything) |
-
-### Message Bus
-
-| Tool | Description |
-|---|---|
-| `orchestrator_post_message` | Post a message to the bus (any JSON payload) |
-| `orchestrator_read_messages` | Read unread messages, advances cursor |
-| `orchestrator_peek_messages` | Read without advancing cursor (monitoring) |
+| `orchestrator_send` | Send a message to another agent by typing into its psmux/tmux pane |
 
 ## How It Works
 
 ### Agent Registry
 
-Every Copilot CLI/VS Code/Claude session that fires hook events is automatically registered in `~/.contextmanager/agent-registry.json`. Each entry tracks:
+Every Copilot CLI, VS Code, or Claude Code session that fires hook events is automatically registered in `~/.contextmanager/agent-registry.json`. Each entry tracks:
 
-- Session ID and origin (CLI, VS Code, Claude)
-- Working directory and bound project
-- Last activity timestamp (heartbeat)
-- Custom metadata blob (open schema — set anything you want)
+- **Session ID** and **origin** (CLI, VS Code, Claude Code)
+- **Working directory** and **bound project** (auto-detected from cwd)
+- **Pane ID** — the psmux/tmux pane the session runs in (captured automatically on SessionStart)
+- **Last activity timestamp** (heartbeat)
+- **Custom metadata blob** (open schema — set anything you want)
 
 Stale agents (no activity for 30 minutes by default) are automatically pruned.
 
-### Message Bus
+### Auto-Bind by Working Directory
 
-Agents communicate via `~/.contextmanager/agent-bus.jsonl` — an append-only message log. Messages have:
+When a session starts, HookWatcher matches the session's working directory against each project's `rootPaths`. If the cwd falls under a project root, the session is automatically bound to that project. No manual binding needed for standard setups.
 
-- Sender and optional recipient (omit for broadcast)
-- Optional project scope
-- Any JSON payload (no schema enforced)
-- TTL (default 24 hours)
+### Pane ID Capture
 
-**System messages** (prefixed `cm:`) are auto-posted when:
-- A convention is learned → `{ type: "cm:convention-learned", title: "...", content: "..." }`
-- A knowledge card is created → `{ type: "cm:card-created", title: "..." }`
+The capture script reads `$env:TMUX_PANE` on every `SessionStart` event and writes it to the hook queue. HookWatcher picks it up and stores it in the agent's registry metadata under the `pane` key. This means `orchestrator_send` can resolve any registered agent to its terminal pane automatically.
 
-### Context Sync
+{: .note }
+If `$env:TMUX_PANE` is not set (e.g. the session isn't running inside psmux/tmux), agents can set their pane manually via `orchestrator_set_agent_meta({ meta: { pane: "<pane-id>" } })`.
 
-Recent bus messages and fleet status are automatically injected into `session-context.txt`, which Copilot reads on every prompt. This means:
+### Sending Messages (psmux send-keys)
 
-- When Agent A learns a convention, Agent B sees it on its next prompt
-- When Agent A posts a message, Agent B gets it without explicitly calling `read_messages`
+`orchestrator_send` takes a `sessionId` and a `message`. It:
 
-Configure injection via VS Code settings:
-- `contextManager.orchestrator.injectBusMessages` (default: true)
-- `contextManager.orchestrator.maxInjectedMessages` (default: 5)
-- `contextManager.orchestrator.injectFleetStatus` (default: false)
+1. Looks up the target agent in the registry
+2. Reads the `pane` from the agent's metadata
+3. Runs `psmux send-keys -t <pane> "<message>" Enter` (Windows) or `tmux send-keys` (Unix)
+
+The message is typed directly into the target agent's terminal pane, as if a human typed it. The target agent receives it as a normal prompt.
+
+{: .warning }
+`orchestrator_send` requires psmux (Windows) or tmux (Unix) to be available on `PATH`. Sessions must be running inside a multiplexer for send-keys to work.
 
 ## Orchestrate Agent
 
-The plugin ships a single `orchestrate` agent that knows all orchestrator primitives — registry, bus, knowledge, sessions — and follows your lead:
+The plugin ships a single `orchestrate` agent that knows the registry and psmux send-keys — and follows your lead:
 
 ```
 copilot --agent=orchestrate
-> "Show me who's running and what they're saying"
+> "Show me who's running on this project"
+> "Send Agent B a message to start the API migration"
 > "Coordinate builds across my worktrees"
-> "Review recent sessions for repeated mistakes"
 ```
 
 This replaces the previous `fleet-monitor`, `build-coordinator`, and `session-reviewer` agents. Instead of 3 narrow agents that each prescribe a single workflow, one flexible agent lets you direct the orchestration however you want.
 
 ## Building Your Own Orchestration
 
-The primitives are generic — build whatever you need:
+The primitives are simple — build whatever you need:
 
 **Task assignment:**
 ```
-Agent A: orchestrator_post_message({ payload: { type: "task", description: "update API docs", priority: 1 } })
-Agent B: orchestrator_read_messages() → sees task → does it → orchestrator_post_message({ payload: { type: "task-done", task: "update API docs" } })
+Agent A: orchestrator_send({ sessionId: "agent-b-id", message: "Please update the API docs for the new /users endpoint" })
+Agent B: receives the message as a prompt → does the work → orchestrator_send({ sessionId: "agent-a-id", message: "API docs updated, PR ready for review" })
 ```
 
 **Status coordination:**
 ```
-Agent A: orchestrator_set_agent_meta({ meta: { status: "waiting-for-build" } })
-Build agent: orchestrator_list_agents() → sees waiting agent → builds → orchestrator_post_message({ to: "agent-a-session-id", payload: { type: "build-complete", status: "success" } })
+Agent A: orchestrator_set_agent_meta({ meta: { status: "waiting-for-build", task: "frontend tests" } })
+Build agent: orchestrator_list_agents() → sees waiting agent → builds → orchestrator_send({ sessionId: "agent-a-id", message: "Build complete, all tests pass" })
 ```
 
-**Knowledge sharing:**
+**Fleet monitoring:**
 ```
-Agent A learns something → auto-posted to bus as cm:convention-learned → Agent B sees it on next prompt via context sync
+Monitor: orchestrator_list_agents({ project: "MyApp" }) → sees 3 agents, their tasks, last activity
+Monitor: orchestrator_send({ sessionId: "stale-agent-id", message: "Are you still working on the auth refactor?" })
 ```
 
 ## Settings
 
 | Setting | Default | Description |
 |---|---|---|
-| `contextManager.orchestrator.enabled` | `true` | Enable orchestration primitives |
-| `contextManager.orchestrator.injectBusMessages` | `true` | Auto-inject bus messages into prompts |
-| `contextManager.orchestrator.maxInjectedMessages` | `5` | Max messages to inject |
-| `contextManager.orchestrator.injectFleetStatus` | `false` | Include peer agent list in prompts |
-| `contextManager.orchestrator.agentStaleTimeout` | `1800` | Seconds before pruning stale agents |
+| `contextManager.orchestrator.enabled` | `true` | Enable agent orchestration (registry + psmux send) |
